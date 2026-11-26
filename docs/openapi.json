@@ -5752,15 +5752,15 @@
         ]
       },
       "post": {
-        "summary": "Start a class file or student folder upload",
-        "description": "Creates a pending file and returns a presigned S3 POST. Omit `student_id` for a class file (staff only); pass an enrolled student's id for their private folder. Students may upload only to their own folder, only while active, and only with `visibility: students`. Allowed types: PDF, Word, Excel, PowerPoint, CSV, text, Markdown, ZIP, PNG, JPEG, WebP, MP3, M4A and MP4, up to 100 MB; active types such as HTML, SVG and scripts are rejected (422). 503 when storage is not configured. Shares the uploads rate limit.",
+        "summary": "Add a link, or start a class file or student folder upload",
+        "description": "With `kind: link` (no storage needed) saves a public https:// link and returns it ready (201 `{ file }`); http, javascript, data and file links, credentials, percent-encoded or non-ASCII hosts, single-label and local names, and private, shared (CGNAT), loopback, link-local, reserved (including 6to4 relay) and non-global or special-purpose IPv6 addresses (2001::/23 except its globally reachable sub-allocations, 6to4, documentation) (IPv4-mapped ones unwrapped) are refused (422). Otherwise creates a pending file and returns a presigned S3 POST. Omit `student_id` for a class file or link (staff only); pass an enrolled student's id for their private folder. Students may add only to their own folder, only while active, and only with `visibility: students`. Allowed upload types: PDF, Word, Excel, PowerPoint, CSV, text, Markdown, ZIP, PNG, JPEG, WebP, MP3, M4A and MP4, up to 100 MB; active types such as HTML, SVG and scripts are rejected (422). 503 for an upload when storage is not configured. Shares the uploads rate limit.",
         "responses": {
           "201": {
-            "description": "Upload started",
+            "description": "Link saved or upload started",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CohortFileUploadResponse"
+                  "$ref": "#/components/schemas/CohortFileCreateResponse"
                 }
               }
             }
@@ -5788,10 +5788,48 @@
         }
       }
     },
+    "/api/v1/cohorts/{cohort_id}/files/rename_folder": {
+      "patch": {
+        "summary": "Rename a class-file folder",
+        "description": "Staff only. Moves every class file and link in `from_folder` to `to_folder` in one statement (student folders are unchanged) and returns how many moved. 422 for a blank source or a blank or longer than 80 character name.",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CohortFolderRenameResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CohortFolderRenameInput"
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/cohorts/{cohort_id}/files/{id}": {
       "patch": {
-        "summary": "Rename, move, share or stage a file",
-        "description": "Staff may change `title`, `description`, `folder` and `visibility`; a student only `title`, `description` and `folder` of files they uploaded to their own folder, while active. Other students' and staff files are 404 to a student.",
+        "summary": "Rename, move, share or stage a file or link",
+        "description": "Staff may change `title`, `description`, `folder`, `visibility` and a link's `external_url`; a student only `title`, `description`, `folder` and a link's `external_url` on items they added to their own folder, while active. A new link address is checked like a new link and reclassified. Other students' and staff files are 404 to a student.",
         "responses": {
           "200": {
             "description": "Successful response",
@@ -5835,7 +5873,7 @@
       },
       "delete": {
         "summary": "Delete a file and its stored objects",
-        "description": "Staff may delete any file in the cohort; a student only files they uploaded to their own folder, and only while active (403 when paused, completed or expired). With `pending_only=true` it abandons an unfinished upload and refuses (422) once the file is published, so retrying after a lost `complete` never removes a published file. 502 when the stored object could not be removed.",
+        "description": "Staff may delete any file in the cohort; a student only files they uploaded to their own folder, and only while active (403 when paused, completed or expired). With `pending_only=true` it abandons an unfinished upload and refuses (422) once the file is published, so retrying after a lost `complete` never removes a published file. The file and all its versions are removed in one transaction that also queues every stored object for deletion; storage is cleaned right after it commits, and anything storage can't remove yet stays queued for retry.",
         "responses": {
           "204": {
             "description": "No content"
@@ -5908,7 +5946,7 @@
     "/api/v1/cohorts/{cohort_id}/files/{id}/download": {
       "get": {
         "summary": "Short-lived download link",
-        "description": "Returns an uncached presigned URL that downloads as an attachment. Students may download only ready class files visible to students and their own folder (others are 404), only if available before a pause (403), and the link never outlives course access.",
+        "description": "Returns an uncached presigned URL that downloads as an attachment. Students may download only ready class files visible to students and their own folder (others are 404), only if available before a pause (403), and the link never outlives course access. Pass `version_id` for an earlier version. A paused learner whose current version was published after the pause gets the newest earlier version. Links have no download (422).",
         "responses": {
           "200": {
             "description": "Successful response",
@@ -5916,6 +5954,96 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CohortFileDownloadResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "version_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "A ready version of this file (from `versions`). Paused learners may read only versions published before their pause (403)."
+          },
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/cohorts/{cohort_id}/files/{id}/preview": {
+      "get": {
+        "summary": "Preview a file in the app",
+        "description": "Same access, pause and expiry rules as `download`, and the same optional `version_id`. PDF, PNG, JPEG, WebP, MP3, M4A and MP4 return a short-lived inline `url` served with the file's allowlisted type; Markdown, text and CSV return up to 512 KB of UTF-8 `text` (with `truncated`), read by the API so no storage CORS is needed; Office files and ZIPs return `download_only` with metadata, as does a text file whose previewed bytes hold null bytes or page markup. Pages, SVGs, scripts and XML are never stored, so never served inline. 503 when a previewable type needs storage that is not configured; 422 for links.",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CohortFilePreviewResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "version_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "A ready version of this file (from `versions`). Paused learners may read only versions published before their pause (403)."
+          },
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/cohorts/{cohort_id}/files/{id}/copy_to_students": {
+      "post": {
+        "summary": "Copy a class file or link into every active student's folder",
+        "description": "Staff only. The source must be a ready class file or link (422 otherwise); links copy without storage, files need it (503). Students who already have a copy are skipped, so running it again reaches only newly enrolled students. Optional body `{ \"folder\": string }` names the folder for the copies; it defaults to the source's folder.",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CohortFileCopyResponse"
                 }
               }
             }
@@ -5941,17 +6069,17 @@
         ]
       }
     },
-    "/api/v1/cohorts/{cohort_id}/files/{id}/copy_to_students": {
-      "post": {
-        "summary": "Copy a class file into every active student's folder",
-        "description": "Staff only. The source must be a ready class file (422 otherwise). Students who already have a copy are skipped, so running it again reaches only newly enrolled students. Optional body `{ \"folder\": string }` names the folder for the copies; it defaults to the source's folder.",
+    "/api/v1/cohorts/{cohort_id}/files/{id}/versions": {
+      "get": {
+        "summary": "Published versions of a file",
+        "description": "Ready versions, newest first, with `current` marking the one this viewer gets by default (for a paused learner, the newest published before the pause). Empty until a file gets a second version. Paused learners see only versions published before their pause. Same access rules as `download`.",
         "responses": {
           "200": {
             "description": "Successful response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CohortFileCopyResponse"
+                  "$ref": "#/components/schemas/CohortFileVersionsResponse"
                 }
               }
             }
@@ -5968,6 +6096,94 @@
           },
           {
             "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      },
+      "post": {
+        "summary": "Start uploading a new version",
+        "description": "Staff on any published uploaded file; an active student on a published file they uploaded to their own folder (paused, completed and expired learners get 403). Creates a pending version and returns its presigned S3 POST; the original upload is archived as version 1 only when this version publishes. Same type and size rules as an upload (422); 422 for links and unpublished files; 503 without storage. Shares the uploads rate limit.",
+        "responses": {
+          "201": {
+            "description": "Version upload started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CohortFileVersionUploadResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CohortFileVersionCreateInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cohorts/{cohort_id}/files/{id}/versions/{version_id}/complete": {
+      "post": {
+        "summary": "Publish an uploaded version",
+        "description": "Checks the staged object's type, size and opening bytes (bound to its etag) like `complete`, copies it to its published key, marks the version ready and makes it the file's current version; the first publish archives the original upload as version 1. A learner paused or removed while it publishes gets 403 and the pending version is abandoned. Published versions are numbered without gaps. Repeating it on a ready version returns it unchanged. 422 when the upload expired, does not match, or changed while confirming.",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CohortFileVersionCompleteResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "version_id",
             "in": "path",
             "required": true,
             "schema": {
@@ -6003,6 +6219,15 @@
             ],
             "description": "The class file this was copied from."
           },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "file",
+              "link",
+              "doc"
+            ],
+            "description": "`file` is an upload, `link` a web address saved in a folder. `doc` is reserved for in-app documents."
+          },
           "folder": {
             "type": "string"
           },
@@ -6023,13 +6248,78 @@
             ]
           },
           "filename": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Null for links."
           },
           "content_type": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Null for links."
           },
           "file_size": {
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Null for links."
+          },
+          "external_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The https:// address of a link; null for files."
+          },
+          "link_provider": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "google_doc",
+              "google_sheet",
+              "google_slides",
+              "google_drive",
+              "figma",
+              "notion",
+              "canva",
+              "loom",
+              "github",
+              "web",
+              null
+            ],
+            "description": "Classified from the link's address; null for files."
+          },
+          "version_number": {
+            "type": "integer",
+            "description": "The current version (1 until a new version is published). For a paused learner, the newest version published before the pause."
+          },
+          "previewable": {
+            "type": "boolean",
+            "description": "Whether `preview` shows this file in the app."
+          },
+          "preview_mode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "pdf",
+              "image",
+              "audio",
+              "video",
+              "markdown",
+              "text",
+              "csv",
+              "download_only",
+              null
+            ],
+            "description": "How `preview` shows the file; null for links."
           },
           "ready": {
             "type": "boolean"
@@ -6070,6 +6360,7 @@
           "cohort_id",
           "student_id",
           "source_file_id",
+          "kind",
           "folder",
           "visibility",
           "title",
@@ -6077,6 +6368,11 @@
           "filename",
           "content_type",
           "file_size",
+          "external_url",
+          "link_provider",
+          "version_number",
+          "previewable",
+          "preview_mode",
           "ready",
           "ready_at",
           "created_at",
@@ -6252,9 +6548,255 @@
         ],
         "additionalProperties": false
       },
-      "CohortFileCreateInput": {
+      "CohortFileCreateResponse": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/CohortFileUploadResponse"
+          },
+          {
+            "$ref": "#/components/schemas/CohortFileResponse"
+          }
+        ],
+        "description": "An upload returns the pending file and its presigned POST; a link is returned ready."
+      },
+      "CohortFilePreviewResponse": {
         "type": "object",
         "properties": {
+          "preview_mode": {
+            "type": "string",
+            "enum": [
+              "pdf",
+              "image",
+              "audio",
+              "video",
+              "markdown",
+              "text",
+              "csv",
+              "download_only"
+            ]
+          },
+          "filename": {
+            "type": "string"
+          },
+          "content_type": {
+            "type": "string"
+          },
+          "file_size": {
+            "type": "integer"
+          },
+          "version_number": {
+            "type": "integer"
+          },
+          "version_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Set when an archived version row is shown."
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Short-lived inline link for pdf, image, audio and video."
+          },
+          "expires_in": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "text": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "UTF-8 text for markdown, text and csv, at most 512 KB."
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "True when the file is longer than the returned text."
+          }
+        },
+        "required": [
+          "preview_mode",
+          "filename",
+          "content_type",
+          "file_size",
+          "version_number",
+          "version_id",
+          "url",
+          "expires_in",
+          "text",
+          "truncated"
+        ],
+        "additionalProperties": false
+      },
+      "CohortFileVersion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "cohort_file_id": {
+            "type": "integer"
+          },
+          "version_number": {
+            "type": "integer"
+          },
+          "filename": {
+            "type": "string"
+          },
+          "content_type": {
+            "type": "string"
+          },
+          "file_size": {
+            "type": "integer"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ready_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "uploaded_by_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "current": {
+            "type": "boolean"
+          },
+          "preview_mode": {
+            "type": "string",
+            "enum": [
+              "pdf",
+              "image",
+              "audio",
+              "video",
+              "markdown",
+              "text",
+              "csv",
+              "download_only"
+            ]
+          },
+          "previewable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "cohort_file_id",
+          "version_number",
+          "filename",
+          "content_type",
+          "file_size",
+          "note",
+          "ready_at",
+          "uploaded_by_name",
+          "current",
+          "preview_mode",
+          "previewable"
+        ],
+        "additionalProperties": false
+      },
+      "CohortFileVersionsResponse": {
+        "type": "object",
+        "properties": {
+          "versions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CohortFileVersion"
+            }
+          }
+        },
+        "required": [
+          "versions"
+        ],
+        "additionalProperties": false
+      },
+      "CohortFileVersionUploadResponse": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "$ref": "#/components/schemas/CohortFileVersion"
+          },
+          "upload_url": {
+            "type": "string"
+          },
+          "fields": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "version",
+          "upload_url",
+          "fields"
+        ],
+        "additionalProperties": false
+      },
+      "CohortFileVersionCompleteResponse": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "$ref": "#/components/schemas/CohortFile"
+          },
+          "version": {
+            "$ref": "#/components/schemas/CohortFileVersion"
+          }
+        },
+        "required": [
+          "file",
+          "version"
+        ],
+        "additionalProperties": false
+      },
+      "CohortFolderRenameResponse": {
+        "type": "object",
+        "properties": {
+          "updated_count": {
+            "type": "integer"
+          },
+          "folder": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "updated_count",
+          "folder"
+        ],
+        "additionalProperties": false
+      },
+      "CohortFileCreateInput": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/CohortFileUploadInput"
+          },
+          {
+            "$ref": "#/components/schemas/CohortLinkCreateInput"
+          }
+        ]
+      },
+      "CohortFileUploadInput": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "file"
+            ]
+          },
           "filename": {
             "type": "string"
           },
@@ -6293,6 +6835,90 @@
         ],
         "additionalProperties": false
       },
+      "CohortLinkCreateInput": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "link"
+            ]
+          },
+          "external_url": {
+            "type": "string",
+            "maxLength": 2048,
+            "description": "A public https:// address. Other schemes, credentials, localhost and private or link-local addresses are refused (422)."
+          },
+          "title": {
+            "type": "string",
+            "description": "Defaults to the link's host."
+          },
+          "description": {
+            "type": "string"
+          },
+          "folder": {
+            "type": "string"
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "students",
+              "staff_only"
+            ]
+          },
+          "student_id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "external_url"
+        ],
+        "additionalProperties": false
+      },
+      "CohortFileVersionCreateInput": {
+        "type": "object",
+        "properties": {
+          "filename": {
+            "type": "string"
+          },
+          "content_type": {
+            "type": "string"
+          },
+          "file_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 104857600
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 300
+          }
+        },
+        "required": [
+          "filename",
+          "content_type",
+          "file_size"
+        ],
+        "additionalProperties": false
+      },
+      "CohortFolderRenameInput": {
+        "type": "object",
+        "properties": {
+          "from_folder": {
+            "type": "string"
+          },
+          "to_folder": {
+            "type": "string",
+            "maxLength": 80
+          }
+        },
+        "required": [
+          "from_folder",
+          "to_folder"
+        ],
+        "additionalProperties": false
+      },
       "CohortFileUpdateInput": {
         "type": "object",
         "properties": {
@@ -6311,6 +6937,11 @@
               "students",
               "staff_only"
             ]
+          },
+          "external_url": {
+            "type": "string",
+            "maxLength": 2048,
+            "description": "Links only: a new public https:// address."
           }
         },
         "required": [],

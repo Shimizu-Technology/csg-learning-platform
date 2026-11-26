@@ -7,6 +7,7 @@ import { useCohort } from '@/providers/cohort-provider';
 import { themedAlert } from '@/lib/alerts';
 import { ApiError } from '@/lib/api';
 import { uploadToMyFolder } from '@/lib/cohort-files';
+import { openExternalPage } from '@/lib/external-links';
 
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === '__esModule' ? true : () => null }));
 jest.mock('expo-router', () => ({ useLocalSearchParams: () => ({ cohort_id: '4' }), usePathname: () => '/', useRouter: () => ({ canGoBack: () => false, back: jest.fn(), replace: jest.fn() }) }));
@@ -23,13 +24,14 @@ import StaffCohortFilesScreen from '../../app/(app)/staff/files';
 const file = (overrides: Record<string, unknown>) => ({
   id: 1, cohort_id: 4, student_id: null, source_file_id: null, folder: 'Slides', visibility: 'students', title: 'Week 1 Ruby Slides',
   description: null, filename: 'week-1-ruby-slides.pdf', content_type: 'application/pdf', file_size: 2048, ready: true,
-  ready_at: '2026-11-24T00:00:00Z', created_at: '2026-11-24T00:00:00Z', uploaded_by_name: 'Ina Instructor', uploaded_by_role: 'staff', can_manage: false, ...overrides,
+  ready_at: '2026-11-24T00:00:00Z', created_at: '2026-11-24T00:00:00Z', uploaded_by_name: 'Ina Instructor', uploaded_by_role: 'staff', can_manage: false,
+  kind: 'file', external_url: null, link_provider: null, version_number: 1, previewable: true, preview_mode: 'pdf', ...overrides,
 });
 const resume = file({ id: 5, student_id: 3, folder: 'Resumes & Portfolio', title: 'Resume Draft v1', filename: 'resume-draft-v1.pdf', uploaded_by_role: 'student', can_manage: true });
 const plan = file({ id: 6, student_id: 3, folder: 'Job Search & Career', title: 'Job Search Plan', filename: 'student-one-job-search-plan.docx' });
 const api = {
   resources: jest.fn(), cohortFiles: jest.fn(), downloadCohortFile: jest.fn(), deleteCohortFile: jest.fn(), createCohortFile: jest.fn(), completeCohortFile: jest.fn(),
-  cohorts: jest.fn(),
+  cohorts: jest.fn(), createCohortLink: jest.fn(), previewCohortFile: jest.fn(),
 };
 let client: QueryClient;
 beforeEach(() => {
@@ -87,7 +89,7 @@ test('staff browse class files and open a student folder on the phone', async ()
   fireEvent.press(screen.getByRole('tab', { name: 'Student folders · 1' }));
   fireEvent.press(screen.getByRole('button', { name: "Open Student One's folder, 2 files" }));
   expect(screen.getByText('Resume Draft v1')).toBeTruthy();
-  expect(screen.getByText(/Uploaded by student/)).toBeTruthy();
+  expect(screen.getByText(/Added by student/)).toBeTruthy();
   expect(screen.getByText(/Shared by staff/)).toBeTruthy();
   expect(api.cohortFiles).toHaveBeenCalledWith(4, expect.anything());
   fireEvent.press(screen.getByRole('button', { name: 'All student folders' }));
@@ -149,3 +151,70 @@ test('a failed native upload abandons only the still-pending file', async () => 
   expect(api.deleteCohortFile).toHaveBeenCalledWith(4, 41, { pendingOnly: true });
 });
 
+
+test('links open with their provider badge, and learners add links to their folder', async () => {
+  const link = file({ id: 7, student_id: 3, kind: 'link', title: 'Portfolio repo', filename: null, content_type: null, file_size: null, previewable: false, preview_mode: null,
+    external_url: 'https://github.com/student/portfolio', link_provider: 'github', folder: 'Resumes & Portfolio', can_manage: true, uploaded_by_role: 'student' });
+  api.cohortFiles.mockResolvedValue({ class_files: [], my_files: [link], folders: [], storage_configured: false, can_upload_personal: true });
+  api.createCohortLink.mockResolvedValue({ file: link });
+  const screen = mount(<ResourcesScreen />);
+  await screen.findByText('Portfolio repo');
+  expect(screen.getByText('GitHub')).toBeTruthy();
+  expect(screen.getByText(/github.com · Resumes & Portfolio/)).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Download Portfolio repo' })).toBeNull();
+  fireEvent.press(screen.getByRole('link', { name: 'Open Portfolio repo' }));
+  await waitFor(() => expect(Linking.openURL).toHaveBeenCalledWith('https://github.com/student/portfolio'));
+
+  fireEvent.press(screen.getByRole('button', { name: 'Add a link' }));
+  fireEvent.changeText(screen.getByLabelText('Link'), 'http://example.com');
+  fireEvent.press(screen.getByRole('button', { name: 'Save link' }));
+  expect(screen.getByText('Links must start with https://')).toBeTruthy();
+  expect(api.createCohortLink).not.toHaveBeenCalled();
+  fireEvent.changeText(screen.getByLabelText('Link'), 'https://docs.google.com/document/d/x');
+  fireEvent.press(screen.getByRole('button', { name: 'Save to Resumes & Portfolio' }));
+  fireEvent.press(screen.getByRole('button', { name: 'Save link' }));
+  await waitFor(() => expect(api.createCohortLink).toHaveBeenCalledWith(4, { external_url: 'https://docs.google.com/document/d/x', folder: 'Resumes & Portfolio' }));
+});
+
+test('files show their version and preview text in the app or open media in the browser', async () => {
+  const notes = file({ id: 8, title: 'Week 1 notes', filename: 'notes.csv', preview_mode: 'csv', version_number: 2 });
+  api.cohortFiles.mockResolvedValue({ class_files: [notes, file({})], my_files: [], folders: [], storage_configured: true, can_upload_personal: true });
+  api.previewCohortFile.mockImplementation(async (_cohort: number, fileId: number) => fileId === 8
+    ? { preview_mode: 'csv', filename: 'notes.csv', content_type: 'text/csv', file_size: 20, version_number: 2, version_id: null, url: null, expires_in: null, text: 'name,score\nAda,98', truncated: false }
+    : { preview_mode: 'pdf', filename: 'week-1-ruby-slides.pdf', content_type: 'application/pdf', file_size: 2048, version_number: 1, version_id: null, url: 'https://storage.test/inline.pdf', expires_in: 300, text: null, truncated: false });
+  const screen = mount(<ResourcesScreen />);
+  await screen.findByText('Week 1 notes');
+  expect(screen.getByText('v2')).toBeTruthy();
+  fireEvent.press(screen.getByRole('button', { name: 'Preview Week 1 notes' }));
+  await screen.findByText('Ada');
+  expect(screen.getByText('score')).toBeTruthy();
+  fireEvent.press(screen.getByRole('button', { name: 'Close Week 1 notes' }));
+  fireEvent.press(screen.getByRole('button', { name: 'Preview Week 1 Ruby Slides' }));
+  await waitFor(() => expect(openExternalPage).toHaveBeenCalledWith('https://storage.test/inline.pdf'));
+});
+
+test('staff add a class link from the phone', async () => {
+  jest.mocked(useSession).mockReturnValue({ user: { id: 2, is_staff: true }, api } as unknown as ReturnType<typeof useSession>);
+  api.cohorts.mockResolvedValue({ cohorts: [{ id: 4, name: 'Prework Demo' }] });
+  api.cohortFiles.mockResolvedValue({ class_files: [file({})], student_folders: [], folders: ['Slides'], storage_configured: false, can_upload_personal: false });
+  api.createCohortLink.mockResolvedValue({ file: file({ id: 9, kind: 'link' }) });
+  const screen = mount(<StaffCohortFilesScreen />);
+  await screen.findByText('Week 1 Ruby Slides');
+  fireEvent.press(screen.getByRole('button', { name: 'Add a class link' }));
+  fireEvent.changeText(screen.getByLabelText('Link'), 'https://www.figma.com/design/x');
+  fireEvent.changeText(screen.getByLabelText('Title (optional)'), 'Capstone board');
+  fireEvent.press(screen.getByRole('button', { name: 'Save link' }));
+  await waitFor(() => expect(api.createCohortLink).toHaveBeenCalledWith(4, { external_url: 'https://www.figma.com/design/x', folder: 'Slides', title: 'Capstone board' }));
+  await waitFor(() => expect(api.cohortFiles).toHaveBeenCalledTimes(2));
+});
+
+test('a saved link to a private address never opens', async () => {
+  const link = file({ id: 11, kind: 'link', title: 'Router admin', filename: null, content_type: null, file_size: null, previewable: false, preview_mode: null,
+    external_url: 'https://192.168.1.1/admin', link_provider: 'web' });
+  api.cohortFiles.mockResolvedValue({ class_files: [link], my_files: [], folders: [], storage_configured: true, can_upload_personal: true });
+  const screen = mount(<ResourcesScreen />);
+  await screen.findByText('Router admin');
+  expect(screen.getByRole('link', { name: 'Open Router admin' }).props.accessibilityState.disabled).toBe(true);
+  fireEvent.press(screen.getByRole('link', { name: 'Open Router admin' }));
+  expect(Linking.openURL).not.toHaveBeenCalled();
+});

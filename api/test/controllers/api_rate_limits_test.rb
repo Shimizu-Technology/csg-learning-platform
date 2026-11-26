@@ -89,6 +89,7 @@ class ApiRateLimitsTest < ActionController::TestCase
     paths = [
       [ "curriculum_resources", "create" ],
       [ "cohort_files", "create" ],
+      [ "cohort_files", "create_version" ],
       [ "uploads", "multipart_initiate" ],
       [ "content_blocks", "generic_video_presign" ],
       [ "content_blocks", "video_presign" ],
@@ -169,7 +170,7 @@ class ApiRateLimitsTest < ActionController::TestCase
   test "upload download and cleanup actions do not consume the uploads allowance" do
     {
       "curriculum_resources" => [ "index", "complete", "download", "destroy" ],
-      "cohort_files" => [ "index", "complete", "download", "update", "destroy", "copy_to_students" ],
+      "cohort_files" => [ "index", "complete", "download", "preview", "versions", "complete_version", "rename_folder", "update", "destroy", "copy_to_students" ],
       "uploads" => [ "multipart_complete", "multipart_abort", "abandon" ],
       "recordings" => [ "create", "stream_url" ],
       "content_blocks" => [ "create", "video_stream" ]

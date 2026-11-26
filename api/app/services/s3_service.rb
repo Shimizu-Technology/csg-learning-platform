@@ -24,10 +24,12 @@ class S3Service
       end
     end
 
-    def generate_presigned_url(key, expires_in: PRESIGN_EXPIRY, response_content_disposition: nil)
+    # Pass response_content_type to pin the type storage serves, for inline previews.
+    def generate_presigned_url(key, expires_in: PRESIGN_EXPIRY, response_content_disposition: nil, response_content_type: nil)
       presigner = Aws::S3::Presigner.new(client: s3_client)
       options = { bucket: bucket_name, key: key, expires_in: expires_in }
       options[:response_content_disposition] = response_content_disposition if response_content_disposition
+      options[:response_content_type] = response_content_type if response_content_type
       presigner.presigned_url(:get_object, **options)
     end
 

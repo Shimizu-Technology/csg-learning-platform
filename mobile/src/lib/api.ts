@@ -219,10 +219,12 @@ export class CsgApi {
   resources = (signal?: AbortSignal) => this.request<{ resources: LearningResource[] }>('/api/v1/resources?include_course_files=true', { signal });
   // Class files and private student folders. Signed download links are requested per tap.
   cohortFiles = (cohortId: number, signal?: AbortSignal) => this.request<components['schemas']['CohortFilesResponse']>(`/api/v1/cohorts/${cohortId}/files`, { signal });
-  createCohortFile = (cohortId: number, input: components['schemas']['CohortFileCreateInput']) => this.request<components['schemas']['CohortFileUploadResponse']>(`/api/v1/cohorts/${cohortId}/files`, { method: 'POST', body: JSON.stringify(input) });
+  createCohortFile = (cohortId: number, input: components['schemas']['CohortFileUploadInput']) => this.request<components['schemas']['CohortFileUploadResponse']>(`/api/v1/cohorts/${cohortId}/files`, { method: 'POST', body: JSON.stringify(input) });
+  createCohortLink = (cohortId: number, input: Omit<components['schemas']['CohortLinkCreateInput'], 'kind'>) => this.request<components['schemas']['CohortFileResponse']>(`/api/v1/cohorts/${cohortId}/files`, { method: 'POST', body: JSON.stringify({ ...input, kind: 'link' }) });
   completeCohortFile = (cohortId: number, fileId: number) => this.request<components['schemas']['CohortFileResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/complete`, { method: 'POST' });
   deleteCohortFile = (cohortId: number, fileId: number, options: { pendingOnly?: boolean } = {}) => this.request<void>(`/api/v1/cohorts/${cohortId}/files/${fileId}${options.pendingOnly ? '?pending_only=true' : ''}`, { method: 'DELETE' });
   downloadCohortFile = (cohortId: number, fileId: number) => this.request<components['schemas']['CohortFileDownloadResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/download`);
+  previewCohortFile = (cohortId: number, fileId: number) => this.request<components['schemas']['CohortFilePreviewResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/preview`);
   curricula = (signal?: AbortSignal) => this.request<{ curricula: StaffCurriculumSummary[] }>('/api/v1/curricula', { signal });
   curriculum = (id: number, signal?: AbortSignal) => this.request<{ curriculum: StaffCurriculum }>(`/api/v1/curricula/${id}`, { signal });
   lesson = (id: number, signal?: AbortSignal, cohortId?: number | null) => this.request<{ lesson: LessonDetail }>(`/api/v1/lessons/${id}${queryString({ cohort_id: cohortId })}`, { signal });

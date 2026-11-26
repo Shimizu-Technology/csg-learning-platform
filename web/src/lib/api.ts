@@ -571,8 +571,11 @@ export const api = {
   // Class files and private student folders. Never cached: folders are private and links expire.
   getCohortFiles: (cohortId: number) =>
     fetchApi<components['schemas']['CohortFilesResponse']>(`/api/v1/cohorts/${cohortId}/files`, { cache: 'no-store' }),
-  createCohortFile: (cohortId: number, data: components['schemas']['CohortFileCreateInput']) =>
+  createCohortFile: (cohortId: number, data: components['schemas']['CohortFileUploadInput']) =>
     fetchApi<components['schemas']['CohortFileUploadResponse']>(`/api/v1/cohorts/${cohortId}/files`, { method: 'POST', body: JSON.stringify(data) }),
+  /** Links are saved ready in one step and work without file storage. */
+  createCohortLink: (cohortId: number, data: Omit<components['schemas']['CohortLinkCreateInput'], 'kind'>) =>
+    fetchApi<components['schemas']['CohortFileResponse']>(`/api/v1/cohorts/${cohortId}/files`, { method: 'POST', body: JSON.stringify({ ...data, kind: 'link' }) }),
   completeCohortFile: (cohortId: number, fileId: number) =>
     fetchApi<components['schemas']['CohortFileResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/complete`, { method: 'POST' }),
   updateCohortFile: (cohortId: number, fileId: number, data: components['schemas']['CohortFileUpdateInput']) =>
@@ -580,8 +583,18 @@ export const api = {
   /** `pendingOnly` abandons an unfinished upload and is refused once the file is published. */
   deleteCohortFile: (cohortId: number, fileId: number, options: { pendingOnly?: boolean } = {}) =>
     fetchApi<null>(`/api/v1/cohorts/${cohortId}/files/${fileId}${options.pendingOnly ? '?pending_only=true' : ''}`, { method: 'DELETE' }),
-  downloadCohortFile: (cohortId: number, fileId: number) =>
-    fetchApi<components['schemas']['CohortFileDownloadResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/download`, { cache: 'no-store' }),
+  downloadCohortFile: (cohortId: number, fileId: number, versionId?: number | null) =>
+    fetchApi<components['schemas']['CohortFileDownloadResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/download${versionId ? `?version_id=${versionId}` : ''}`, { cache: 'no-store' }),
+  getCohortFilePreview: (cohortId: number, fileId: number, versionId?: number | null) =>
+    fetchApi<components['schemas']['CohortFilePreviewResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/preview${versionId ? `?version_id=${versionId}` : ''}`, { cache: 'no-store' }),
+  getCohortFileVersions: (cohortId: number, fileId: number) =>
+    fetchApi<components['schemas']['CohortFileVersionsResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/versions`, { cache: 'no-store' }),
+  createCohortFileVersion: (cohortId: number, fileId: number, data: components['schemas']['CohortFileVersionCreateInput']) =>
+    fetchApi<components['schemas']['CohortFileVersionUploadResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/versions`, { method: 'POST', body: JSON.stringify(data) }),
+  completeCohortFileVersion: (cohortId: number, fileId: number, versionId: number) =>
+    fetchApi<components['schemas']['CohortFileVersionCompleteResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/versions/${versionId}/complete`, { method: 'POST' }),
+  renameCohortFolder: (cohortId: number, data: components['schemas']['CohortFolderRenameInput']) =>
+    fetchApi<components['schemas']['CohortFolderRenameResponse']>(`/api/v1/cohorts/${cohortId}/files/rename_folder`, { method: 'PATCH', body: JSON.stringify(data) }),
   copyCohortFileToStudents: (cohortId: number, fileId: number, folder?: string) =>
     fetchApi<components['schemas']['CohortFileCopyResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/copy_to_students`, {
       method: 'POST', body: JSON.stringify(folder ? { folder } : {}),

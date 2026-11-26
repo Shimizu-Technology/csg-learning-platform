@@ -11,10 +11,11 @@ import { RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'r
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CohortFileCard } from '@/components/cohort-file-card';
+import { CohortLinkForm } from '@/components/cohort-link-form';
 import { CourseFileCard } from '@/components/course-file-card';
 import { Button } from '@/components/ui/button';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
-import { STUDENT_FOLDER_PRESETS, groupByFolder, loadCohortFiles, uploadToMyFolder, type CohortFile } from '@/lib/cohort-files';
+import { STUDENT_FOLDER_PRESETS, groupByFolder, loadCohortFiles, matchesCohortFile, uploadToMyFolder, type CohortFile } from '@/lib/cohort-files';
 import { LearningCard } from '@/components/learning-ui';
 import { ErrorState, LoadingState } from '@/components/screen-states';
 import { fonts } from '@/constants/csg-theme';
@@ -50,11 +51,13 @@ export default function ResourcesScreen() {
   });
   const [folder, setFolder] = useState(STUDENT_FOLDER_PRESETS[0]);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [addingLink, setAddingLink] = useState(false);
   const needle = filter.trim().toLowerCase();
-  const matches = (file: CohortFile) => `${file.title} ${file.filename} ${file.folder} ${file.description || ''}`.toLowerCase().includes(needle);
+  const matches = (file: CohortFile) => matchesCohortFile(file, needle);
   const myFiles = (filesQuery.data?.my_files || []).filter(matches);
   const classFolders = groupByFolder((filesQuery.data?.class_files || []).filter(matches));
   const canUpload = Boolean(filesQuery.data?.can_upload_personal && filesQuery.data.storage_configured);
+  const canAddLink = Boolean(filesQuery.data?.can_upload_personal);
   const upload = async () => {
     if (!selectedCohortId || uploadProgress !== null) return;
     try {
@@ -89,8 +92,11 @@ export default function ResourcesScreen() {
     <View style={styles.section}><View style={styles.row}><FolderLock color={c.text.body} size={16} /><Text accessibilityRole="header" style={styles.category}>My files</Text></View><Text style={styles.resourceCopy}>Your private folder — only you and your instructors can see files here.</Text>
       {canUpload ? <View style={styles.stack}><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>{STUDENT_FOLDER_PRESETS.map((preset) => <Pressable key={preset} accessibilityRole="button" accessibilityLabel={`Upload to ${preset}`} accessibilityState={{ selected: folder === preset }} onPress={() => setFolder(preset)} style={[styles.chip, folder === preset && styles.selectedChip]}><Text style={[styles.chipText, folder === preset && styles.selectedChipText]}>{preset}</Text></Pressable>)}</ScrollView>
         <Button label={uploadProgress === null ? 'Upload file' : `Uploading… ${Math.round(uploadProgress * 100)}%`} loading={uploadProgress !== null} onPress={() => void upload()} /></View>
-        : <Text style={styles.notice}>{!filesQuery.data?.can_upload_personal ? 'Uploads are paused while your course is paused or your access has ended. You can still download your files.' : "File uploads aren't available right now."}</Text>}
-      <View style={styles.stack}>{myFiles.map((file) => <CohortFileCard key={file.id} cohortId={selectedCohortId} file={file} downloadDisabled={!storageReady} note={file.uploaded_by_role === 'student' ? 'Uploaded by you' : 'Shared by your instructor'} onDelete={file.can_manage ? () => removeFile(file) : undefined} />)}</View>
+        : <Text style={styles.notice}>{!filesQuery.data?.can_upload_personal ? 'Uploads are paused while your course is paused or your access has ended. You can still download your files.' : "File uploads aren't available right now. You can still add links."}</Text>}
+      {canAddLink && (addingLink
+        ? <CohortLinkForm cohortId={selectedCohortId} folders={STUDENT_FOLDER_PRESETS} onCancel={() => setAddingLink(false)} onSaved={() => { setAddingLink(false); void queryClient.invalidateQueries({ queryKey: filesKey }); }} />
+        : <Button variant="secondary" label="Add a link" onPress={() => setAddingLink(true)} />)}
+      <View style={styles.stack}>{myFiles.map((file) => <CohortFileCard key={file.id} cohortId={selectedCohortId} file={file} downloadDisabled={!storageReady} note={file.uploaded_by_role === 'student' ? 'Added by you' : 'Shared by your instructor'} onDelete={file.can_manage ? () => removeFile(file) : undefined} />)}</View>
       {!myFiles.length && <Text style={styles.resourceCopy}>{filter ? 'No files in your folder match this search.' : 'No files in your folder yet.'}</Text>}
     </View>
     <View style={styles.section}><Text accessibilityRole="header" style={styles.category}>Class files</Text><Text style={styles.resourceCopy}>Slides, guides and templates your instructors shared with your cohort.</Text>

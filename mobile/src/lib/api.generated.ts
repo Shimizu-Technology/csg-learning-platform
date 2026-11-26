@@ -6833,8 +6833,8 @@ export interface paths {
         };
         put?: never;
         /**
-         * Start a class file or student folder upload
-         * @description Creates a pending file and returns a presigned S3 POST. Omit `student_id` for a class file (staff only); pass an enrolled student's id for their private folder. Students may upload only to their own folder, only while active, and only with `visibility: students`. Allowed types: PDF, Word, Excel, PowerPoint, CSV, text, Markdown, ZIP, PNG, JPEG, WebP, MP3, M4A and MP4, up to 100 MB; active types such as HTML, SVG and scripts are rejected (422). 503 when storage is not configured. Shares the uploads rate limit.
+         * Add a link, or start a class file or student folder upload
+         * @description With `kind: link` (no storage needed) saves a public https:// link and returns it ready (201 `{ file }`); http, javascript, data and file links, credentials, percent-encoded or non-ASCII hosts, single-label and local names, and private, shared (CGNAT), loopback, link-local, reserved (including 6to4 relay) and non-global or special-purpose IPv6 addresses (2001::/23 except its globally reachable sub-allocations, 6to4, documentation) (IPv4-mapped ones unwrapped) are refused (422). Otherwise creates a pending file and returns a presigned S3 POST. Omit `student_id` for a class file or link (staff only); pass an enrolled student's id for their private folder. Students may add only to their own folder, only while active, and only with `visibility: students`. Allowed upload types: PDF, Word, Excel, PowerPoint, CSV, text, Markdown, ZIP, PNG, JPEG, WebP, MP3, M4A and MP4, up to 100 MB; active types such as HTML, SVG and scripts are rejected (422). 503 for an upload when storage is not configured. Shares the uploads rate limit.
          */
         post: {
             parameters: {
@@ -6851,13 +6851,13 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Upload started */
+                /** @description Link saved or upload started */
                 201: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["CohortFileUploadResponse"];
+                        "application/json": components["schemas"]["CohortFileCreateResponse"];
                     };
                 };
             };
@@ -6866,6 +6866,51 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cohorts/{cohort_id}/files/rename_folder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Rename a class-file folder
+         * @description Staff only. Moves every class file and link in `from_folder` to `to_folder` in one statement (student folders are unchanged) and returns how many moved. 422 for a blank source or a blank or longer than 80 character name.
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cohort_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CohortFolderRenameInput"];
+                };
+            };
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CohortFolderRenameResponse"];
+                    };
+                };
+            };
+        };
         trace?: never;
     };
     "/api/v1/cohorts/{cohort_id}/files/{id}": {
@@ -6880,7 +6925,7 @@ export interface paths {
         post?: never;
         /**
          * Delete a file and its stored objects
-         * @description Staff may delete any file in the cohort; a student only files they uploaded to their own folder, and only while active (403 when paused, completed or expired). With `pending_only=true` it abandons an unfinished upload and refuses (422) once the file is published, so retrying after a lost `complete` never removes a published file. 502 when the stored object could not be removed.
+         * @description Staff may delete any file in the cohort; a student only files they uploaded to their own folder, and only while active (403 when paused, completed or expired). With `pending_only=true` it abandons an unfinished upload and refuses (422) once the file is published, so retrying after a lost `complete` never removes a published file. The file and all its versions are removed in one transaction that also queues every stored object for deletion; storage is cleaned right after it commits, and anything storage can't remove yet stays queued for retry.
          */
         delete: {
             parameters: {
@@ -6908,8 +6953,8 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Rename, move, share or stage a file
-         * @description Staff may change `title`, `description`, `folder` and `visibility`; a student only `title`, `description` and `folder` of files they uploaded to their own folder, while active. Other students' and staff files are 404 to a student.
+         * Rename, move, share or stage a file or link
+         * @description Staff may change `title`, `description`, `folder`, `visibility` and a link's `external_url`; a student only `title`, `description`, `folder` and a link's `external_url` on items they added to their own folder, while active. A new link address is checked like a new link and reclassified. Other students' and staff files are 404 to a student.
          */
         patch: {
             parameters: {
@@ -6991,11 +7036,14 @@ export interface paths {
         };
         /**
          * Short-lived download link
-         * @description Returns an uncached presigned URL that downloads as an attachment. Students may download only ready class files visible to students and their own folder (others are 404), only if available before a pause (403), and the link never outlives course access.
+         * @description Returns an uncached presigned URL that downloads as an attachment. Students may download only ready class files visible to students and their own folder (others are 404), only if available before a pause (403), and the link never outlives course access. Pass `version_id` for an earlier version. A paused learner whose current version was published after the pause gets the newest earlier version. Links have no download (422).
          */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description A ready version of this file (from `versions`). Paused learners may read only versions published before their pause (403). */
+                    version_id?: number;
+                };
                 header?: never;
                 path: {
                     cohort_id: number;
@@ -7024,6 +7072,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/cohorts/{cohort_id}/files/{id}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Preview a file in the app
+         * @description Same access, pause and expiry rules as `download`, and the same optional `version_id`. PDF, PNG, JPEG, WebP, MP3, M4A and MP4 return a short-lived inline `url` served with the file's allowlisted type; Markdown, text and CSV return up to 512 KB of UTF-8 `text` (with `truncated`), read by the API so no storage CORS is needed; Office files and ZIPs return `download_only` with metadata, as does a text file whose previewed bytes hold null bytes or page markup. Pages, SVGs, scripts and XML are never stored, so never served inline. 503 when a previewable type needs storage that is not configured; 422 for links.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description A ready version of this file (from `versions`). Paused learners may read only versions published before their pause (403). */
+                    version_id?: number;
+                };
+                header?: never;
+                path: {
+                    cohort_id: number;
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CohortFilePreviewResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/cohorts/{cohort_id}/files/{id}/copy_to_students": {
         parameters: {
             query?: never;
@@ -7034,8 +7127,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Copy a class file into every active student's folder
-         * @description Staff only. The source must be a ready class file (422 otherwise). Students who already have a copy are skipped, so running it again reaches only newly enrolled students. Optional body `{ "folder": string }` names the folder for the copies; it defaults to the source's folder.
+         * Copy a class file or link into every active student's folder
+         * @description Staff only. The source must be a ready class file or link (422 otherwise); links copy without storage, files need it (503). Students who already have a copy are skipped, so running it again reaches only newly enrolled students. Optional body `{ "folder": string }` names the folder for the copies; it defaults to the source's folder.
          */
         post: {
             parameters: {
@@ -7066,6 +7159,121 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/cohorts/{cohort_id}/files/{id}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Published versions of a file
+         * @description Ready versions, newest first, with `current` marking the one this viewer gets by default (for a paused learner, the newest published before the pause). Empty until a file gets a second version. Paused learners see only versions published before their pause. Same access rules as `download`.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cohort_id: number;
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CohortFileVersionsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Start uploading a new version
+         * @description Staff on any published uploaded file; an active student on a published file they uploaded to their own folder (paused, completed and expired learners get 403). Creates a pending version and returns its presigned S3 POST; the original upload is archived as version 1 only when this version publishes. Same type and size rules as an upload (422); 422 for links and unpublished files; 503 without storage. Shares the uploads rate limit.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cohort_id: number;
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CohortFileVersionCreateInput"];
+                };
+            };
+            responses: {
+                /** @description Version upload started */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CohortFileVersionUploadResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cohorts/{cohort_id}/files/{id}/versions/{version_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish an uploaded version
+         * @description Checks the staged object's type, size and opening bytes (bound to its etag) like `complete`, copies it to its published key, marks the version ready and makes it the file's current version; the first publish archives the original upload as version 1. A learner paused or removed while it publishes gets 403 and the pending version is abandoned. Published versions are numbered without gaps. Repeating it on a ready version returns it unchanged. 422 when the upload expired, does not match, or changed while confirming.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cohort_id: number;
+                    id: number;
+                    version_id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CohortFileVersionCompleteResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -7077,14 +7285,38 @@ export interface components {
             student_id: number | null;
             /** @description The class file this was copied from. */
             source_file_id: number | null;
+            /**
+             * @description `file` is an upload, `link` a web address saved in a folder. `doc` is reserved for in-app documents.
+             * @enum {string}
+             */
+            kind: "file" | "link" | "doc";
             folder: string;
             /** @enum {string} */
             visibility: "students" | "staff_only";
             title: string;
             description: string | null;
-            filename: string;
-            content_type: string;
-            file_size: number;
+            /** @description Null for links. */
+            filename: string | null;
+            /** @description Null for links. */
+            content_type: string | null;
+            /** @description Null for links. */
+            file_size: number | null;
+            /** @description The https:// address of a link; null for files. */
+            external_url: string | null;
+            /**
+             * @description Classified from the link's address; null for files.
+             * @enum {string|null}
+             */
+            link_provider: "google_doc" | "google_sheet" | "google_slides" | "google_drive" | "figma" | "notion" | "canva" | "loom" | "github" | "web" | null;
+            /** @description The current version (1 until a new version is published). For a paused learner, the newest version published before the pause. */
+            version_number: number;
+            /** @description Whether `preview` shows this file in the app. */
+            previewable: boolean;
+            /**
+             * @description How `preview` shows the file; null for links.
+             * @enum {string|null}
+             */
+            preview_mode: "pdf" | "image" | "audio" | "video" | "markdown" | "text" | "csv" | "download_only" | null;
             ready: boolean;
             ready_at: string | null;
             created_at: string;
@@ -7134,7 +7366,62 @@ export interface components {
             skipped_count: number;
             files: components["schemas"]["CohortFile"][];
         };
-        CohortFileCreateInput: {
+        /** @description An upload returns the pending file and its presigned POST; a link is returned ready. */
+        CohortFileCreateResponse: components["schemas"]["CohortFileUploadResponse"] | components["schemas"]["CohortFileResponse"];
+        CohortFilePreviewResponse: {
+            /** @enum {string} */
+            preview_mode: "pdf" | "image" | "audio" | "video" | "markdown" | "text" | "csv" | "download_only";
+            filename: string;
+            content_type: string;
+            file_size: number;
+            version_number: number;
+            /** @description Set when an archived version row is shown. */
+            version_id: number | null;
+            /** @description Short-lived inline link for pdf, image, audio and video. */
+            url: string | null;
+            expires_in: number | null;
+            /** @description UTF-8 text for markdown, text and csv, at most 512 KB. */
+            text: string | null;
+            /** @description True when the file is longer than the returned text. */
+            truncated: boolean;
+        };
+        CohortFileVersion: {
+            id: number;
+            cohort_file_id: number;
+            version_number: number;
+            filename: string;
+            content_type: string;
+            file_size: number;
+            note: string | null;
+            ready_at: string | null;
+            uploaded_by_name: string | null;
+            current: boolean;
+            /** @enum {string} */
+            preview_mode: "pdf" | "image" | "audio" | "video" | "markdown" | "text" | "csv" | "download_only";
+            previewable: boolean;
+        };
+        CohortFileVersionsResponse: {
+            versions: components["schemas"]["CohortFileVersion"][];
+        };
+        CohortFileVersionUploadResponse: {
+            version: components["schemas"]["CohortFileVersion"];
+            upload_url: string;
+            fields: {
+                [key: string]: string;
+            };
+        };
+        CohortFileVersionCompleteResponse: {
+            file: components["schemas"]["CohortFile"];
+            version: components["schemas"]["CohortFileVersion"];
+        };
+        CohortFolderRenameResponse: {
+            updated_count: number;
+            folder: string;
+        };
+        CohortFileCreateInput: components["schemas"]["CohortFileUploadInput"] | components["schemas"]["CohortLinkCreateInput"];
+        CohortFileUploadInput: {
+            /** @enum {string} */
+            kind?: "file";
             filename: string;
             content_type: string;
             file_size: number;
@@ -7145,12 +7432,37 @@ export interface components {
             visibility?: "students" | "staff_only";
             student_id?: number;
         };
+        CohortLinkCreateInput: {
+            /** @enum {string} */
+            kind: "link";
+            /** @description A public https:// address. Other schemes, credentials, localhost and private or link-local addresses are refused (422). */
+            external_url: string;
+            /** @description Defaults to the link's host. */
+            title?: string;
+            description?: string;
+            folder?: string;
+            /** @enum {string} */
+            visibility?: "students" | "staff_only";
+            student_id?: number;
+        };
+        CohortFileVersionCreateInput: {
+            filename: string;
+            content_type: string;
+            file_size: number;
+            note?: string;
+        };
+        CohortFolderRenameInput: {
+            from_folder: string;
+            to_folder: string;
+        };
         CohortFileUpdateInput: {
             title?: string;
             description?: string;
             folder?: string;
             /** @enum {string} */
             visibility?: "students" | "staff_only";
+            /** @description Links only: a new public https:// address. */
+            external_url?: string;
         };
         NotificationEntry: {
             destination: components["schemas"]["RecordDestination"] | null;

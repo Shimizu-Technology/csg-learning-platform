@@ -20,6 +20,24 @@ class PendingS3Deletion < ApplicationRecord
     false
   end
 
+  # Queues keys inside the caller's transaction, so they commit with the
+  # rows that referenced them. Raises, rolling the caller back, on failure.
+  # A key another deletion already queued is kept as it is.
+  def self.enqueue_all!(keys, reason:, now: Time.current)
+    rows = keys.compact_blank.uniq.map { |key| { key: key, reason: reason, next_attempt_at: now + FIRST_RETRY } }
+    insert_all(rows, unique_by: :key) if rows.any?
+  end
+
+  # Tries queued keys right away (after their deleting transaction commits)
+  # and clears only the ones storage actually deleted. Anything else (storage
+  # not configured yet, a failure, a key in use again) stays queued for
+  # drain!, which decides once storage is available.
+  def self.attempt_now!(keys)
+    keys.compact_blank.uniq.each do |key|
+      where(key: key).delete_all if S3ObjectCleanup.delete_unreferenced(key) == :deleted
+    end
+  end
+
   def self.drain!(now: Time.current, metrics: {}, limit: DRAIN_LIMIT)
     metrics[:deleted] = metrics[:retrying] = 0
     return 0 unless S3Service.configured?

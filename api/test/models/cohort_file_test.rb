@@ -127,4 +127,114 @@ class CohortFileTest < ModelCoverageTestCase
     S3Service.define_singleton_method(:configured?, original_configured) if original_configured
     S3Service.define_singleton_method(:delete_object, original_delete) if original_delete
   end
+  test "links need a public https address and no stored object; files still need one" do
+    link = CohortFile.new(cohort: course, uploaded_by: staff, kind: "link", title: "Brief", external_url: " https://docs.google.com/spreadsheets/d/x ", ready: true)
+    assert link.valid?, link.errors.full_messages.inspect
+    assert_equal [ "https://docs.google.com/spreadsheets/d/x", "google_sheet" ], [ link.external_url, link.link_provider ]
+    link.external_url = "https://192.168.1.10/admin"
+    assert_not link.valid?
+    assert_includes link.errors.full_messages, "Link must be a public website"
+    link.external_url = nil
+    assert_not link.valid?
+    assert_includes link.errors.full_messages, "Link can't be blank"
+
+    file = CohortFile.new(cohort: course, uploaded_by: staff, title: "Slides", external_url: "https://example.com")
+    assert_not file.valid?
+    assert file.errors.attribute_names.to_set >= %i[external_url filename s3_key upload_key content_type file_size].to_set
+    assert_not CohortFile.new(cohort: course, title: "Odd", kind: "folder").valid?
+
+    { "https://drive.google.com/file/d/x" => "google_drive", "https://docs.google.com/forms/d/x" => "google_drive",
+      "https://www.canva.com/design/x" => "canva", "https://www.loom.com/share/x" => "loom", "https://team.notion.site/page" => "notion",
+      "https://example.com/figma.com" => "web", "https://notfigma.com/x" => "web" }.each do |url, provider|
+      assert_equal provider, CohortFile.link_provider_for(url), url
+    end
+    [ "https://0.0.0.0/", "https://100.64.0.1/", "https://[fe80::1]/", "https://[fd00::1]/", "https://printer.local/", "https://app.localhost/",
+      "https://3232235777/" ].each { |url| assert CohortFile.link_problem(url), url }
+    assert_nil CohortFile.link_problem("https://example.com/path?q=1#top")
+  end
+
+  test "purging keeps a pending version that was published before its lock was taken" do
+    file = CohortFile.create!(cohort: course, uploaded_by: staff, title: "Deck", filename: "deck.pdf", content_type: "application/pdf",
+      file_size: 10, s3_key: "k6", upload_key: "u6", upload_expires_at: 1.hour.ago, ready: true)
+    version = file.versions.create!(version_number: 2, filename: "deck-v2.pdf", content_type: "application/pdf", file_size: 10,
+      s3_key: "k7", upload_key: "u7", upload_expires_at: 1.minute.ago)
+    original_lock = CohortFileVersion.instance_method(:with_lock)
+    CohortFileVersion.define_method(:with_lock) do |*args, &block|
+      CohortFileVersion.where(id: id).update_all(ready: true, ready_at: Time.current)
+      original_lock.bind_call(self, *args, &block)
+    end
+    CohortFile.purge_expired_pending!(course.cohort_files)
+    assert version.reload.ready?
+    assert CohortFile.exists?(file.id)
+  ensure
+    CohortFileVersion.define_method(:with_lock, original_lock) if original_lock
+  end
+
+  test "only public https hosts pass, across every non-public range and authority trick" do
+    [ "https://10.255.0.1/", "https://172.16.0.1/", "https://172.31.255.255/", "https://192.168.10.1/", "https://100.64.0.1/", "https://100.127.255.254/",
+      "https://127.1.2.3/", "https://169.254.1.1/", "https://0.1.2.3/", "https://224.0.0.1/", "https://[::]/", "https://[::1]/", "https://[fc00::1]/",
+      "https://[fdff::1]/", "https://[fe80::1]/", "https://[febf::1]/", "https://[::ffff:192.168.1.1]/", "https://[::ffff:100.64.0.1]/",
+      "https://user:pw@example.com/", "https://example.com@evil.com/", "https://exa%6dple.com/", "https://bücher.de/", "https://localhost/",
+      "https://intranet/", "https://printer.local/", "https://router.home.arpa/", "https://2130706433/", "https://0x7f.0.0.1/", "https://0177.0.0.1/",
+      "https://1.2.3/", "https://192.88.99.2/", "https://192.88.99.200/", "https://[2001::1]/", "https://[2001:0:4136:e378::1]/",
+      "https://[2001:2::1]/", "https://[2001:10::1]/", "https://[2001:100::1]/", "https://[2001:1ff::1]/", "https://[2001:1::4]/",
+      "https://[2001:4:113::1]/", "https://[2001:db8::1]/", "https://[2002:c000:204::1]/",
+      "https://[3fff::1]/", "https://[0:0:0:0:0:ffff:10.0.0.1]/", "https://home.arpa/", "https://local/", "https://internal/",
+      "https://app.internal/", "https://LOCALHOST/", "http://example.com/", "https:/\\example.com/" ].each do |url|
+      assert CohortFile.link_problem(url), url
+    end
+    [ "https://example.com/", "https://docs.google.com/document/d/x", "https://8.8.8.8/", "https://100.128.0.1/", "https://172.32.0.1/",
+      "https://[2001:4860:4860::8888]/", "https://[2001:3::1]/", "https://[2001:1::1]/", "https://[2001:1::3]/", "https://[2001:4:112::1]/",
+      "https://[2001:20::1]/", "https://[2001:2f::1]/", "https://[2001:200::1]/", "https://[2001:30::1]/", "https://[2003::1]/", "https://[3ffe::1]/",
+      "https://[0:0:0:0:0:ffff:8.8.8.8]/", "https://192.88.100.1/", "https://xn--bcher-kva.de/", "https://example.com:8443/a?b=1#c" ].each do |url|
+      assert_nil CohortFile.link_problem(url), url
+    end
+  end
+
+  test "a row that vanishes before its purge lock is skipped and the rest still purge" do
+    file = CohortFile.create!(cohort: course, uploaded_by: staff, title: "Deck", filename: "deck.pdf", content_type: "application/pdf",
+      file_size: 10, s3_key: "k8", upload_key: "u8", upload_expires_at: 1.hour.ago, ready: true)
+    vanishing = file.versions.create!(version_number: 2, filename: "a.pdf", content_type: "application/pdf", file_size: 10, s3_key: "k9", upload_key: "u9", upload_expires_at: 1.minute.ago)
+    expired = file.versions.create!(version_number: 3, filename: "b.pdf", content_type: "application/pdf", file_size: 10, s3_key: "k10", upload_key: "u10", upload_expires_at: 1.minute.ago)
+    gone = CohortFile.create!(cohort: course, uploaded_by: staff, title: "Lost", filename: "lost.pdf", content_type: "application/pdf",
+      file_size: 10, s3_key: "k11", upload_key: "u11", upload_expires_at: 1.minute.ago)
+    stale = CohortFile.create!(cohort: course, uploaded_by: staff, title: "Stale", filename: "stale.pdf", content_type: "application/pdf",
+      file_size: 10, s3_key: "k12", upload_key: "u12", upload_expires_at: 1.minute.ago)
+    original_version_lock = CohortFileVersion.instance_method(:with_lock)
+    original_file_lock = CohortFile.instance_method(:with_lock)
+    # A concurrent delete removes the first candidate of each kind between selection and lock.
+    CohortFileVersion.define_method(:with_lock) do |*args, &block|
+      CohortFileVersion.where(id: id).delete_all if id == vanishing.id
+      original_version_lock.bind_call(self, *args, &block)
+    end
+    CohortFile.define_method(:with_lock) do |*args, &block|
+      CohortFile.where(id: id).delete_all if id == gone.id
+      original_file_lock.bind_call(self, *args, &block)
+    end
+    CohortFile.purge_expired_pending!(course.cohort_files)
+    assert_not CohortFileVersion.exists?(expired.id)
+    assert_not CohortFile.exists?(stale.id)
+    assert CohortFile.exists?(file.id)
+  ensure
+    CohortFileVersion.define_method(:with_lock, original_version_lock) if original_version_lock
+    CohortFile.define_method(:with_lock, original_file_lock) if original_file_lock
+  end
+
+  test "rolling back the versions table refuses while versions exist" do
+    file = CohortFile.create!(cohort: course, uploaded_by: staff, title: "Deck", filename: "deck.pdf", content_type: "application/pdf",
+      file_size: 10, s3_key: "k13", upload_key: "u13", upload_expires_at: 1.hour.ago, ready: true)
+    file.versions.create!(version_number: 1, ready: true, filename: "deck.pdf", content_type: "application/pdf", file_size: 10, s3_key: "k13", upload_key: "u13", upload_expires_at: 1.hour.ago)
+    require Rails.root.join("db/migrate/20261126110000_create_cohort_file_versions")
+    migration = CreateCohortFileVersions.new
+    migration.verbose = false
+    statements = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") { |*, payload| statements << payload[:sql] }
+    assert_raises(ActiveRecord::IrreversibleMigration) { migration.migrate(:down) }
+    ActiveSupport::Notifications.unsubscribe(subscriber)
+    # The table is locked before the emptiness check, so no version can slip in after it.
+    lock = statements.index { |sql| sql.include?("LOCK TABLE cohort_file_versions IN ACCESS EXCLUSIVE MODE") }
+    check = statements.index { |sql| sql.include?("FROM cohort_file_versions") }
+    assert lock && check && lock < check, statements.join("\n")
+    assert CohortFileVersion.exists?
+  end
 end

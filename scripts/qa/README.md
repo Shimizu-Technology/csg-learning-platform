@@ -516,3 +516,16 @@ Optional checks, keyboard and touch seeking, speed and skip boundaries, source
 switching, deep-link resume, and whole-video completion through the local API.
 The failure case rejects every attempt until the learner explicitly retries and
 checks the saved range against Rails. Desktop also checks fullscreen at 1280 × 400.
+
+### Files cabinet checks
+
+Links, folder rename, the multi-file queue, Upload new version and the in-app
+preview with its version switcher, for staff and a learner at 1280/390 in light
+and dark, with Axe, overflow and 390px tap-target checks. After `start`, from `api/`:
+`DATABASE_URL=postgresql://localhost/<owned csg_qa_ database> RAILS_ENV=test bundle exec ruby ../scripts/qa/cohort-files-cabinet-fixtures.rb`,
+then from the repo root:
+`QA_SPEC=cohort-files-cabinet.spec.ts DEV_LIFECYCLE_SESSION=<active-session> node web/node_modules/@playwright/test/cli.js test --config scripts/qa/playwright.config.ts`.
+The harness has no file storage, so the spec stubs only the storage-backed
+parts in the browser (storage_configured and preview text); links, rename and
+versions use the real local API. It can be re-run; it removes the links it adds
+and renames the folder back.
