@@ -14,6 +14,7 @@ import {
 } from '../../lib/cohortFiles'
 import { sanitizeUrl } from '../../lib/sanitizeUrl'
 import { AnchorButton, Button } from '../ui/Button'
+import { CohortFileReviewPanel, type ReviewAccess } from './CohortFileReview'
 import { Modal } from './Modal'
 
 /** Storage links must be https; anything else is never put in an src. */
@@ -27,16 +28,24 @@ function storageUrl(url: string | null) {
  * short-lived inline link, and Markdown, text and CSV from text the API read,
  * so storage needs no CORS. Markdown is rendered without raw HTML. Office
  * files and ZIPs show a download card. Files with more than one version get a
- * version switcher.
+ * version switcher. With `review`, the item's review status and comments sit
+ * beside the preview (a tab on phones).
  */
-export function CohortFilePreviewModal({ cohortId, file, open, onClose, downloadDisabled = false }: {
+export function CohortFilePreviewModal({ cohortId, file, open, onClose, downloadDisabled = false, review, onFileChange, initialPane = 'preview' }: {
   cohortId: number
   file: CohortFile
   open: boolean
   onClose: () => void
   downloadDisabled?: boolean
+  review?: ReviewAccess
+  onFileChange?: (file: CohortFile) => void
+  initialPane?: 'preview' | 'review'
 }) {
   const id = useId()
+  const [pane, setPane] = useState<'preview' | 'review'>(review ? initialPane : 'preview')
+  // The file as review changes leave it (status and comment count), shown in the panel.
+  const [current, setCurrent] = useState(file)
+  useEffect(() => { setCurrent(file) }, [file])
   const [versionId, setVersionId] = useState<number | null>(null)
   const [versions, setVersions] = useState<CohortFileVersion[]>([])
   const [versionsError, setVersionsError] = useState('')
@@ -147,22 +156,42 @@ export function CohortFilePreviewModal({ cohortId, file, open, onClose, download
           {downloadError && <p role="alert" className="text-sm text-danger-ink sm:basis-full">{downloadError}</p>}
         </div>
       }>
-      {loading ? (
-        <div className="flex flex-1 items-center justify-center gap-2 text-sm text-ink-secondary" role="status">
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-          Opening {file.title}…
+      {review && (
+        <div role="tablist" aria-label="Preview sections" className="mb-3 inline-flex w-full rounded-xl border border-line bg-surface-sunken p-1 lg:hidden">
+          {([['preview', 'Preview'], ['review', 'Review']] as const).map(([value, label]) => (
+            <button key={value} type="button" role="tab" aria-selected={pane === value} aria-controls={`${id}-${value}`} onClick={() => setPane(value)}
+              className={`inline-flex min-h-11 flex-1 items-center justify-center rounded-lg px-3 text-sm font-semibold transition-colors duration-150 ${pane === value ? 'bg-surface-raised text-ink shadow-raised' : 'text-ink-secondary hover:text-ink'}`}>
+              {label}
+            </button>
+          ))}
         </div>
-      ) : error ? (
-        <div role="alert" className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
-          <p className="text-sm text-ink-secondary">{error}</p>
-          <Button size="sm" variant="secondary" onClick={() => setAttempt((value) => value + 1)}>
-            <RefreshCw className="h-4 w-4" aria-hidden="true" />
-            Try again
-          </Button>
+      )}
+      <div className="flex min-h-0 flex-1 gap-5">
+        <div id={`${id}-preview`} className={`min-h-0 min-w-0 flex-1 flex-col ${review && pane !== 'preview' ? 'hidden lg:flex' : 'flex'}`}>
+          {loading ? (
+            <div className="flex flex-1 items-center justify-center gap-2 text-sm text-ink-secondary" role="status">
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              Opening {file.title}…
+            </div>
+          ) : error ? (
+            <div role="alert" className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
+              <p className="text-sm text-ink-secondary">{error}</p>
+              <Button size="sm" variant="secondary" onClick={() => setAttempt((value) => value + 1)}>
+                <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                Try again
+              </Button>
+            </div>
+          ) : preview ? (
+            <PreviewBody preview={preview} title={file.title} />
+          ) : null}
         </div>
-      ) : preview ? (
-        <PreviewBody preview={preview} title={file.title} />
-      ) : null}
+        {review && (
+          <aside id={`${id}-review`} aria-label="Review and comments"
+            className={`min-h-0 w-full overflow-y-auto lg:w-80 lg:shrink-0 lg:border-l lg:border-line lg:pl-5 ${pane === 'review' ? 'block' : 'hidden lg:block'}`}>
+            <CohortFileReviewPanel cohortId={cohortId} file={current} access={review} onFileChange={(next) => { setCurrent(next); onFileChange?.(next) }} />
+          </aside>
+        )}
+      </div>
     </Modal>
   )
 }

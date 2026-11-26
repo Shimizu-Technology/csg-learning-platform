@@ -1,4 +1,5 @@
-import { CSV_PREVIEW_LIMITS, ipv6Groups, linkUrlProblem, parseCsv, safeExternalFileUrl } from '@/lib/cohort-files';
+import { CSV_PREVIEW_LIMITS, cohortFileMeta, cohortFileNotificationPath, ipv6Groups, isStudentFolderItem, linkUrlProblem, parseCsv, safeExternalFileUrl } from '@/lib/cohort-files';
+import { mobileNotificationPath } from '@/lib/notification-path';
 
 test('only public https hosts open or save, like the API', () => {
   for (const url of [
@@ -42,4 +43,21 @@ test('CSV previews are bounded by rows, columns and cell length', () => {
   const long = parseCsv(Array.from({ length: 1_000 }, () => 'a').join('\n'));
   expect(long.rows).toHaveLength(CSV_PREVIEW_LIMITS.rows);
   expect(long.clippedRows).toBe(true);
+});
+
+test('file review notifications open the item on the phone and nothing else passes', () => {
+  expect(cohortFileNotificationPath('/resources?cohort_id=4&file=31')).toBe('/resources?cohort_id=4&file=31');
+  expect(cohortFileNotificationPath('/admin/cohorts/4?tab=files&student=3&file=31')).toBe('/staff/files?cohort_id=4&student=3&file=31');
+  expect(cohortFileNotificationPath('/admin/cohorts/4?tab=files&student=3&file=31&x=1')).toBeNull();
+  expect(cohortFileNotificationPath('/resources?cohort_id=0&file=31')).toBeNull();
+  expect(cohortFileNotificationPath('https://evil.example/resources?cohort_id=4&file=31')).toBeNull();
+  expect(mobileNotificationPath('/resources?cohort_id=4&file=31')).toBe('/resources?cohort_id=4&file=31');
+  expect(mobileNotificationPath('/admin/cohorts/4?tab=files&student=3&file=31')).toBe('/staff/files?cohort_id=4&student=3&file=31');
+});
+
+test('docs describe themselves and only student-visible folder items join the review loop', () => {
+  expect(cohortFileMeta({ kind: 'doc', filename: null, file_size: null, folder: 'Career', external_url: null })).toBe('Learn Doc · Career');
+  expect(isStudentFolderItem({ student_id: 3, visibility: 'students' })).toBe(true);
+  expect(isStudentFolderItem({ student_id: 3, visibility: 'staff_only' })).toBe(false);
+  expect(isStudentFolderItem({ student_id: null, visibility: 'students' })).toBe(false);
 });

@@ -14,7 +14,9 @@ class Notification < ApplicationRecord
     # Admin alerts (L-3.5): new Safety items and course purchases.
     content_report: 9,
     data_deletion_request: 10,
-    course_purchase: 11
+    course_purchase: 11,
+    # Review requests, reviews and comments on files in a student's folder.
+    cohort_file: 12
   }
 
   ADMIN_ONLY_TYPES = %w[content_report data_deletion_request course_purchase].freeze
@@ -43,6 +45,19 @@ class Notification < ApplicationRecord
     end
     # An admin alert stays with the role: someone who is no longer an admin stops seeing it.
     scope = scope.where.not(notification_type: ADMIN_ONLY_TYPES) unless user.admin?
+    # A file notice stays with access to the file: staff of its cohort, or the
+    # student whose student-visible folder item it is, while still enrolled,
+    # and for a paused student only events from before the pause.
+    scope = if user.staff?
+      scope.where.not(notifiable_type: "CohortFile")
+        .or(scope.where(notifiable_type: "CohortFile", notifiable_id: CohortFile.where(cohort_id: user.accessible_cohorts.select(:id)).select(:id)))
+    else
+      readable_file = CohortFile.student_visible.where(student_id: [ nil, user.id ]).where("cohort_files.id = notifications.notifiable_id")
+        .where(Enrollment.with_read_access.where(user_id: user.id).where("enrollments.cohort_id = cohort_files.cohort_id")
+          .where("enrollments.status <> ? OR COALESCE(enrollments.paused_at, enrollments.read_cutoff_at) >= notifications.created_at",
+            Enrollment.statuses.fetch("paused")).arel.exists)
+      scope.where.not(notifiable_type: "CohortFile").or(scope.where(notifiable_type: "CohortFile").where(readable_file.arel.exists))
+    end
     scope.where.not(notifiable_type: "Intervention")
       .or(scope.where(notifiable_type: "Intervention", notifiable_id: owned_case_ids))
   }
@@ -74,6 +89,10 @@ class Notification < ApplicationRecord
   end
 
   def destination(resolved_path = destination_path)
+    # A file notice's path names the item to open (`file`, and `student` for
+    # staff), which no record descriptor carries; clients follow the path.
+    return nil if notifiable_type == "CohortFile"
+
     if notifiable.is_a?(Recording)
       return RecordDestination.build(kind: "recording", id: notifiable.id, context: { cohort_id: notifiable.cohort_id })
     end

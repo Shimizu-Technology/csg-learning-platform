@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { X } from 'lucide-react-native';
 import { Image, Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,8 +14,9 @@ import { makeStyles, useTheme } from '@/providers/theme-provider';
  * In-app preview for text, Markdown, CSV and images. The API reads text files
  * itself, so nothing is fetched from storage here except an image's short-lived
  * inline link. Markdown renders as written text: raw HTML shows as typed.
+ * `review` (status and comments for a student-folder item) follows the preview.
  */
-export function CohortFilePreviewModal({ title, preview, onClose, onDownload }: { title: string; preview: CohortFilePreview | null; onClose: () => void; onDownload: () => void }) {
+export function CohortFilePreviewModal({ title, preview, onClose, onDownload, review }: { title: string; preview: CohortFilePreview | null; onClose: () => void; onDownload: () => void; review?: ReactNode }) {
   const styles = useStyles();
   const { colors: c } = useTheme();
   const image = preview?.preview_mode === 'image' ? safeHttpsUrl(preview.url) : null;
@@ -30,6 +32,7 @@ export function CohortFilePreviewModal({ title, preview, onClose, onDownload }: 
         {preview?.preview_mode === 'text' && <Text selectable style={styles.mono}>{preview.text}</Text>}
         {preview?.preview_mode === 'csv' && <CsvTable text={preview.text || ''} />}
         {image && <Image accessibilityLabel={title} source={{ uri: image }} resizeMode="contain" style={styles.image} />}
+        {review}
       </ScrollView>
       <View style={styles.footer}><Button variant="secondary" label="Download" accessibilityLabel={`Download ${title}`} onPress={onDownload} /></View>
     </SafeAreaView>

@@ -33,7 +33,8 @@ module ApiRateLimits
     when :all then true
     when :messages
       (controller.in?([ "api/v1/messages", "api/v1/agent/messages" ]) && action.in?([ "create", "create_direct" ])) ||
-        (controller == "api/v1/direct_conversations" && action == "create")
+        (controller == "api/v1/direct_conversations" && action == "create") ||
+        (controller == "api/v1/cohort_files" && action == "create_comment")
     # Asking for help and replying in a help thread (staff replies and learner follow-ups) share one allowance.
     when :help then controller.in?([ "api/v1/help_requests", "api/v1/help_request_replies" ]) && action == "create"
     when :uploads

@@ -593,6 +593,31 @@ export const api = {
     fetchApi<components['schemas']['CohortFileVersionUploadResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/versions`, { method: 'POST', body: JSON.stringify(data) }),
   completeCohortFileVersion: (cohortId: number, fileId: number, versionId: number) =>
     fetchApi<components['schemas']['CohortFileVersionCompleteResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/versions/${versionId}/complete`, { method: 'POST' }),
+  /** Learn Docs are saved ready in one step and work without file storage. */
+  createCohortDoc: (cohortId: number, data: Omit<components['schemas']['CohortDocCreateInput'], 'kind'>) =>
+    fetchApi<components['schemas']['CohortFileResponse']>(`/api/v1/cohorts/${cohortId}/files`, { method: 'POST', body: JSON.stringify({ ...data, kind: 'doc' }) }),
+  getCohortDoc: (cohortId: number, fileId: number) =>
+    fetchApi<components['schemas']['CohortDocResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/doc`, { cache: 'no-store' }),
+  /** 409 when `base_doc_version` is missing or stale; nothing is saved then. */
+  saveCohortDoc: (cohortId: number, fileId: number, data: components['schemas']['CohortDocUpdateInput']) =>
+    fetchApi<components['schemas']['CohortDocResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/doc`, { method: 'PATCH', body: JSON.stringify(data) }),
+  getCohortDocRevisions: (cohortId: number, fileId: number) =>
+    fetchApi<components['schemas']['CohortDocRevisionsResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/revisions`, { cache: 'no-store' }),
+  getCohortDocRevision: (cohortId: number, fileId: number, revisionId: number) =>
+    fetchApi<components['schemas']['CohortDocRevisionResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/revisions/${revisionId}`, { cache: 'no-store' }),
+  /** 409 when the doc moved past `baseDocVersion`; nothing is restored then. */
+  restoreCohortDocRevision: (cohortId: number, fileId: number, revisionId: number, baseDocVersion: number) =>
+    fetchApi<components['schemas']['CohortDocResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/revisions/${revisionId}/restore`, {
+      method: 'POST', body: JSON.stringify({ base_doc_version: baseDocVersion } satisfies components['schemas']['CohortDocRestoreInput']),
+    }),
+  setCohortFileReview: (cohortId: number, fileId: number, reviewStatus: components['schemas']['CohortFileReviewInput']['review_status']) =>
+    fetchApi<components['schemas']['CohortFileResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/review`, { method: 'PATCH', body: JSON.stringify({ review_status: reviewStatus }) }),
+  getCohortFileComments: (cohortId: number, fileId: number) =>
+    fetchApi<components['schemas']['CohortFileCommentsResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/comments`, { cache: 'no-store' }),
+  createCohortFileComment: (cohortId: number, fileId: number, body: string) =>
+    fetchApi<components['schemas']['CohortFileCommentResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/comments`, { method: 'POST', body: JSON.stringify({ body }) }),
+  deleteCohortFileComment: (cohortId: number, fileId: number, commentId: number) =>
+    fetchApi<null>(`/api/v1/cohorts/${cohortId}/files/${fileId}/comments/${commentId}`, { method: 'DELETE' }),
   renameCohortFolder: (cohortId: number, data: components['schemas']['CohortFolderRenameInput']) =>
     fetchApi<components['schemas']['CohortFolderRenameResponse']>(`/api/v1/cohorts/${cohortId}/files/rename_folder`, { method: 'PATCH', body: JSON.stringify(data) }),
   copyCohortFileToStudents: (cohortId: number, fileId: number, folder?: string) =>

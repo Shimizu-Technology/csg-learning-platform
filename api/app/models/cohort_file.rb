@@ -4,8 +4,19 @@ class CohortFile < ApplicationRecord
   MAX_FILE_SIZE = 100.megabytes
   DOWNLOAD_EXPIRY = 5.minutes.to_i
   VISIBILITIES = %w[students staff_only].freeze
-  # "doc" is reserved for in-app documents; the API creates files and links.
+  # "doc" is a Learn Doc: Markdown written and edited in the app.
   KINDS = %w[file link doc].freeze
+  # Any file in a student's folder can be sent for review; staff mark it reviewed.
+  REVIEW_STATUSES = %w[none needs_review reviewed].freeze
+  MAX_DOC_LENGTH = 200_000
+  # One editor's saves inside this window share a revision (see save_doc!).
+  DOC_REVISION_WINDOW = 10.minutes
+  # Parsed as GitHub Markdown, so code (fenced, indented, inline) is found the
+  # way the reader renders it; only the rest is checked for page markup.
+  DOC_PARSE_OPTIONS = { extension: { table: true, tasklist: true, strikethrough: true, autolink: true } }.freeze
+  # The doc state a viewer reads: the current one, or a revision for a paused
+  # learner (which has no version: it can't be saved from).
+  DocState = Struct.new(:title, :content, :updated_at, :updated_by_name, :version, keyword_init: true)
   MAX_URL_LENGTH = 2048
   # Links must point at a public host. Every range below is local, private,
   # shared (CGNAT), link-local, reserved, multicast or documentation-only.
@@ -112,6 +123,11 @@ class CohortFile < ApplicationRecord
   # before the versions go; the objects are removed after it commits.
   before_destroy :queue_stored_objects, prepend: true
   has_many :versions, class_name: "CohortFileVersion", dependent: :delete_all
+  has_many :doc_revisions, class_name: "CohortDocRevision", dependent: :delete_all
+  has_many :comments, class_name: "CohortFileComment", dependent: :delete_all
+  has_many :notifications, as: :notifiable, dependent: :delete_all
+  belongs_to :doc_updated_by, class_name: "User", optional: true
+  belongs_to :reviewed_by, class_name: "User", optional: true
 
   scope :ready, -> { where(ready: true) }
   scope :class_files, -> { where(student_id: nil) }
@@ -138,6 +154,9 @@ class CohortFile < ApplicationRecord
     validate :allowed_file_type
   end
   validates :external_url, absence: true, unless: :link?
+  validates :review_status, inclusion: { in: REVIEW_STATUSES }
+  validates :doc_content, absence: true, unless: :doc?
+  validate :safe_doc_content, if: :doc?
   validate :safe_external_url, if: :link?
   validate :student_enrolled_in_cohort
   validate :students_cannot_stage_files
@@ -293,6 +312,88 @@ class CohortFile < ApplicationRecord
     kind == "link"
   end
 
+  def doc?
+    kind == "doc"
+  end
+
+  def current_doc_state
+    DocState.new(title: title, content: doc_content.to_s, updated_at: doc_updated_at || created_at, updated_by_name: doc_updated_by&.full_name, version: doc_version)
+  end
+
+  # Saves a doc edit and advances `doc_version`. Call under the doc's row
+  # lock, after locking the enrollments of everyone who can read it (see
+  # CohortFilesController#with_doc_lock), so a pause can't land in between.
+  # Revisions are states the doc really had, stamped with when they were saved:
+  # - Before the edit, the state it replaces is kept when it isn't a
+  #   revision yet and was a resting point: the original (first edit), the
+  #   last save of another editor, a save older than the revision window,
+  #   the state a paused learner was left with, or always with `archive`
+  #   (a restore or a rename never loses a saved draft).
+  # - After the edit, the new state is kept on the first edit, a change of
+  #   editor, when the newest revision is older than the window, and for a
+  #   `checkpoint` (a named save or a restore).
+  # An unchanged save is a no-op, so a repeated autosave never conflicts.
+  def save_doc!(content:, editor:, title: nil, summary: nil, checkpoint: false, archive: false, now: Time.current)
+    if title.to_s.include?("\0")
+      errors.add(:title, "cannot contain null characters")
+      raise ActiveRecord::RecordInvalid, self
+    end
+    if summary.to_s.include?("\0")
+      errors.add(:base, "Summary cannot contain null characters")
+      raise ActiveRecord::RecordInvalid, self
+    end
+    title = title.to_s.squish.presence
+    return false if !checkpoint && content.to_s == doc_content.to_s && (title.nil? || title == self.title)
+
+    latest = doc_revisions.order(:revision_number).last
+    first_edit = latest.nil?
+    new_editor = doc_updated_by_id != editor.id
+    resting = archive || first_edit || new_editor || (doc_updated_at || created_at) <= now - DOC_REVISION_WINDOW || paused_since_last_doc_save?
+    latest = record_doc_state!(latest) if resting
+    assign_attributes(doc_content: content.to_s, doc_updated_at: now, doc_updated_by: editor, doc_version: doc_version + 1)
+    self.title = title if title
+    save!
+    record_doc_state!(latest, summary: summary) if first_edit || new_editor || checkpoint || latest.created_at <= now - DOC_REVISION_WINDOW
+    true
+  end
+
+  # Records the current state as the next revision unless the newest one already holds it.
+  def record_doc_state!(latest = doc_revisions.order(:revision_number).last, summary: nil)
+    saved_at = doc_updated_at || created_at
+    return latest if latest && latest.created_at >= saved_at && latest.content == doc_content.to_s && latest.title == title
+
+    doc_revisions.create!(revision_number: (latest&.revision_number || 0) + 1, title: title, content: doc_content.to_s,
+      edited_by_id: doc_updated_by_id, summary: summary, created_at: saved_at)
+  end
+
+  # Whether Markdown holds page or script markup anywhere but code, read from
+  # the parsed document: raw HTML (blocks and inline) and text (including
+  # escaped or entity-written tags) are checked; code spans and blocks aren't.
+  # Every other node starts a new line, so text either side of code or of a
+  # block break never joins into a tag.
+  def self.active_markup_outside_code?(markdown)
+    text = +""
+    Commonmarker.parse(markdown.to_s.dup.force_encoding(Encoding::UTF_8).scrub, options: DOC_PARSE_OPTIONS).walk do |node|
+      text << if node.type == :text then node.string_content
+      elsif node.type.to_s.start_with?("html") then node.to_commonmark
+      else "\n"
+      end
+    end
+    text.match?(ACTIVE_MARKUP)
+  end
+
+  # Enrollments whose learner can read this item, or could be paused into
+  # reading it: the folder's student, or everyone in the cohort for a class
+  # item, whatever their status (a completed enrollment can still be paused).
+  def reader_enrollments
+    readers = Enrollment.where(cohort_id: cohort_id)
+    student_id ? readers.where(user_id: student_id) : readers
+  end
+
+  def student_folder_item?
+    student_id.present? && !staff_only?
+  end
+
   def preview_mode
     stored_file? ? self.class.preview_mode_for(filename) : nil
   end
@@ -315,18 +416,26 @@ class CohortFile < ApplicationRecord
 
   # `shown` is the version a paused learner can read when the current one
   # was published after their pause; its file details replace the current ones.
-  def file_json(can_manage: false, shown: self)
+  # `doc_state` replaces a doc's title, save time and version the same way.
+  # `review_cutoff` (a paused learner's) hides review changes made after it.
+  def file_json(can_manage: false, shown: self, doc_state: nil, comment_count: 0, can_edit_doc: false, review_cutoff: nil)
     mode = shown.preview_mode
+    doc_state ||= current_doc_state if doc?
+    review = review_cutoff && !(review_status == "reviewed" && reviewed_at && reviewed_at <= review_cutoff) ? {} : { status: review_status, by: reviewed_by, at: reviewed_at }
     {
       id: id, cohort_id: cohort_id, student_id: student_id, source_file_id: source_file_id,
-      kind: kind, folder: folder, visibility: visibility, title: title, description: description,
+      kind: kind, folder: folder, visibility: visibility, title: doc_state&.title || title, description: description,
       filename: shown.filename, content_type: shown.content_type, file_size: shown.file_size,
       external_url: external_url, link_provider: link_provider, version_number: shown.version_number,
       previewable: self.class.previewable_mode?(mode), preview_mode: mode,
       ready: ready?, ready_at: ready_at&.iso8601, created_at: created_at.iso8601,
       uploaded_by_name: uploaded_by&.full_name,
       uploaded_by_role: uploaded_by && (uploaded_by.student? ? "student" : "staff"),
-      can_manage: can_manage
+      can_manage: can_manage,
+      review_status: review.fetch(:status, "none"), reviewed_by_name: review[:by]&.full_name, reviewed_at: review[:at]&.iso8601,
+      comment_count: comment_count,
+      doc_version: doc_state&.version, doc_updated_at: doc_state&.updated_at&.iso8601(6), doc_updated_by_name: doc_state&.updated_by_name,
+      can_edit_doc: doc? && can_edit_doc
     }
   end
 
@@ -337,6 +446,28 @@ class CohortFile < ApplicationRecord
     self.folder = folder.to_s.squish.presence || "General"
     self.description = description.to_s.strip.presence
     self.external_url = external_url.to_s.strip.presence
+    self.doc_content = doc? ? doc_content.to_s : nil
+  end
+
+  # A paused learner who can read this doc paused after its last save.
+  def paused_since_last_doc_save?
+    return false if doc_updated_at.nil?
+
+    readers = Enrollment.where(cohort_id: cohort_id, status: Enrollment.statuses.fetch("paused"))
+    readers = readers.where(user_id: student_id) if student_id
+    readers.where("COALESCE(enrollments.paused_at, enrollments.read_cutoff_at) >= ?", doc_updated_at).exists?
+  end
+
+  # Markdown only: no null bytes, and no page or script markup outside code.
+  def safe_doc_content
+    content = doc_content.to_s
+    if content.length > MAX_DOC_LENGTH
+      errors.add(:doc_content, "is too long (maximum is #{MAX_DOC_LENGTH} characters)")
+    elsif content.include?("\u0000")
+      errors.add(:doc_content, "can't contain null characters")
+    elsif self.class.active_markup_outside_code?(content)
+      errors.add(:doc_content, "can't contain page or script markup outside code blocks")
+    end
   end
 
   def classify_link

@@ -2,7 +2,7 @@ import { PausedLearningBanner, useSelectedCoursePaused } from '../../components/
 import { PageHeader } from '../../components/ui/PageHeader'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, ExternalLink, Link2, Search, Video, MessageSquare, Github, FileText, Globe, RefreshCw, WifiOff, Keyboard, Copy, Check, FolderLock, Trash2 } from 'lucide-react'
+import { ArrowLeft, ExternalLink, Link2, Search, Video, MessageSquare, Github, FileText, Globe, RefreshCw, WifiOff, Keyboard, Copy, Check, FolderLock, NotebookPen, Trash2 } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useStudentExperience } from '../../lib/studentExperience'
 import { useCohortContext } from '../../contexts/CohortContext'
@@ -14,7 +14,7 @@ import { Badge } from '../../components/ui/Badge'
 import type { ResourceEntry } from '../../types/api'
 import { downloadCourseResource } from '../../lib/downloadCourseResource'
 import { STUDENT_FOLDER_PRESETS, matchesFileQuery, type CohortFile, type CohortFilesResponse } from '../../lib/cohortFiles'
-import { CohortFileRow, CohortFileUploader, CohortLinkForm, FolderBadge } from '../../components/shared/CohortFileParts'
+import { CohortDocForm, CohortFileRow, CohortFileUploader, CohortLinkForm, FolderBadge } from '../../components/shared/CohortFileParts'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { useToast } from '../../contexts/ToastContext'
 
@@ -53,7 +53,12 @@ export function Resources() {
   useEffect(() => { shownCohortId.current = selectedCohortId }, [selectedCohortId])
   const toast = useToast()
   const confirm = useConfirm()
-  const [addingLink, setAddingLink] = useState(false)
+  const [adding, setAdding] = useState<'link' | 'doc' | null>(null)
+  // A notification link (?file=) or a new doc opens that item once.
+  const linkedFileId = Number(searchParams.get('file')) || null
+  const [openFileId, setOpenFileId] = useState<number | null>(linkedFileId)
+  useEffect(() => { if (linkedFileId) setOpenFileId(linkedFileId) }, [linkedFileId])
+  const clearOpenFile = useCallback(() => setOpenFileId(null), [])
 
   const loadCohortFiles = useCallback(() => {
     const request = ++filesRequest.current
@@ -71,15 +76,18 @@ export function Resources() {
   const updateMyFiles = (update: (files: CohortFile[]) => CohortFile[]) =>
     setCohortFiles((current) => current && { ...current, my_files: update(current.my_files || []) })
   const addUploadedFile = (file: CohortFile) => {
-    toast.success(file.kind === 'link' ? `Added ${file.title}` : `Uploaded ${file.title}`)
+    toast.success(file.kind === 'file' ? `Uploaded ${file.title}` : `Added ${file.title}`)
     if (file.cohort_id === shownCohortId.current) updateMyFiles((files) => [...files, file])
+  }
+  const updateMyFile = (file: CohortFile) => {
+    if (file.cohort_id === shownCohortId.current) updateMyFiles((files) => files.map((item) => (item.id === file.id ? file : item)))
   }
   const replaceMyFile = (file: CohortFile) => {
     toast.success(`Uploaded version ${file.version_number} of ${file.title}`)
     if (file.cohort_id === shownCohortId.current) updateMyFiles((files) => files.map((item) => (item.id === file.id ? file : item)))
   }
   const removeMyFile = async (file: CohortFile) => {
-    const ok = await confirm({ title: `Delete ${file.title}?`, description: 'It is removed from your private folder for you and your instructors.', confirmLabel: file.kind === 'link' ? 'Delete link' : 'Delete file', tone: 'danger' })
+    const ok = await confirm({ title: `Delete ${file.title}?`, description: 'It is removed from your private folder for you and your instructors.', confirmLabel: file.kind === 'link' ? 'Delete link' : file.kind === 'doc' ? 'Delete doc' : 'Delete file', tone: 'danger' })
     if (!ok || !selectedCohortId) return
     const result = await api.deleteCohortFile(selectedCohortId, file.id)
     if (result.error) return toast.error(result.error)
@@ -239,21 +247,33 @@ export function Resources() {
             disabled={!cohortFiles?.can_upload_personal || !cohortFiles?.storage_configured}
             disabledReason={!cohortFiles?.can_upload_personal ? 'Uploads are paused while your course is paused or your access has ended. You can still download your files.' : "File uploads aren't available right now. You can still add links."}
             onUploaded={addUploadedFile} />
-          {cohortFiles?.can_upload_personal && (addingLink ? (
+          {cohortFiles?.can_upload_personal && (adding === 'link' ? (
             <CohortLinkForm key={`link-${selectedCohortId}`} cohortId={selectedCohortId} heading="Add a link to my files" folderPresets={STUDENT_FOLDER_PRESETS}
-              onCancel={() => setAddingLink(false)}
-              onSaved={(file) => { addUploadedFile(file); setAddingLink(false) }} />
+              onCancel={() => setAdding(null)}
+              onSaved={(file) => { addUploadedFile(file); setAdding(null) }} />
+          ) : adding === 'doc' ? (
+            <CohortDocForm key={`doc-${selectedCohortId}`} cohortId={selectedCohortId} heading="New doc in my files" folderPresets={STUDENT_FOLDER_PRESETS}
+              description="Write notes, a plan or a checklist right here. It saves as you type, and your instructors can review it."
+              onCancel={() => setAdding(null)}
+              onCreated={(file) => { addUploadedFile(file); setAdding(null); setOpenFileId(file.id) }} />
           ) : (
-            <Button variant="secondary" onClick={() => setAddingLink(true)}>
-              <Link2 className="h-4 w-4" aria-hidden="true" />
-              Add a link
-            </Button>
+            <div className="grid grid-cols-2 gap-2 sm:flex">
+              <Button variant="secondary" onClick={() => setAdding('link')}>
+                <Link2 className="h-4 w-4" aria-hidden="true" />
+                Add a link
+              </Button>
+              <Button variant="secondary" onClick={() => setAdding('doc')}>
+                <NotebookPen className="h-4 w-4" aria-hidden="true" />
+                New doc
+              </Button>
+            </div>
           ))}
           {myFiles.length > 0 ? (
             <ul className="app-surface divide-y divide-line overflow-hidden" aria-label="Files in my folder">
               {myFiles.map((file) => (
                 <CohortFileRow key={file.id} cohortId={selectedCohortId} file={file} badges={<FolderBadge folder={file.folder} />} downloadDisabled={!cohortFiles?.storage_configured}
                   canUploadVersion={Boolean(file.can_manage && file.kind === 'file' && cohortFiles?.can_upload_personal && cohortFiles?.storage_configured)} onVersionUploaded={replaceMyFile}
+                  review={{ staff: false, canChange: Boolean(cohortFiles?.can_upload_personal) }} onFileChange={updateMyFile} autoOpen={file.id === openFileId} onAutoOpened={clearOpenFile}
                   note={file.uploaded_by_role === 'student' ? 'Added by you' : 'Shared by your instructor'}
                   actions={file.can_manage ? (
                     <Button size="sm" variant="quiet" onClick={() => void removeMyFile(file)} aria-label={`Delete ${file.title}`}>
@@ -277,7 +297,7 @@ export function Resources() {
             <div key={folder} className="space-y-2">
               <h3 className="text-sm font-semibold text-ink-secondary">{folder}</h3>
               <ul className="app-surface divide-y divide-line overflow-hidden" aria-label={`${folder} files`}>
-                {files.map((file) => <CohortFileRow key={file.id} cohortId={selectedCohortId} file={file} downloadDisabled={!cohortFiles?.storage_configured} />)}
+                {files.map((file) => <CohortFileRow key={file.id} cohortId={selectedCohortId} file={file} downloadDisabled={!cohortFiles?.storage_configured} autoOpen={file.id === openFileId} onAutoOpened={clearOpenFile} />)}
               </ul>
             </div>
           ))}

@@ -26,7 +26,7 @@ class CohortFileCabinetTest < ActionDispatch::IntegrationTest
       as_user(@teacher) { post files_path, params: link_params(external_url: url), headers: headers, as: :json }
       assert_response :unprocessable_entity, url
     end
-    as_user(@teacher) { post files_path, params: link_params(kind: "doc"), headers: headers, as: :json }
+    as_user(@teacher) { post files_path, params: link_params(kind: "folder"), headers: headers, as: :json }
     assert_response :unprocessable_entity
 
     as_user(@teacher) { post files_path, params: link_params(external_url: "https://www.figma.com/design/abc", title: ""), headers: headers, as: :json }

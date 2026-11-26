@@ -225,6 +225,15 @@ export class CsgApi {
   deleteCohortFile = (cohortId: number, fileId: number, options: { pendingOnly?: boolean } = {}) => this.request<void>(`/api/v1/cohorts/${cohortId}/files/${fileId}${options.pendingOnly ? '?pending_only=true' : ''}`, { method: 'DELETE' });
   downloadCohortFile = (cohortId: number, fileId: number) => this.request<components['schemas']['CohortFileDownloadResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/download`);
   previewCohortFile = (cohortId: number, fileId: number) => this.request<components['schemas']['CohortFilePreviewResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/preview`);
+  /** Learn Docs are saved ready in one step and work without file storage. */
+  createCohortDoc = (cohortId: number, input: Omit<components['schemas']['CohortDocCreateInput'], 'kind'>) => this.request<components['schemas']['CohortFileResponse']>(`/api/v1/cohorts/${cohortId}/files`, { method: 'POST', body: JSON.stringify({ ...input, kind: 'doc' }) });
+  cohortDoc = (cohortId: number, fileId: number) => this.request<components['schemas']['CohortDocResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/doc`);
+  /** Throws ApiError 409 when someone else saved since `base_updated_at`; nothing is saved then. */
+  saveCohortDoc = (cohortId: number, fileId: number, input: components['schemas']['CohortDocUpdateInput']) => this.request<components['schemas']['CohortDocResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/doc`, { method: 'PATCH', body: JSON.stringify(input) });
+  setCohortFileReview = (cohortId: number, fileId: number, reviewStatus: components['schemas']['CohortFileReviewInput']['review_status']) => this.request<components['schemas']['CohortFileResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/review`, { method: 'PATCH', body: JSON.stringify({ review_status: reviewStatus }) });
+  cohortFileComments = (cohortId: number, fileId: number) => this.request<components['schemas']['CohortFileCommentsResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/comments`);
+  createCohortFileComment = (cohortId: number, fileId: number, body: string) => this.request<components['schemas']['CohortFileCommentResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/comments`, { method: 'POST', body: JSON.stringify({ body }) });
+  deleteCohortFileComment = (cohortId: number, fileId: number, commentId: number) => this.request<void>(`/api/v1/cohorts/${cohortId}/files/${fileId}/comments/${commentId}`, { method: 'DELETE' });
   curricula = (signal?: AbortSignal) => this.request<{ curricula: StaffCurriculumSummary[] }>('/api/v1/curricula', { signal });
   curriculum = (id: number, signal?: AbortSignal) => this.request<{ curriculum: StaffCurriculum }>(`/api/v1/curricula/${id}`, { signal });
   lesson = (id: number, signal?: AbortSignal, cohortId?: number | null) => this.request<{ lesson: LessonDetail }>(`/api/v1/lessons/${id}${queryString({ cohort_id: cohortId })}`, { signal });

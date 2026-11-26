@@ -2,10 +2,20 @@ import type { CsgApi } from './api';
 import type { components } from './api.generated';
 import { formatFileSize } from './attachments';
 
+export { cohortFileNotificationPath } from './notification-path';
+
 export type CohortFile = components['schemas']['CohortFile'];
 export type CohortStudentFolder = components['schemas']['CohortStudentFolder'];
+export type CohortFilesResponse = components['schemas']['CohortFilesResponse'];
 export type CohortFilePreview = components['schemas']['CohortFilePreviewResponse'];
 export type LinkProvider = NonNullable<CohortFile['link_provider']>;
+export type CohortDoc = components['schemas']['CohortDocResponse'];
+export type CohortFileComment = components['schemas']['CohortFileComment'];
+export type ReviewStatus = CohortFile['review_status'];
+/** Mirrors CohortFile::MAX_DOC_LENGTH and CohortFileComment::MAX_BODY_LENGTH on the API. */
+export const MAX_DOC_LENGTH = 200_000;
+export const MAX_COMMENT_LENGTH = 4_000;
+export const REVIEW_LABELS: Record<ReviewStatus, string | null> = { none: null, needs_review: 'Needs review', reviewed: 'Reviewed' };
 
 export const MAX_COHORT_FILE_SIZE = 100 * 1024 * 1024;
 /** Mirrors CohortFile::ALLOWED_TYPES on the API, which also refuses pages, SVGs and scripts. */
@@ -41,6 +51,7 @@ export function fileExtension(filename: string) {
 
 export function cohortFileMeta(file: Pick<CohortFile, 'kind' | 'filename' | 'file_size' | 'folder' | 'external_url'>) {
   if (file.kind === 'link') return `${linkHost(file.external_url)} · ${file.folder}`;
+  if (file.kind === 'doc') return `Learn Doc · ${file.folder}`;
   return `${file.filename} · ${formatFileSize(file.file_size || 0)} · ${file.folder}`;
 }
 
@@ -158,6 +169,11 @@ export function linkUrlProblem(url: string) {
 /** A saved link, only if it is a public https address. */
 export function safeExternalFileUrl(url: string | null | undefined) {
   return url && !publicHttpsProblem(url) ? url.trim() : null;
+}
+
+/** Review loop: any item in a student's folder that students can see. */
+export function isStudentFolderItem(file: Pick<CohortFile, 'student_id' | 'visibility'>) {
+  return file.student_id !== null && file.visibility === 'students';
 }
 
 export function matchesCohortFile(file: CohortFile, needle: string) {

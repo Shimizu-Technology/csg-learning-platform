@@ -6,7 +6,10 @@ module Api
     # published key. A student only ever sees shared files visible to students
     # and their own folder. Links (kind "link") are saved in one step and
     # need no storage. Uploaded files can gain new versions through the same
-    # two-phase flow; older versions stay readable.
+    # two-phase flow; older versions stay readable. Learn Docs (kind "doc")
+    # are Markdown written in the app, with revision history and no storage.
+    # Items in a student's folder carry a review status and a comment thread
+    # between that student and staff.
     class CohortFilesController < ApplicationController
       before_action :authenticate_user!
       include AuthenticatedRateLimits
@@ -17,29 +20,23 @@ module Api
       FOLDER_STATUSES = %i[active paused].freeze
       # A learner was paused or lost access while their upload was publishing.
       class WritePaused < StandardError; end
+      # Under the lock, the doc turned out not to be one this viewer may edit.
+      class NotEditable < StandardError; end
+      # Under the lock, the item turned out not to be a student-visible
+      # student-folder item (staged staff only, or moved).
+      class NotFeedbackTarget < StandardError; end
 
       def index
         return render json: staff_index if current_user.staff?
 
-        scope = @cohort.cohort_files.ready.student_visible.includes(:uploaded_by)
-          .where(student_id: [ nil, current_user.id ]).order(:folder, :title, :id)
-        scope = scope.includes(:versions) if @enrollment.paused?
-        shown = scope.to_h { |file| [ file, @enrollment.file_version_for_read(file) ] }.compact
-        files = shown.keys
-        class_files, my_files = files.partition(&:class_file?)
-        render json: {
-          class_files: class_files.map { |file| file.file_json(shown: shown.fetch(file)) },
-          my_files: my_files.map { |file| file.file_json(can_manage: student_manages?(file), shown: shown.fetch(file)) },
-          folders: files.map(&:folder).uniq.sort,
-          storage_configured: S3Service.configured?,
-          can_upload_personal: student_can_write?
-        }
+        with_read_snapshot { render json: learner_index }
       end
 
       def create
         kind = params[:kind].presence || "file"
         return create_link if kind == "link"
-        return render json: { error: "kind must be file or link" }, status: :unprocessable_entity unless kind == "file"
+        return create_doc if kind == "doc"
+        return render json: { error: "kind must be file, link or doc" }, status: :unprocessable_entity unless kind == "file"
         return storage_unavailable unless S3Service.configured?
         unless params[:file_size].is_a?(Integer)
           render json: { error: "file_size must be a whole byte count" }, status: :unprocessable_entity
@@ -123,7 +120,7 @@ module Api
 
         file, shown, expiry = readable_target
         return if performed?
-        return link_has_no_file unless file.stored_file?
+        return no_stored_file(file) unless file.stored_file?
 
         response.headers["Cache-Control"] = "no-store"
         url = S3Service.generate_presigned_url(shown.s3_key, expires_in: expiry,
@@ -141,7 +138,7 @@ module Api
       def preview
         file, shown, expiry = readable_target
         return if performed?
-        return link_has_no_file unless file.stored_file?
+        return no_stored_file(file) unless file.stored_file?
 
         mode = shown.preview_mode
         body = {
@@ -265,6 +262,9 @@ module Api
           version.update!(ready: true, ready_at: Time.current)
           file.update!(version_number: version.version_number, s3_key: version.s3_key, upload_key: version.upload_key, filename: version.filename,
             content_type: version.content_type, file_size: version.file_size, ready_at: version.ready_at)
+          if !current_user.staff? && file.review_status == "needs_review"
+            notify_after_commit { NotificationDeliveryService.cohort_file_review_requested(file, actor: current_user, new_version: true) }
+          end
         end
         ActiveRecord.after_all_transactions_commit { delete_staging_upload(version) }
         render json: { file: file.file_json(can_manage: true), version: version.version_json(current: true) }
@@ -296,8 +296,26 @@ module Api
 
         file = manageable_files.find(params[:id])
         keys = current_user.staff? ? %i[title description folder visibility external_url] : %i[title description folder external_url]
-        file.update!(params.slice(*keys).permit(*keys).to_h.compact)
-        render json: { file: file.file_json(can_manage: true) }
+        changes = params.slice(*keys).permit(*keys).to_h.compact
+        raw_title = changes["title"]
+        if raw_title.to_s.include?("\0")
+          return render json: { errors: [ "Title cannot contain null characters" ] }, status: :unprocessable_entity
+        end
+        title = raw_title.to_s.squish
+        if file.doc? && title.present? && title != file.title
+          # Renaming a doc is a doc save: versioned, conflict-checked and kept in history.
+          with_doc_lock(file) do
+            return render_doc_conflict(file) unless doc_version_matches?(file)
+
+            file.assign_attributes(changes.except("title"))
+            file.save_doc!(content: file.doc_content, title: raw_title, editor: current_user, archive: true)
+          end
+        else
+          file.update!(changes)
+        end
+        render json: { file: viewer_file_json(file) }
+      rescue WritePaused
+        render_forbidden("Changes to your folder are paused")
       rescue ActiveRecord::RecordInvalid => error
         render json: { errors: error.record.errors.full_messages }, status: :unprocessable_entity
       end
@@ -320,13 +338,19 @@ module Api
         head :no_content
       end
 
-      # Copies a ready class file or link into every active student's folder.
-      # Students who already have a copy are skipped, so re-running reaches
-      # only new ones. Links are copied without storage.
+      # Copies a shared class file, link or Learn Doc into every active
+      # student's folder. Students who already have a copy are skipped, so
+      # re-running reaches only new ones. Each recipient's enrollment is
+      # locked and rechecked before their copy is made, so a student paused,
+      # dropped or expired meanwhile is skipped. Links and docs need no storage.
       def copy_to_students
         source = @cohort.cohort_files.find(params[:id])
-        unless source.class_file? && source.ready? && (source.stored_file? || source.link?)
-          render json: { error: "Only class files and links can be copied to student folders" }, status: :unprocessable_entity
+        unless source.class_file? && source.ready?
+          render json: { error: "Only class files, links and docs can be copied to student folders" }, status: :unprocessable_entity
+          return
+        end
+        if source.staff_only?
+          render json: { error: "Share this with students before copying it to their folders" }, status: :unprocessable_entity
           return
         end
         return storage_unavailable if source.stored_file? && !S3Service.configured?
@@ -335,8 +359,8 @@ module Api
         copied_ids = @cohort.cohort_files.where(source_file_id: source.id).where.not(student_id: nil).pluck(:student_id).to_set
         copies = []
         skipped = 0
-        @cohort.enrollments.active.includes(:user).order(:id).each do |enrollment|
-          copy = copy_for(source, enrollment.user_id, folder) unless copied_ids.include?(enrollment.user_id)
+        @cohort.enrollments.active.order(:id).pluck(:id, :user_id).each do |enrollment_id, student_id|
+          copy = copy_for(source, student_id, enrollment_id, folder) unless copied_ids.include?(student_id)
           if copy
             copies << copy
           else
@@ -350,7 +374,207 @@ module Api
         storage_error(error)
       end
 
+      # A Learn Doc's Markdown for this viewer: for a paused learner, the
+      # newest state saved before the pause (read-only).
+      def doc
+        with_read_snapshot do
+          file, = readable_target(allow_version: false)
+          return if performed?
+          return not_a_doc unless file.doc?
+
+          state = doc_state_for(file)
+          return render_forbidden("This doc was not available before your pause") unless state
+
+          response.headers["Cache-Control"] = "no-store"
+          render json: doc_json(file, state)
+        end
+      end
+
+      # Saves a doc. `base_doc_version` is the `doc_version` the editor
+      # loaded; when it is missing or the doc was saved since, nothing is
+      # saved and 409 returns the latest state. Learners who can't rename the
+      # doc (a copy staff put in their folder) keep its title.
+      def update_doc
+        file = doc_write_target
+        return if performed?
+        unless params[:doc_content].is_a?(String)
+          render json: { error: "doc_content must be text" }, status: :unprocessable_entity
+          return
+        end
+
+        with_doc_lock(file) do
+          raise NotEditable unless can_edit_doc?(file)
+          return render_doc_conflict(file) unless doc_version_matches?(file)
+
+          file.save_doc!(content: params[:doc_content], editor: current_user, title: title_editable?(file) ? params[:title] : nil,
+            summary: params[:summary], checkpoint: ActiveModel::Type::Boolean.new.cast(params[:save_revision]) || false)
+        end
+        render json: doc_json(file, file.current_doc_state)
+      rescue WritePaused
+        render_forbidden("Changes to your folder are paused")
+      rescue NotEditable
+        render_forbidden("You can't edit this doc")
+      rescue ActiveRecord::RecordInvalid => error
+        render json: { errors: error.record.errors.full_messages }, status: :unprocessable_entity
+      end
+
+      # Saved states of a doc, newest first (up to 100). Paused learners see
+      # only states saved before their pause.
+      def revisions
+        with_read_snapshot do
+          file, = readable_target(allow_version: false)
+          return if performed?
+          return not_a_doc unless file.doc?
+
+          list = visible_revisions(file).includes(:edited_by).order(revision_number: :desc).limit(100)
+          render json: { revisions: list.map(&:revision_json) }
+        end
+      end
+
+      def revision
+        with_read_snapshot do
+          file, = readable_target(allow_version: false)
+          return if performed?
+          return not_a_doc unless file.doc?
+
+          response.headers["Cache-Control"] = "no-store"
+          render json: { revision: visible_revisions(file).includes(:edited_by).find(params[:revision_id]).revision_json(include_content: true) }
+        end
+      end
+
+      # Makes an earlier revision the current doc, recorded as a new revision.
+      # The state it replaces is always kept as a revision first, so no saved
+      # draft is lost. Same permissions, locks and `base_doc_version` check as
+      # saving; a learner who can't rename the doc gets the content only.
+      def restore_revision
+        file = doc_write_target
+        return if performed?
+
+        with_doc_lock(file) do
+          raise NotEditable unless can_edit_doc?(file)
+          revision = file.doc_revisions.find(params[:revision_id])
+          return render_doc_conflict(file) unless doc_version_matches?(file)
+
+          file.save_doc!(content: revision.content, title: title_editable?(file) ? revision.title : nil, editor: current_user,
+            summary: "Restored revision #{revision.revision_number}", checkpoint: true, archive: true)
+        end
+        render json: doc_json(file, file.current_doc_state)
+      rescue WritePaused
+        render_forbidden("Changes to your folder are paused")
+      rescue NotEditable
+        render_forbidden("You can't edit this doc")
+      rescue ActiveRecord::RecordInvalid => error
+        render json: { errors: error.record.errors.full_messages }, status: :unprocessable_entity
+      end
+
+      # An active student sends an item in their own folder for review (or
+      # withdraws it); staff mark any student-folder item reviewed, needing
+      # review or neither.
+      def review
+        status = params[:review_status].to_s
+        unless CohortFile::REVIEW_STATUSES.include?(status)
+          render json: { error: "review_status must be none, needs_review or reviewed" }, status: :unprocessable_entity
+          return
+        end
+        file = feedback_target
+        return if performed?
+        return render_forbidden("Only your instructors can mark a file reviewed") if status == "reviewed" && !current_user.staff?
+
+        with_feedback_lock(file) do
+          changed = file.review_status != status
+          reviewed = status == "reviewed"
+          file.update!(review_status: status, reviewed_by: reviewed ? current_user : nil, reviewed_at: reviewed ? Time.current : nil)
+          if changed && status == "needs_review" && !current_user.staff?
+            notify_after_commit { NotificationDeliveryService.cohort_file_review_requested(file, actor: current_user) }
+          elsif changed && reviewed
+            notify_after_commit { NotificationDeliveryService.cohort_file_reviewed(file, actor: current_user) }
+          end
+        end
+        render json: { file: viewer_file_json(file) }
+      rescue WritePaused
+        render_forbidden("Changes to your folder are paused")
+      rescue NotFeedbackTarget
+        no_review_thread
+      end
+
+      # The review thread on a student-folder item, oldest first. Paused
+      # learners see only comments written before their pause.
+      def comments
+        with_read_snapshot do
+          file, = readable_target(allow_version: false)
+          return if performed?
+          return no_review_thread unless file.student_folder_item?
+
+          can_write = can_comment?(file)
+          list = visible_comments(file).includes(:user).order(:created_at, :id)
+          render json: { comments: list.map { |comment| comment.comment_json(viewer: current_user, can_write: can_write) }, can_comment: can_write }
+        end
+      end
+
+      def create_comment
+        file = feedback_target
+        return if performed?
+        unless params[:body].is_a?(String)
+          render json: { error: "body must be text" }, status: :unprocessable_entity
+          return
+        end
+
+        comment = nil
+        with_feedback_lock(file) do
+          comment = file.comments.create!(user: current_user, body: params[:body])
+          notify_after_commit { NotificationDeliveryService.cohort_file_commented(comment) }
+        end
+        render json: { comment: comment.comment_json(viewer: current_user, can_write: true) }, status: :created
+      rescue WritePaused
+        render_forbidden("Changes to your folder are paused")
+      rescue NotFeedbackTarget
+        no_review_thread
+      rescue ActiveRecord::RecordInvalid => error
+        render json: { errors: error.record.errors.full_messages }, status: :unprocessable_entity
+      end
+
+      # Authors remove their own comments; staff remove any.
+      def destroy_comment
+        file = feedback_target
+        return if performed?
+
+        with_feedback_lock(file) do
+          comment = file.comments.lock.find(params[:comment_id])
+          return render_forbidden("You can only remove your own comments") unless current_user.staff? || comment.user_id == current_user.id
+
+          comment.destroy!
+        end
+        head :no_content
+      rescue WritePaused
+        render_forbidden("Changes to your folder are paused")
+      rescue NotFeedbackTarget
+        no_review_thread
+      end
+
       private
+
+      # A learner's files, read in one snapshot with their enrollment.
+      def learner_index
+        scope = @cohort.cohort_files.ready.student_visible.includes(:uploaded_by, :reviewed_by, :doc_updated_by)
+          .where(student_id: [ nil, current_user.id ]).order(:folder, :title, :id)
+        scope = scope.includes(:versions) if @enrollment.paused?
+        shown = scope.to_h { |file| [ file, @enrollment.file_version_for_read(file) ] }.compact
+        doc_states = shown.keys.select(&:doc?).index_with { |file| @enrollment.doc_state_for_read(file) }
+        shown.reject! { |file, _| file.doc? && doc_states[file].nil? }
+        files = shown.keys
+        counts = comment_counts(files)
+        class_files, my_files = files.partition(&:class_file?)
+        {
+          class_files: class_files.map { |file| file.file_json(shown: shown.fetch(file), doc_state: doc_states[file]) },
+          my_files: my_files.map do |file|
+            file.file_json(can_manage: student_manages?(file), shown: shown.fetch(file), doc_state: doc_states[file],
+              comment_count: counts.fetch(file.id, 0), can_edit_doc: can_edit_doc?(file), review_cutoff: @enrollment.file_read_cutoff)
+          end,
+          folders: files.map(&:folder).uniq.sort,
+          storage_configured: S3Service.configured?,
+          can_upload_personal: student_can_write?
+        }
+      end
 
       def set_cohort
         @cohort = Cohort.find(params[:cohort_id])
@@ -377,6 +601,34 @@ module Api
         )
         file.save!
         render json: { file: file.file_json(can_manage: true) }, status: :created
+      rescue ActiveRecord::RecordInvalid => error
+        render json: { errors: error.record.errors.full_messages }, status: :unprocessable_entity
+      end
+
+      # A doc is saved and published in one step and needs no storage. A
+      # student's enrollment is locked first, as for every learner write.
+      def create_doc
+        student_id = upload_student_id
+        return if performed?
+        unless params[:doc_content].nil? || params[:doc_content].is_a?(String)
+          render json: { error: "doc_content must be text" }, status: :unprocessable_entity
+          return
+        end
+
+        now = Time.current
+        file = @cohort.cohort_files.new(
+          kind: "doc", student_id: student_id, uploaded_by: current_user,
+          title: params[:title].presence || "Untitled doc", description: params[:description], folder: params[:folder],
+          visibility: current_user.staff? ? params[:visibility].presence || "students" : "students",
+          doc_content: params[:doc_content].to_s, doc_updated_at: now, doc_updated_by: current_user, ready: true
+        )
+        CohortFile.transaction do
+          lock_writer_enrollment! unless current_user.staff?
+          file.save!
+        end
+        render json: { file: viewer_file_json(file) }, status: :created
+      rescue WritePaused
+        render_forbidden("Uploads to your folder are paused")
       rescue ActiveRecord::RecordInvalid => error
         render json: { errors: error.record.errors.full_messages }, status: :unprocessable_entity
       end
@@ -423,6 +675,59 @@ module Api
         CohortFile.transaction do
           lock_writer_enrollment! unless current_user.staff?
           file.lock!
+          yield
+        end
+      end
+
+      # A doc write locks, in order: the writer's enrollment (a learner), the
+      # enrollments of everyone who can read the doc or be paused into
+      # reading it (CohortFile#reader_enrollments), then the doc. A pause
+      # locks the enrollment before it stamps paused_at
+      # (EnrollmentsController#update), so it lands wholly before or after
+      # the save, and the pause snapshot rule in CohortFile#save_doc! always sees it.
+      def with_doc_lock(file)
+        CohortFile.transaction do
+          lock_writer_enrollment! unless current_user.staff?
+          file.reader_enrollments.order(:id).lock.pluck(:id)
+          file.lock!
+          yield
+        end
+      end
+
+      # Review changes and comments lock the student's enrollment, then the
+      # file: a learner's own (which must be active), or for staff the folder
+      # owner's whatever its status, so feedback times line up with a
+      # concurrent pause. With both held, the item must still be a
+      # student-visible student-folder item (a learner's own) and the learner
+      # still active, deadline included.
+      def with_feedback_lock(file)
+        CohortFile.transaction do
+          if current_user.staff?
+            file.reader_enrollments.order(:id).lock.pluck(:id) if file.student_id
+          else
+            lock_writer_enrollment!
+          end
+          file.lock!
+          raise NotFeedbackTarget unless file.student_folder_item? && (current_user.staff? || file.student_id == current_user.id)
+          raise WritePaused unless current_user.staff? || @enrollment.active?
+
+          yield
+        end
+      end
+
+      # Learner reads run in one REPEATABLE READ snapshot that re-reads the
+      # enrollment first, so a pause committing mid-request can't pair an
+      # active enrollment with content saved after the pause. Transactional
+      # tests already hold an outer transaction, whose isolation is fixed.
+      def with_read_snapshot
+        return yield if current_user.staff?
+
+        CohortFile.transaction do
+          connection = CohortFile.connection
+          connection.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ") if connection.open_transactions == 1
+          @enrollment = current_user.enrollments.with_read_access.find_by(id: @enrollment.id)
+          next render_forbidden("Not enrolled in this cohort") unless @enrollment
+
           yield
         end
       end
@@ -494,25 +799,134 @@ module Api
         nil
       end
 
-      def link_has_no_file
-        render json: { error: "Links open on their own site" }, status: :unprocessable_entity
+      def no_stored_file(file)
+        render json: { error: file.doc? ? "Learn Docs open in the app" : "Links open on their own site" }, status: :unprocessable_entity
+      end
+
+      def not_a_doc
+        render json: { error: "Only Learn Docs have this" }, status: :unprocessable_entity
+      end
+
+      def no_review_thread
+        render json: { error: "Only files in a student's folder have reviews and comments" }, status: :unprocessable_entity
+      end
+
+      # This file as the current viewer sees it right now.
+      def viewer_file_json(file, doc_state = nil)
+        file.file_json(can_manage: current_user.staff? || student_manages?(file), doc_state: doc_state,
+          comment_count: file.student_folder_item? ? visible_comments(file).count : 0, can_edit_doc: can_edit_doc?(file),
+          review_cutoff: (@enrollment&.file_read_cutoff unless current_user.staff?))
+      end
+
+      def doc_json(file, state)
+        {
+          file: viewer_file_json(file, state), doc_content: state.content, doc_version: state.version, doc_updated_at: state.updated_at.iso8601(6),
+          doc_updated_by_name: state.updated_by_name, can_edit_doc: can_edit_doc?(file), revision_count: visible_revisions(file).count
+        }
+      end
+
+      def render_doc_conflict(file)
+        render json: { error: "This document was updated by someone else. Load the latest version before saving." }
+          .merge(doc_json(file, file.current_doc_state)), status: :conflict
+      end
+
+      def doc_state_for(file)
+        current_user.staff? ? file.current_doc_state : @enrollment.doc_state_for_read(file)
+      end
+
+      # Staff edit every doc in the cohort; an active student edits the docs in
+      # their own folder, including copies staff put there.
+      def can_edit_doc?(file)
+        return false unless file.doc?
+
+        current_user.staff? || (student_can_write? && file.student_id == current_user.id && !file.staff_only?)
+      end
+
+      def can_comment?(file)
+        file.student_folder_item? && (current_user.staff? || (student_can_write? && file.student_id == current_user.id))
+      end
+
+      # The doc a save or restore targets, or renders 403/404/422.
+      def doc_write_target
+        file = current_user.staff? ? @cohort.cohort_files.ready.find(params[:id]) : readable_files.ready.find(params[:id])
+        return not_a_doc unless file.doc?
+        return render_forbidden("Changes to your folder are paused") unless current_user.staff? || student_can_write?
+        return render_forbidden("You can only edit docs in your own folder") unless can_edit_doc?(file)
+
+        file
+      end
+
+      # The student-folder item a review change or comment targets, or renders 403/404/422.
+      def feedback_target
+        file = current_user.staff? ? @cohort.cohort_files.ready.find(params[:id]) : readable_files.ready.find(params[:id])
+        return no_review_thread unless file.student_folder_item?
+        return file if current_user.staff?
+        return render_forbidden("Changes to your folder are paused") unless student_can_write?
+        return render_forbidden("You can only do this in your own folder") unless file.student_id == current_user.id
+
+        file
+      end
+
+      # Whether the edit was based on the doc's current version. A missing
+      # `base_doc_version` never matches, so every save says what it saw.
+      def doc_version_matches?(file)
+        base = params[:base_doc_version]
+        (base.is_a?(Integer) || base.to_s.match?(/\A\d+\z/)) && base.to_i == file.doc_version
+      end
+
+      # Staff, and learners on docs they made, may rename a doc; a copy staff
+      # put in a learner's folder keeps its title.
+      def title_editable?(file)
+        current_user.staff? || student_manages?(file)
+      end
+
+      def visible_revisions(file)
+        cutoff = @enrollment&.file_read_cutoff unless current_user.staff?
+        cutoff ? file.doc_revisions.where(created_at: ..cutoff) : file.doc_revisions
+      end
+
+      def visible_comments(file)
+        cutoff = @enrollment&.file_read_cutoff unless current_user.staff?
+        cutoff ? file.comments.where(created_at: ..cutoff) : file.comments
+      end
+
+      def comment_counts(files)
+        ids = files.select(&:student_folder_item?).map(&:id)
+        return {} if ids.empty?
+
+        cutoff = @enrollment&.file_read_cutoff unless current_user.staff?
+        scope = CohortFileComment.where(cohort_file_id: ids)
+        scope = scope.where(created_at: ..cutoff) if cutoff
+        scope.group(:cohort_file_id).count
+      end
+
+      # Notifications go out once the write commits and never undo it.
+      def notify_after_commit(&delivery)
+        ActiveRecord.after_all_transactions_commit do
+          delivery.call
+        rescue StandardError => error
+          Rails.logger.error("[CohortFiles] notification_failed #{error.class}")
+        end
       end
 
       def staff_index
-        class_files = @cohort.cohort_files.class_files.ready.includes(:uploaded_by).order(:folder, :title, :id).to_a
+        class_files = @cohort.cohort_files.class_files.ready.includes(:uploaded_by, :doc_updated_by).order(:folder, :title, :id).to_a
         enrollments = @cohort.enrollments.where(status: FOLDER_STATUSES).includes(:user).to_a
           .sort_by { |enrollment| [ enrollment.user.full_name.downcase, enrollment.id ] }
         student_files = @cohort.cohort_files.ready.where(student_id: enrollments.map(&:user_id))
-          .includes(:uploaded_by).order(:folder, :title, :id).group_by(&:student_id)
+          .includes(:uploaded_by, :reviewed_by, :doc_updated_by).order(:folder, :title, :id).group_by(&:student_id)
+        counts = comment_counts(student_files.values.flatten)
+        staff_json = ->(file) { file.file_json(can_manage: true, comment_count: counts.fetch(file.id, 0), can_edit_doc: true) }
         {
-          class_files: class_files.map { |file| file.file_json(can_manage: true) },
+          class_files: class_files.map(&staff_json),
           student_folders: enrollments.map do |enrollment|
             files = student_files.fetch(enrollment.user_id, [])
             {
               student_id: enrollment.user_id, enrollment_id: enrollment.id,
               student_name: enrollment.user.full_name, student_email: enrollment.user.email,
               enrollment_status: enrollment.paused? || enrollment.active? ? enrollment.status : "expired",
-              file_count: files.size, files: files.map { |file| file.file_json(can_manage: true) }
+              file_count: files.size, needs_review_count: files.count { |file| file.student_folder_item? && file.review_status == "needs_review" },
+              files: files.map(&staff_json)
             }
           end,
           folders: (class_files + student_files.values.flatten).map(&:folder).uniq.sort,
@@ -562,8 +976,9 @@ module Api
       # Validates the copy before touching storage. If the copy or the save
       # fails (even ambiguously, e.g. a timeout after S3 copied), the copied
       # object is removed, or queued for a durable retry.
-      def copy_for(source, student_id, folder)
-        return copy_link_for(source, student_id, folder) if source.link?
+      def copy_for(source, student_id, enrollment_id, folder)
+        return copy_link_for(source, student_id, enrollment_id, folder) if source.link?
+        return copy_doc_for(source, student_id, enrollment_id, folder) if source.doc?
 
         token = SecureRandom.uuid
         copy = @cohort.cohort_files.new(
@@ -577,7 +992,10 @@ module Api
         copy.validate!
         begin
           S3Service.copy_object(source.s3_key, copy.s3_key)
-          copy.save!
+          unless for_active_recipient(enrollment_id) { copy.save! }
+            remove_copied_object(copy.s3_key)
+            return nil
+          end
         rescue ActiveRecord::RecordNotUnique => error
           remove_copied_object(copy.s3_key)
           # Only "this student already has a copy" is a skip; anything else is a real failure.
@@ -592,16 +1010,42 @@ module Api
         copy
       end
 
-      def copy_link_for(source, student_id, folder)
-        @cohort.cohort_files.create!(
-          kind: "link", student_id: student_id, uploaded_by: current_user, source_file: source,
-          title: source.title, description: source.description, folder: folder, visibility: "students",
-          external_url: source.external_url, ready: true
-        )
+      def copy_link_for(source, student_id, enrollment_id, folder)
+        for_active_recipient(enrollment_id) do
+          @cohort.cohort_files.create!(
+            kind: "link", student_id: student_id, uploaded_by: current_user, source_file: source,
+            title: source.title, description: source.description, folder: folder, visibility: "students",
+            external_url: source.external_url, ready: true
+          )
+        end
       rescue ActiveRecord::RecordNotUnique
         raise unless @cohort.cohort_files.exists?(student_id: student_id, source_file_id: source.id)
 
         nil
+      end
+
+      # Each student gets the doc's current content as their own doc to edit.
+      def copy_doc_for(source, student_id, enrollment_id, folder)
+        for_active_recipient(enrollment_id) do
+          @cohort.cohort_files.create!(
+            kind: "doc", student_id: student_id, uploaded_by: current_user, source_file: source,
+            title: source.title, description: source.description, folder: folder, visibility: "students",
+            doc_content: source.doc_content.to_s, doc_updated_at: Time.current, doc_updated_by: current_user, ready: true
+          )
+        end
+      rescue ActiveRecord::RecordNotUnique
+        raise unless @cohort.cohort_files.exists?(student_id: student_id, source_file_id: source.id)
+
+        nil
+      end
+
+      # Runs the insert with the recipient's enrollment locked and still
+      # active (not paused, dropped or past its deadline); nil otherwise.
+      def for_active_recipient(enrollment_id)
+        Enrollment.transaction do
+          recipient = Enrollment.lock.find_by(id: enrollment_id)
+          yield if recipient&.active?
+        end
       end
 
       def remove_copied_object(key)

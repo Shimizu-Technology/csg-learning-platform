@@ -1,5 +1,18 @@
 import { fromWebPath, toNativeHref, toWebPath, type RecordDestination } from './record-destination';
 
+/**
+ * Where a file review notification opens in the app: the learner's Resources
+ * or the staff Files screen, with the item to open. Null for anything else.
+ */
+export function cohortFileNotificationPath(path: unknown) {
+  if (typeof path !== 'string') return null;
+  const learner = path.match(/^\/resources\?cohort_id=([1-9]\d*)&file=([1-9]\d*)$/);
+  if (learner) return path;
+  const staff = path.match(/^\/admin\/cohorts\/([1-9]\d*)\?tab=files&student=([1-9]\d*)&file=([1-9]\d*)$/);
+  if (staff) return `/staff/files?cohort_id=${staff[1]}&student=${staff[2]}&file=${staff[3]}`;
+  return /^\/staff\/files\?cohort_id=[1-9]\d*&student=[1-9]\d*&file=[1-9]\d*$/.test(path) ? path : null;
+}
+
 const SIMPLE = new Set(['/', '/meetings', '/learn', '/resources', '/recordings', '/updates', '/messages', '/staff/grading', '/staff/support']);
 export function descriptorFromPath(value: string): RecordDestination | null {
   if (/[\s\\]/.test(value) || value.startsWith('//') || value.split('?').length > 2 || value.split('#').length > 2) return null;
@@ -30,12 +43,16 @@ export function isAllowedNotificationPath(value: unknown): value is string {
   if (value === '/link-unavailable' || /^\/thread\/[1-9]\d*$/.test(value) || /^\/cohort\/[1-9]\d*\/schedule$/.test(value)) return true;
   if (value.startsWith('/link-unavailable?path=')) return webFallbackPath(new URLSearchParams(value.split('?')[1]).get('path')) === value;
   if (SIMPLE.has(value) || /^\/staff\/student\/[1-9]\d*$/.test(value) || /^\/recording\/(?:recording|uploaded)-[1-9]\d*$/.test(value)) return true;
+  if (cohortFileNotificationPath(value) === value) return true;
   const canonical = toNativeHref(descriptorFromPath(value)) ?? legacyNativePath(value);
   return canonical === value || canonical === value.replace('?messageId=', '?message_id=');
 }
 
 /** New descriptor first; legacy stored paths are parsed at this boundary. */
 export function mobileNotificationPath(value: unknown, messageId?: unknown, legacyPath?: unknown): string {
+  // A file review notice opens the item itself, not just its cohort.
+  const filePath = cohortFileNotificationPath(value);
+  if (filePath) return filePath;
   const descriptor = typeof value === 'string' ? descriptorFromPath(value) : value;
   let canonical = toNativeHref(descriptor);
   if (!canonical && toWebPath(descriptor)) return webFallbackPath(toWebPath(descriptor));
