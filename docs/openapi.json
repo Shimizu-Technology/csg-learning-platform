@@ -10352,7 +10352,7 @@
           },
           "stale": {
             "type": "boolean",
-            "description": "True when check evidence is stale because of outcome, policy change, superseded attempt, or commit SHA mismatch."
+            "description": "True when check evidence is stale because of outcome, policy change, superseded attempt, commit SHA mismatch, or a suggested grade off the curriculum's current grading scale (B on Pass / Redo, Pass on A / B / C / Redo)."
           },
           "decision": {
             "type": [

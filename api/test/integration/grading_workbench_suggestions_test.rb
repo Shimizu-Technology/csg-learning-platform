@@ -278,6 +278,70 @@ class GradingWorkbenchSuggestionsTest < ActionDispatch::IntegrationTest
     assert_equal "Old check harness", response.parsed_body.dig("submission", "grade_suggestion", "override_reason")
   end
 
+  test "saving Pass on a Pass / Redo curriculum records accepting its suggest_pass suggestion" do
+    @curriculum.update!(grading_scale: "pass_redo")
+    sub = create_verified_submission(@enrollment, @exercise_1, sha: SHA_ONE)
+    sub.github_check_runs.create!(external_id: 2101, name: "prework/111.rb", app_slug: "github-actions",
+      head_sha: SHA_ONE, status: "completed", conclusion: "success", fetched_at: @now)
+    assert_equal "suggest_pass", GithubGradeSuggestionEvaluator.evaluate_submission!(sub).outcome
+
+    as_user(@instructor) do
+      patch "/api/v1/submissions/#{sub.id}/grade", params: { grade: "P", feedback: "Nice", base_submission_updated_at: sub.updated_at.iso8601(6) },
+        headers: auth_headers, as: :json
+    end
+    assert_response :success
+    suggestion = response.parsed_body.dig("submission", "grade_suggestion")
+    assert_equal [ "suggest_pass", "P", "accepted", false ], suggestion.values_at("outcome", "suggested_grade", "decision", "stale")
+    assert_equal "accepted", sub.submission_grade_suggestion.reload.decision
+  end
+
+  test "a suggestion off the curriculum's new scale is out of date everywhere and never counts as an override" do
+    sub = create_verified_submission(@enrollment, @exercise_1, sha: SHA_ONE)
+    sub.github_check_runs.create!(external_id: 2201, name: "prework/111.rb", app_slug: "github-actions",
+      head_sha: SHA_ONE, status: "completed", conclusion: "success", fetched_at: @now)
+    suggestion = GithubGradeSuggestionEvaluator.evaluate_submission!(sub)
+    assert_equal "suggest_b", suggestion.outcome
+    refute suggestion.off_scale?
+
+    @curriculum.update!(grading_scale: "pass_redo")
+    assert suggestion.reload.off_scale?
+    assert suggestion.stale_for?(grading_scale: "pass_redo")
+    assert suggestion.to_staff_json(grading_scale: "pass_redo")[:stale]
+
+    as_user(@instructor) { get "/api/v1/submissions/#{sub.id}", headers: auth_headers }
+    assert_response :success
+    assert_equal [ "suggest_b", true ], response.parsed_body.dig("submission", "grade_suggestion").values_at("outcome", "stale")
+
+    queue = ->(outcome) do
+      as_user(@instructor) { get "/api/v1/grading_queue", params: { cohort_id: @opted_in_cohort.id, suggestion_outcome: outcome }, headers: auth_headers }
+      assert_response :success
+      response.parsed_body.fetch("submissions").map { |item| item["id"] }
+    end
+    assert_not_includes queue.call("suggest_b"), sub.id, "B suggested no longer lists it on Pass / Redo"
+    assert_includes queue.call("stale_evidence"), sub.id, "it shows as Out of date instead"
+    as_user(@instructor) { get "/api/v1/grading_queue", params: { cohort_id: @opted_in_cohort.id }, headers: auth_headers }
+    item = response.parsed_body.fetch("submissions").find { |row| row["id"] == sub.id }
+    assert_equal true, item.dig("grade_suggestion", "stale")
+
+    # Saving Pass is not an override of the old B suggestion, and claiming one is refused.
+    as_user(@instructor) do
+      patch "/api/v1/submissions/#{sub.id}/grade", params: { grade: "P", feedback: "Nice", base_submission_updated_at: sub.reload.updated_at.iso8601(6), suggestion_decision: "overridden" },
+        headers: auth_headers, as: :json
+    end
+    assert_response :unprocessable_entity
+    as_user(@instructor) do
+      patch "/api/v1/submissions/#{sub.id}/grade", params: { grade: "P", feedback: "Nice", base_submission_updated_at: sub.reload.updated_at.iso8601(6) },
+        headers: auth_headers, as: :json
+    end
+    assert_response :success
+    assert_nil sub.submission_grade_suggestion.reload.decision
+
+    # A fresh check run on the new scale suggests Pass again.
+    sub.update_columns(grade: nil)
+    assert_equal "suggest_pass", GithubGradeSuggestionEvaluator.evaluate_submission!(sub.reload).outcome
+    refute sub.submission_grade_suggestion.reload.off_scale?
+  end
+
   test "PATCH /grade rejects invalid suggestion_decision and override_reason before any write and preserves stale-tab protection" do
     sub = create_verified_submission(@enrollment, @exercise_1, sha: SHA_ONE)
     sub.github_check_runs.create!(

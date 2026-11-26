@@ -1,4 +1,4 @@
-import { gradeFromRubric, passingChoicesFor, suggestedPassingGrade } from '../grading-scale';
+import { gradeFromRubric, gradeOnScale, passingChoicesFor, suggestedPassingGrade } from '../grading-scale';
 
 describe('grading scales', () => {
   it('offers each scale its passing grades', () => {
@@ -8,6 +8,10 @@ describe('grading scales', () => {
     expect(suggestedPassingGrade('suggest_pass')).toBe('P');
     expect(suggestedPassingGrade('suggest_b')).toBe('B');
     expect(suggestedPassingGrade('review_for_redo')).toBeNull();
+    expect(gradeOnScale('A', 'pass_redo')).toBeNull();
+    expect(gradeOnScale('R', 'pass_redo')).toBe('R');
+    expect(gradeOnScale('P', 'letter_abc_redo')).toBeNull();
+    expect(gradeOnScale('B', 'letter_abc_redo')).toBe('B');
   });
 
   it('reads a grade from rubric ratings the same way the web app does', () => {

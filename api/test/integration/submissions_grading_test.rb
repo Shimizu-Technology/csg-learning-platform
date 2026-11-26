@@ -686,6 +686,23 @@ class SubmissionsGradingTest < ActionDispatch::IntegrationTest
     assert_equal "#{@instructor.full_name} graded Exercise 1: Pass", NotificationDeliveryService.submission_graded(@submission, push: false).first.title
   end
 
+  test "grading locks the curriculum before the enrollment and the submission, and checks the scale under it" do
+    statements = []
+    recorder = ->(*, payload) { statements << payload[:sql] }
+    ActiveSupport::Notifications.subscribed(recorder, "sql.active_record") do
+      as_user(@instructor) do
+        patch "/api/v1/submissions/#{@submission.id}/grade", params: grading_params(grade: "B", feedback: "Nice"), headers: auth_headers, as: :json
+      end
+    end
+    assert_response :success
+    curriculum_lock = statements.index { |sql| sql.match?(/FROM "curricula".*FOR SHARE/m) }
+    enrollment_lock = statements.index { |sql| sql.match?(/FROM "enrollments".*FOR UPDATE/m) }
+    submission_lock = statements.index { |sql| sql.match?(/FROM "submissions".*FOR UPDATE/m) }
+    assert curriculum_lock && enrollment_lock && submission_lock, statements.grep(/FOR /).inspect
+    assert_operator curriculum_lock, :<, enrollment_lock
+    assert_operator enrollment_lock, :<, submission_lock
+  end
+
   test "an A / B / C / Redo curriculum refuses P, and a scale change keeps earlier grades readable" do
     as_user(@instructor) do
       patch "/api/v1/submissions/#{@submission.id}/grade", params: grading_params(grade: "P", feedback: "Nice"), headers: auth_headers, as: :json

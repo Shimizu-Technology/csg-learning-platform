@@ -191,6 +191,26 @@ describe('support identity and entitlements', () => {
     expect(calls[2][1].client_request_id).toBe(calls[0][1].client_request_id)
     expect(calls[1][1].client_request_id).not.toBe(calls[0][1].client_request_id)
   })
+  it('sends edited follow-up text with a new retry id, so a lost answer never replays the old text', async () => {
+    const staffReply = { id: 1, body: 'What error?', resolved_request: false, from_student: false, author: { id: 9, full_name: 'Ina Teacher' }, created_at: '2026-10-01T01:00:00Z' }
+    const active = request({ id: 93, status: 'acknowledged', staff_response: staffReply.body, replies: [staffReply] })
+    vi.mocked(api.replyToHelpRequest).mockResolvedValue({ data: null, error: 'Offline' })
+    await render(<ContextualHelp capabilities={capabilities} cohortId={4} contextType="lesson" contextId={42} contextLabel="Lists" requests={[active]} requestsLoading={false} />)
+    await click('Your instructor replied')
+    const typeInto = async (text: string) => {
+      const box = container.querySelector<HTMLTextAreaElement>('#help-follow-up-93')!
+      await act(async () => { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(box, text); box.dispatchEvent(new Event('input', { bubbles: true })) })
+    }
+    await typeInto('First try')
+    await click('Send reply')
+    await click('Send reply')
+    await typeInto('First try, with the stack trace')
+    await click('Send reply')
+    const ids = vi.mocked(api.replyToHelpRequest).mock.calls.map(([, data]) => data.client_request_id)
+    expect(vi.mocked(api.replyToHelpRequest).mock.calls.map(([, data]) => data.body)).toEqual(['First try', 'First try', 'First try, with the stack trace'])
+    expect(ids[1]).toBe(ids[0])
+    expect(ids[2]).not.toBe(ids[0])
+  })
   it('lets the learner add details before an instructor answers, without acknowledging it', async () => {
     const note = { id: 3, body: 'TypeError: undefined', resolved_request: false, from_student: true, author: { id: 7, full_name: 'Student Test' }, created_at: '2026-10-01T02:00:00Z' }
     vi.mocked(api.replyToHelpRequest).mockResolvedValue({ data: { help_request: request({ id: 93, replies: [note] }), reply: note, replayed: false }, error: null })

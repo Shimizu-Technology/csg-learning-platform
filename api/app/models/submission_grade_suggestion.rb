@@ -53,19 +53,32 @@ class SubmissionGradeSuggestion < ApplicationRecord
     end
   end
 
-  def stale_for?(active_policy: :unloaded, latest_submission_id: :unloaded, submission_commit_sha: :unloaded)
+  # True when the suggested grade isn't on the curriculum's current scale: B after a switch to
+  # Pass / Redo, or Pass after a switch back to A / B / C / Redo. Such a suggestion is out of
+  # date everywhere (serialization, the queue's filters and the grade save's decision).
+  def off_scale?(current_grading_scale = :unloaded)
+    expected = GRADE_FOR_OUTCOME[outcome]
+    return false unless expected
+
+    scale = current_grading_scale == :unloaded ? submission&.grading_scale : current_grading_scale
+    !Curriculum.grades_for_scale(scale).include?(expected)
+  end
+
+  def stale_for?(active_policy: :unloaded, latest_submission_id: :unloaded, submission_commit_sha: :unloaded, grading_scale: :unloaded)
     outcome == "stale_evidence" ||
+      off_scale?(grading_scale) ||
       stale_policy?(active_policy) ||
       (latest_submission_id != :unloaded && latest_submission_id.present? && latest_submission_id != submission_id) ||
       (submission_commit_sha != :unloaded && submission_commit_sha.present? && commit_sha.present? && !commit_sha.casecmp?(submission_commit_sha))
   end
 
-  def to_staff_json(active_policy: :unloaded, latest_submission_id: :unloaded, submission_commit_sha: :unloaded)
+  def to_staff_json(active_policy: :unloaded, latest_submission_id: :unloaded, submission_commit_sha: :unloaded, grading_scale: :unloaded)
     stale_policy = stale_policy?(active_policy)
     stale = stale_policy || stale_for?(
       active_policy: active_policy,
       latest_submission_id: latest_submission_id,
-      submission_commit_sha: submission_commit_sha
+      submission_commit_sha: submission_commit_sha,
+      grading_scale: grading_scale
     )
     {
       id: id,

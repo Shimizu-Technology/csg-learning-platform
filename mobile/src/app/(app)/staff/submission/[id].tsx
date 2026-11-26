@@ -33,7 +33,7 @@ import { formatCourseDateTime } from '@/lib/course-time';
 import { clearGradingDraft, gradingDraftMatches, loadGradingDraft, saveGradingDraft } from '@/lib/submission-storage';
 import type { FeedbackSnippet, RubricRating, Submission } from '@/lib/types';
 import { gradeLabel, humanize } from '@/lib/display-labels';
-import { gradeFromRubric, normalizeGradingScale } from '@/lib/grading-scale';
+import { gradeFromRubric, gradeOnScale, normalizeGradingScale } from '@/lib/grading-scale';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -144,9 +144,17 @@ export default function StaffSubmissionScreen() {
     ? criterionDraft.values
     : Object.fromEntries((submission?.rubric?.criteria || []).map((criterion) => [criterion.id, { rating: criterion.rating || null, feedback: criterion.feedback || '' }])), [criterionDraft, submission, submissionId]);
   const unratedCount = submission?.rubric?.criteria.filter((criterion) => !criterionResults[criterion.id]?.rating).length || 0;
-  const selectedGrade = gradeDraft?.submissionId === submissionId ? gradeDraft.value : (submission?.grade as GradingOutcome | null) || null;
-  const currentGradeSource = gradeSource?.submissionId === submissionId ? gradeSource.value : null;
   const gradingScale = normalizeGradingScale(submission?.grading_scale);
+  // Only grades on the curriculum's current scale can be chosen. A saved or restored grade from
+  // the other scale (an A after a switch to Pass / Redo) stays in the header but isn't selected,
+  // so the reviewer picks a grade this scale accepts before saving.
+  const savedGrade = submission?.grade;
+  const savedSelection = useMemo(() => gradeOnScale(savedGrade, gradingScale), [savedGrade, gradingScale]);
+  const selectedGrade = useMemo(
+    () => gradeDraft?.submissionId === submissionId ? gradeOnScale(gradeDraft.value, gradingScale) : savedSelection,
+    [gradeDraft, gradingScale, savedSelection, submissionId],
+  );
+  const currentGradeSource = gradeSource?.submissionId === submissionId ? gradeSource.value : null;
   const chooseGrade = (grade: GradingOutcome) => {
     setGradeDraft({ submissionId, value: grade });
     setGradeSource({ submissionId, value: 'manual' });
@@ -161,7 +169,7 @@ export default function StaffSubmissionScreen() {
       setGradeDraft({ submissionId, value: suggested });
       setGradeSource({ submissionId, value: 'rubric' });
     } else if (currentGradeSource === 'rubric') {
-      setGradeDraft({ submissionId, value: (submission.grade as GradingOutcome | null) || null });
+      setGradeDraft({ submissionId, value: savedSelection });
       setGradeSource(null);
     }
   };
@@ -169,7 +177,7 @@ export default function StaffSubmissionScreen() {
   const staleReview = staleReviewVersion?.submissionId === submissionId ? staleReviewVersion : null;
   const visibleDraftNotice = draftNotice?.submissionId === submissionId ? draftNotice.value : null;
   const reviewChanged = Boolean(submission && (
-    selectedGrade !== ((submission.grade as GradingOutcome | null) || null)
+    selectedGrade !== savedSelection
     || feedback !== (submission.feedback || '')
     || submission.rubric?.criteria.some((criterion) => criterionResults[criterion.id]?.rating !== (criterion.rating || null) || criterionResults[criterion.id]?.feedback !== (criterion.feedback || ''))
   ));
@@ -181,10 +189,11 @@ export default function StaffSubmissionScreen() {
   });
   const gradingDraftPayload = useMemo(() => ({
     grade: selectedGrade,
+    grade_source: selectedGrade ? currentGradeSource : null,
     feedback,
     criterion_results: criterionResults,
     base_submission_updated_at: reviewBaseUpdatedAt,
-  }), [criterionResults, feedback, reviewBaseUpdatedAt, selectedGrade]);
+  }), [criterionResults, currentGradeSource, feedback, reviewBaseUpdatedAt, selectedGrade]);
   const gradingDraftSignature = useMemo(() => JSON.stringify(gradingDraftPayload), [gradingDraftPayload]);
   const visibleDraftSaveState = draftSaveResult?.signature === gradingDraftSignature ? draftSaveResult.status : 'saving';
   const draftRestoring = draftReadyFor !== submissionId;
@@ -219,7 +228,9 @@ export default function StaffSubmissionScreen() {
         if (draft) {
           setReviewBaseVersion({ submissionId, value: draft.base_submission_updated_at });
           setGradeDraft({ submissionId, value: draft.grade });
-          if (draft.grade) setGradeSource({ submissionId, value: 'manual' });
+          // A rubric-picked grade keeps following the ratings; drafts from before grade_source count as chosen by hand.
+          const source = draft.grade ? draft.grade_source ?? 'manual' : null;
+          setGradeSource(source ? { submissionId, value: source } : null);
           setFeedbackDraft({ submissionId, value: draft.feedback });
           setCriterionDraft({ submissionId, values: draft.criterion_results });
           if (!gradingDraftMatches(draft, submissionUpdatedAt)) {
@@ -410,7 +421,7 @@ export default function StaffSubmissionScreen() {
         {submission.solution && <LearningCard><View style={styles.cardHeading}><CheckCircle2 color={c.status.success.fg} size={18} /><Text style={styles.cardHeadingText}>Instructor solution</Text></View><View style={styles.responseCode}>{isRawCode(submission.solution) ? <MessageCodeBlock code={submission.solution} language={submission.language_hint || 'Solution'} surface="lesson" /> : <AuthoredContent body={submission.solution} compact />}</View></LearningCard>}
         {submission.rubric && <LearningCard><Text style={styles.feedbackLabel}>CRITERION REVIEW</Text><Text style={styles.rubricTitle}>{submission.rubric.title}</Text><View style={styles.rubricList}>{submission.rubric.criteria.map((criterion) => <View key={criterion.id} style={styles.rubricCriterion}><Text style={styles.cardHeadingText}>{criterion.title}</Text><Text style={styles.detailValue}>{criterion.description}</Text><View style={styles.ratingGrid}>{([['exceeds', 'Exceeds'], ['meets', 'Meets'], ['developing', 'Developing'], ['redo', 'Revision']] as [RubricRating, string][]).map(([rating, label]) => <Button key={rating} accessibilityRole="button" accessibilityState={{ selected: criterionResults[criterion.id]?.rating === rating, disabled: previousAttempt || draftRestoring || mutation.isPending }} disabled={previousAttempt || draftRestoring || mutation.isPending} onPress={() => rateCriterion(criterion.id, rating)} style={[styles.ratingButton, criterionResults[criterion.id]?.rating === rating && styles.ratingButtonActive, (previousAttempt || draftRestoring || mutation.isPending) && styles.disabled]} variant="secondary" label={label} textStyle={styles.ratingButtonText} />)}</View><TextInput keyboardAppearance={scheme} accessibilityLabel={`Feedback for ${criterion.title}`} editable={!previousAttempt && !draftRestoring && !mutation.isPending} value={criterionResults[criterion.id]?.feedback || ''} onChangeText={(value) => setCriterionDraft({ submissionId, values: { ...criterionResults, [criterion.id]: { rating: criterionResults[criterion.id]?.rating || null, feedback: value } } })} placeholder="Optional focused feedback" placeholderTextColor={c.text.body} multiline style={styles.criterionFeedback} /></View>)}</View></LearningCard>}
         <View style={styles.feedbackSection}><Text style={styles.feedbackLabel}>FEEDBACK</Text>{Boolean(snippetsQuery.data?.feedback_snippets.length) && <View style={styles.snippetPanel}><View style={styles.snippetHeading}><MessageSquareText color={c.text.body} size={16} /><Text style={styles.snippetHeadingText}>REUSABLE SNIPPETS</Text></View><View style={styles.snippetList}>{snippetsQuery.data!.feedback_snippets.map((snippet) => <Button key={snippet.id} accessibilityRole="button" accessibilityHint="Inserts editable text into the feedback draft" accessibilityState={{ disabled: previousAttempt || draftRestoring || mutation.isPending }} disabled={previousAttempt || draftRestoring || mutation.isPending} onPress={() => applySnippet(snippet)} style={[styles.snippetButton, (previousAttempt || draftRestoring || mutation.isPending) && styles.disabled]} variant="secondary" label={snippet.title} textStyle={styles.snippetButtonText} />)}</View><Text style={styles.feedbackHint}>Tap to insert, then personalize the draft for this student.</Text></View>}<TextInput keyboardAppearance={scheme} accessibilityLabel="Feedback for student" editable={!previousAttempt && !draftRestoring && !mutation.isPending} value={feedback} selection={feedbackSelection} onSelectionChange={(event) => setFeedbackSelection(event.nativeEvent.selection)} onChangeText={(value) => setFeedbackDraft({ submissionId, value })} onFocus={() => { feedbackFocusedRef.current = true; requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true })); }} onBlur={() => { feedbackFocusedRef.current = false; }} placeholder="Give one clear next step or reinforce what worked…" placeholderTextColor={c.text.body} multiline textAlignVertical="top" style={styles.feedbackInput} /><View style={styles.voiceRow}><VoiceDraftButton state={voiceDraft.state} disabled={previousAttempt || draftRestoring || mutation.isPending} onPress={() => void voiceDraft.start()} /><Text style={styles.voiceHint}>Dictate a draft, then review and personalize it before saving.</Text></View><VoiceDraftPanel state={voiceDraft.state} durationMillis={voiceDraft.durationMillis} maxDurationSeconds={voiceDraft.maxDurationSeconds} metering={voiceDraft.metering} error={voiceDraft.error} notice={voiceDraft.notice} hasReview={Boolean(voiceDraft.review)} hasRecording={voiceDraft.hasRecording} onStop={() => void voiceDraft.stop()} onCancel={() => void voiceDraft.cancel()} onRetry={voiceDraft.retry} onRecordAgain={() => void voiceDraft.recordAgain()} onRestore={voiceDraft.restore} onDismiss={voiceDraft.dismissReview} /><Text style={styles.feedbackHint}>A redo needs written feedback so the student knows what to change. Passing grades may include concise feedback.</Text><Button variant="secondary" accessibilityRole="button" disabled={previousAttempt || draftRestoring || mutation.isPending || !feedback.trim() || snippetMutation.isPending} onPress={() => snippetMutation.mutate(feedback.trim())} style={({ pressed }) => [styles.saveSnippet, pressed && styles.pressed, (previousAttempt || draftRestoring || mutation.isPending || !feedback.trim() || snippetMutation.isPending) && styles.disabled]}><BookmarkPlus color={c.text.body} size={16} /><Text style={styles.saveSnippetText}>{snippetMutation.isPending ? 'Saving snippet…' : 'Save draft as reusable snippet'}</Text></Button></View>
-        <GithubReviewCards submission={submission} selectedGrade={selectedGrade} disabled={previousAttempt || draftRestoring || mutation.isPending} onSelectSuggested={chooseGrade} retry={async () => {
+        <GithubReviewCards submission={submission} gradingScale={gradingScale} selectedGrade={selectedGrade} disabled={previousAttempt || draftRestoring || mutation.isPending} onSelectSuggested={chooseGrade} retry={async () => {
           const result = await api.retryGithubIssue(submissionId);
           queryClient.setQueryData(learningKeys.submission(user?.id || 0, submissionId), { submission: { ...result.submission, github_issue_delivery: result.github_issue_delivery } });
         }} />

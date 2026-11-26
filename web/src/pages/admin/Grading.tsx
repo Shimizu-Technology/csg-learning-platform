@@ -502,7 +502,7 @@ export function Grading() {
                   const waiting = latest && sub.grade === null
                   const context = queueContextLabel(sub)
                   const rowSuggestion = loaded?.id === sub.id ? (loaded.grade_suggestion ?? sub.grade_suggestion) : sub.grade_suggestion
-                  const suggestionBadge = rowSuggestion ? gradeSuggestionQueueBadge(rowSuggestion) : null
+                  const suggestionBadge = rowSuggestion ? gradeSuggestionQueueBadge(rowSuggestion, sub.grading_scale) : null
                   return (
                     <li key={sub.id} className="border-b border-line last:border-b-0">
                       <RowButton

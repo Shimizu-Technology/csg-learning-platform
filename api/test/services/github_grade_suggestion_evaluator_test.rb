@@ -128,6 +128,22 @@ class GithubGradeSuggestionEvaluatorTest < ActiveSupport::TestCase
     refute suggestion.valid?, "suggest_pass names only P"
   end
 
+  test "reads the grading scale under the curriculum lock, taken before the enrollment and submission" do
+    submission = create_verified_submission
+    create_check_run(submission, name: "prework/111.rb", status: "completed", conclusion: "success", app_slug: "github-actions")
+    statements = []
+    recorder = ->(*, payload) { statements << payload[:sql] }
+    ActiveSupport::Notifications.subscribed(recorder, "sql.active_record") do
+      GithubGradeSuggestionEvaluator.evaluate_submission!(submission, now: @now)
+    end
+    curriculum_lock = statements.index { |sql| sql.match?(/FROM "curricula".*FOR SHARE/m) }
+    enrollment_lock = statements.index { |sql| sql.match?(/FROM "enrollments".*FOR NO KEY UPDATE/m) }
+    submission_lock = statements.index { |sql| sql.match?(/FROM "submissions".*FOR NO KEY UPDATE/m) }
+    assert curriculum_lock && enrollment_lock && submission_lock, statements.grep(/FOR /).inspect
+    assert_operator curriculum_lock, :<, enrollment_lock
+    assert_operator enrollment_lock, :<, submission_lock
+  end
+
   test "returns review_for_redo without suggested_grade when a required check fails" do
     submission = create_verified_submission
     create_check_run(submission, name: "prework/111.rb", status: "completed", conclusion: "failure")

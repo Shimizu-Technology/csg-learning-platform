@@ -189,7 +189,7 @@ export function SubmissionReviewPanel({
     if (error) gradeControls.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' })
   }, [error])
   async function gradeWith(value: GradeChoice) {
-    const overriding = gradeDiffersFromSuggestion(submission?.grade_suggestion, value)
+    const overriding = gradeDiffersFromSuggestion(submission?.grade_suggestion, value, submission?.grading_scale)
     const result = await review.grade(
       value,
       overriding ? { suggestionOverrideReason: overrideReason } : undefined,
@@ -403,7 +403,7 @@ export function SubmissionReviewPanel({
   const checkPolicyPath = lessonEditorPath(submission.lesson_id, { blockId: submission.content_block_id })
   const gradingReturn = listLinkState(location, 'Grading')
   const hasSuggestion = Boolean(suggestion)
-  const isOverridingSuggestion = gradeDiffersFromSuggestion(suggestion, selectedGrade)
+  const isOverridingSuggestion = gradeDiffersFromSuggestion(suggestion, selectedGrade, submission.grading_scale)
   const locked = grading || conflict || isPreviousAttempt(submission)
   // "Save and next" only when the caller's own post-save step opens another item for this grade.
   const advances = Boolean(onSaved && selectedGrade && followingAfterSave?.(selectedGrade))
@@ -582,6 +582,7 @@ export function SubmissionReviewPanel({
       {suggestion && (
         <GradeSuggestionCard
           suggestion={suggestion}
+          gradingScale={submission.grading_scale}
           savedGrade={submission.grade}
           selectedGrade={selectedGrade}
           disabled={locked}
@@ -1019,6 +1020,7 @@ export function SubmissionReviewPanel({
 
 function GradeSuggestionCard({
   suggestion,
+  gradingScale,
   savedGrade,
   selectedGrade,
   disabled,
@@ -1029,6 +1031,8 @@ function GradeSuggestionCard({
   onCheckGithub,
 }: {
   suggestion: NonNullable<Submission['grade_suggestion']>
+  /** The submission's curriculum scale: a suggestion off it is out of date. */
+  gradingScale: Submission['grading_scale']
   savedGrade: Submission['grade']
   selectedGrade: GradeChoice | null
   disabled: boolean
@@ -1038,10 +1042,10 @@ function GradeSuggestionCard({
   onSelectSuggested: (grade: 'B' | 'P') => void
   onCheckGithub: () => void
 }) {
-  const stale = isGradeSuggestionStale(suggestion)
-  const suggestedGrade = suggestedPassingGrade(suggestion)
-  const allowSelectSuggested = canSelectSuggestedGrade(suggestion) && !disabled
-  const headline = gradeSuggestionHeadline(suggestion)
+  const stale = isGradeSuggestionStale(suggestion, gradingScale)
+  const suggestedGrade = stale ? null : suggestedPassingGrade(suggestion)
+  const allowSelectSuggested = canSelectSuggestedGrade(suggestion, gradingScale) && !disabled
+  const headline = gradeSuggestionHeadline(suggestion, gradingScale)
   const checks = extractSuggestionChecks(suggestion)
   const decisionBadge = suggestion.decision ? gradeSuggestionDecisionBadge(suggestion.decision) : null
   const appSlugs = [...new Set(checks.map((check) => check.appSlug).filter((slug): slug is string => Boolean(slug)))]
@@ -1106,7 +1110,7 @@ function GradeSuggestionCard({
           className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface-sunken px-3 py-2 text-xs text-ink"
         >
           <span className="font-semibold">
-            {gradeSuggestionSignalLabel(suggestion)} · Grade {gradeLabel(savedGrade)}
+            {gradeSuggestionSignalLabel(suggestion, gradingScale)} · Grade {gradeLabel(savedGrade)}
           </span>
           {decisionBadge && <Badge tone={decisionBadge.tone}>{decisionBadge.label}</Badge>}
           {suggestion.override_reason && (

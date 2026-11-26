@@ -73,7 +73,7 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
   // Follow-up drafts and their retry ids belong to one request each, so switching the
   // lesson or exercise never carries a draft, or a retry of it, onto another request.
   const [followUpDrafts, setFollowUpDrafts] = useState<Record<number, string>>({})
-  const followUpAttempts = useRef(new Map<number, string>())
+  const followUpAttempts = useRef(new Map<number, { body: string; id: string }>())
 
   const requestGeneration = useRef(0)
   const loadRequests = useCallback(async () => {
@@ -187,9 +187,12 @@ export function ContextualHelp({ capabilities, contextPath, cohortId, contextTyp
     const answeringStaff = staffReplied
     const body = (followUpDrafts[requestId] ?? '').trim()
     if (!body || body.length > HELP_REPLY_LIMIT) return
-    // One id per attempt on this request, kept until a send is confirmed (as the staff reply box does).
-    let attempt = followUpAttempts.current.get(requestId)
-    if (!attempt) followUpAttempts.current.set(requestId, attempt = newReplyRequestId())
+    // One id per attempt on this request, kept until a send is confirmed. A retry of the same text
+    // reuses it; edited text is a new attempt, so a send whose answer was lost never replays the
+    // old text in place of the new one (as the native app does).
+    const earlier = followUpAttempts.current.get(requestId)
+    const attempt = earlier?.body === body ? earlier.id : newReplyRequestId()
+    followUpAttempts.current.set(requestId, { body, id: attempt })
     const generation = requestGeneration.current
     setSaving(true)
     const response = await api.replyToHelpRequest(requestId, { body, resolve: false, client_request_id: attempt })

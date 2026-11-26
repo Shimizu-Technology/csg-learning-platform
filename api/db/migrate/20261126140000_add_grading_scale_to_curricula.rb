@@ -8,7 +8,9 @@
 # SET LOCAL for the transaction-mode pooler. Each step checks what exists, so
 # a rerun after a partial apply (or a migration test) is safe. Rolling back
 # refuses while any Pass grade, Pass delivery or Pass suggestion exists, since
-# the narrower constraints and enum would strand them.
+# the narrower constraints and enum would strand them. It first fences writers
+# on those three tables (SHARE ROW EXCLUSIVE, held to commit), so no Pass can
+# commit between the check and the narrower constraints. Reads go on.
 class AddGradingScaleToCurricula < ActiveRecord::Migration[8.1]
   SCALE_CONSTRAINT = "curricula_grading_scale_valid"
   DELIVERY_GRADE_CONSTRAINT = "github_issue_deliveries_grade_valid"
@@ -26,6 +28,7 @@ class AddGradingScaleToCurricula < ActiveRecord::Migration[8.1]
     "(outcome <> 'suggest_b' AND suggested_grade IS NULL)"
   # Submission.grades["P"]
   PASS_GRADE_VALUE = 4
+  FENCED_TABLES = %w[submissions submission_grade_suggestions github_issue_deliveries].freeze
 
   def up
     execute "SET LOCAL lock_timeout = '5s'"
@@ -41,16 +44,21 @@ class AddGradingScaleToCurricula < ActiveRecord::Migration[8.1]
   end
 
   def down
-    execute "SET LOCAL lock_timeout = '5s'"
-    if pass_records_exist?
-      raise ActiveRecord::IrreversibleMigration, "Pass grades, deliveries or suggestions exist; regrade them before rolling back"
-    end
+    # One transaction (the migration's own, or this one when run directly), so the fence holds
+    # until the narrower constraints commit.
+    connection.transaction do
+      execute "SET LOCAL lock_timeout = '5s'"
+      execute "LOCK TABLE #{FENCED_TABLES.join(', ')} IN SHARE ROW EXCLUSIVE MODE"
+      if pass_records_exist?
+        raise ActiveRecord::IrreversibleMigration, "Pass grades, deliveries or suggestions exist; regrade them before rolling back"
+      end
 
-    replace_constraint :submission_grade_suggestions, SUGGESTED_GRADE_CONSTRAINT, SUGGESTED_GRADES_WITHOUT_PASS
-    replace_constraint :submission_grade_suggestions, OUTCOME_CONSTRAINT, OUTCOMES_WITHOUT_PASS
-    replace_constraint :github_issue_deliveries, DELIVERY_GRADE_CONSTRAINT, DELIVERY_GRADES_WITHOUT_PASS
-    remove_check_constraint :curricula, name: SCALE_CONSTRAINT if check_constraint_exists?(:curricula, name: SCALE_CONSTRAINT)
-    remove_column :curricula, :grading_scale if column_exists?(:curricula, :grading_scale)
+      replace_constraint :submission_grade_suggestions, SUGGESTED_GRADE_CONSTRAINT, SUGGESTED_GRADES_WITHOUT_PASS
+      replace_constraint :submission_grade_suggestions, OUTCOME_CONSTRAINT, OUTCOMES_WITHOUT_PASS
+      replace_constraint :github_issue_deliveries, DELIVERY_GRADE_CONSTRAINT, DELIVERY_GRADES_WITHOUT_PASS
+      remove_check_constraint :curricula, name: SCALE_CONSTRAINT if check_constraint_exists?(:curricula, name: SCALE_CONSTRAINT)
+      remove_column :curricula, :grading_scale if column_exists?(:curricula, :grading_scale)
+    end
   end
 
   private

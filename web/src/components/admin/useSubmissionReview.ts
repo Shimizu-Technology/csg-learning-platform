@@ -8,7 +8,7 @@ import { isPreviousAttempt } from '../shared/AttemptReview'
 import { leavesPath, useLeaveGuard } from '../../lib/useLeaveGuard'
 import { invalidateRecordQueues } from '../../lib/recordQueueCache'
 import type { RubricRating, Submission } from '../../types/api'
-import { gradeFromRubric, normalizeGradingScale, type GradeChoice } from '../../lib/gradingScale'
+import { gradeChoicesFor, gradeFromRubric, normalizeGradingScale, type GradeChoice } from '../../lib/gradingScale'
 import { gradeLabel } from '../../lib/glossary'
 
 type CriteriaDraft = Record<number, { rating: RubricRating | null; feedback: string }>
@@ -51,6 +51,11 @@ export function useSubmissionReview(
   const [noAccess, setNoAccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [conflict, setConflict] = useState(false)
+  // The draft as last rendered, for a draft-keeping reload (which runs after an await).
+  const draft = useRef({ criteria, gradeSource, selectedGrade })
+  useEffect(() => {
+    draft.current = { criteria, gradeSource, selectedGrade }
+  })
 
   const load = useCallback(
     async (preserveDraft = false) => {
@@ -75,14 +80,21 @@ export function useSubmissionReview(
           setGradeSource(null)
           setOverrideReason(next.grade_suggestion?.override_reason || '')
         } else {
-          setCriteria((current) =>
-            Object.fromEntries(
-              Object.entries(criteriaFor(next)).map(([id, value]) => [
-                id,
-                current[Number(id)] || value,
-              ]),
-            ),
+          const kept = draft.current
+          const merged: CriteriaDraft = Object.fromEntries(
+            Object.entries(criteriaFor(next)).map(([id, value]) => [id, kept.criteria[Number(id)] || value]),
           )
+          setCriteria(merged)
+          // A grade the rubric picked follows the merged ratings on the saved record's scale; a grade
+          // chosen by hand stays unless that scale no longer offers it (then the reviewer picks again).
+          if (kept.gradeSource === 'rubric') {
+            const suggested = gradeFromRubric(next.grading_scale, (next.rubric?.criteria || []).map((criterion) => merged[criterion.id]?.rating))
+            setSelectedGradeState(suggested)
+            setGradeSource(suggested ? 'rubric' : null)
+          } else if (kept.selectedGrade && !gradeChoicesFor(next.grading_scale).includes(kept.selectedGrade)) {
+            setSelectedGradeState(null)
+            setGradeSource(null)
+          }
         }
         setConflict(false)
       } catch (cause) {

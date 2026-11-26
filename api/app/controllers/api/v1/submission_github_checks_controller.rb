@@ -39,7 +39,8 @@ module Api
               payload[:grade_suggestion] = suggestion.to_staff_json(
                 active_policy: active_policy,
                 latest_submission_id: @submission.latest_attempt&.id,
-                submission_commit_sha: @submission.commit_sha
+                submission_commit_sha: @submission.commit_sha,
+                grading_scale: @submission.grading_scale
               )
             end
           end

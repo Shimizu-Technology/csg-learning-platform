@@ -42,8 +42,12 @@ export interface SubmissionDraft extends SubmissionDraftFields {
 export type StoredGradingGrade = 'A' | 'B' | 'C' | 'R' | 'P';
 export type StoredRubricRating = 'exceeds' | 'meets' | 'developing' | 'redo';
 
+export type StoredGradeSource = 'rubric' | 'manual';
+
 export interface GradingDraft {
   grade: StoredGradingGrade | null;
+  /** Where `grade` came from: the rubric ratings (it keeps following them) or the reviewer. Drafts saved before this field have none; treat their grade as chosen by hand. */
+  grade_source?: StoredGradeSource | null;
   feedback: string;
   criterion_results: Record<number, { rating: StoredRubricRating | null; feedback: string }>;
   base_submission_updated_at: string | null;
@@ -134,6 +138,7 @@ export async function loadGradingDraft(userId: number, submissionId: number): Pr
     const ratings = [ 'exceeds', 'meets', 'developing', 'redo', null ];
     if (!Object.prototype.hasOwnProperty.call(draft, 'grade') || !grades.includes(draft.grade as StoredGradingGrade | null) || typeof draft.feedback !== 'string' || typeof draft.saved_at !== 'string') throw new Error('Invalid grading draft');
     if (draft.base_submission_updated_at !== null && typeof draft.base_submission_updated_at !== 'string') throw new Error('Invalid grading draft version');
+    if (draft.grade_source !== undefined && ![ 'rubric', 'manual', null ].includes(draft.grade_source)) throw new Error('Invalid grading draft grade source');
     if (!draft.criterion_results || typeof draft.criterion_results !== 'object' || Array.isArray(draft.criterion_results)) throw new Error('Invalid grading criteria');
     for (const result of Object.values(draft.criterion_results)) {
       if (!result || typeof result !== 'object' || !ratings.includes(result.rating) || typeof result.feedback !== 'string') throw new Error('Invalid grading criterion');

@@ -859,4 +859,53 @@ describe('SubmissionReviewPanel grading scales and rubric suggestions', () => {
     await rate('Readability', 'Needs redo')
     expect(findButton('B')?.getAttribute('aria-pressed')).toBe('true')
   })
+
+  it('treats a B suggestion as out of date once the curriculum is Pass / Redo, and Pass as out of date on A / B / C / Redo', async () => {
+    await renderPanel(makeSubmission({ grading_scale: 'pass_redo', grade_suggestion: makeSuggestion() }))
+    let card = container.querySelector('[data-grade-suggestion]')!
+    expect(card.getAttribute('data-grade-suggestion-stale')).toBe('true')
+    expect(findButton('Select B')).toBeUndefined()
+    await act(async () => findButton('Pass')!.click())
+    expect(container.querySelector('input[placeholder*="differs"]')).toBeNull()
+    act(() => root.unmount())
+    root = createRoot(container)
+
+    await renderPanel(makeSubmission({ grade_suggestion: makeSuggestion({ outcome: 'suggest_pass', suggested_grade: 'P' }) }))
+    card = container.querySelector('[data-grade-suggestion]')!
+    expect(card.getAttribute('data-grade-suggestion-stale')).toBe('true')
+    expect(findButton('Select Pass')).toBeUndefined()
+  })
+
+  it('on a draft-keeping reload, a rubric pick follows the merged ratings and an off-scale hand pick is cleared', async () => {
+    const sub = plain({ grading_scale: 'pass_redo', rubric })
+    await renderPanel(sub)
+    await rate('Correctness', 'Meets')
+    await rate('Readability', 'Meets')
+    expect(findButton('Pass')?.getAttribute('aria-pressed')).toBe('true')
+    // The saved record changed meanwhile: the conflict keeps the draft and reloads it.
+    vi.spyOn(api, 'gradeSubmission').mockResolvedValue({ data: null, error: 'This submission changed after you opened it.', status: 409 } as never)
+    await act(async () => findButton('Save grade')!.click())
+    await settle()
+    const saved = { ...sub, grading_scale: 'letter_abc_redo' as const, updated_at: '2026-11-22T00:05:00.000000Z' }
+    vi.spyOn(api, 'getSubmission').mockResolvedValue({ data: { submission: saved }, error: null })
+    await act(async () => findButton('Reload saved version — keep draft')!.click())
+    await settle()
+    // Same ratings on the A / B / C / Redo scale now point to B, still marked as from the rubric.
+    expect(gradeButtons()).toEqual(['A', 'B', 'C', 'Redo'])
+    expect(findButton('B')?.getAttribute('aria-pressed')).toBe('true')
+    expect(container.querySelector('[data-grade-from-rubric]')).not.toBeNull()
+
+    act(() => root.unmount())
+    root = createRoot(container)
+    await renderPanel(plain({ grading_scale: 'pass_redo' }))
+    await act(async () => findButton('Pass')!.click())
+    vi.spyOn(api, 'gradeSubmission').mockResolvedValue({ data: null, error: 'This submission changed after you opened it.', status: 409 } as never)
+    await act(async () => findButton('Save grade')!.click())
+    await settle()
+    vi.spyOn(api, 'getSubmission').mockResolvedValue({ data: { submission: plain({ updated_at: '2026-11-22T00:05:00.000000Z' }) }, error: null })
+    await act(async () => findButton('Reload saved version — keep draft')!.click())
+    await settle()
+    expect(gradeButtons()).toEqual(['A', 'B', 'C', 'Redo'])
+    expect(container.querySelectorAll('[role="group"][aria-label="Grade"] [aria-pressed="true"]')).toHaveLength(0)
+  })
 })

@@ -14,6 +14,13 @@ export function passingChoicesFor(scale: string | null | undefined): GradeChoice
   return normalizeGradingScale(scale) === 'pass_redo' ? ['P'] : ['A', 'B', 'C'];
 }
 
+/** The grade if this scale offers it (Redo always), otherwise null: an A after a switch to Pass / Redo. */
+export function gradeOnScale(grade: string | null | undefined, scale: string | null | undefined): GradeChoice | null {
+  if (!grade) return null;
+  if (grade === 'R') return 'R';
+  return passingChoicesFor(scale).find((choice) => choice === grade) ?? null;
+}
+
 /**
  * The grade a rubric points to, or null while it doesn't point anywhere yet. Any criterion rated
  * "Needs redo" points to Redo straight away. Otherwise every criterion must be rated: Pass on

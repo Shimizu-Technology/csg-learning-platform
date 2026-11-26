@@ -45,9 +45,20 @@ class AddGradingScaleToCurriculaTest < ActiveSupport::TestCase
     student = User.create!(clerk_id: "pass_rollback_student", email: "pass-rollback@example.invalid", first_name: "Pass", last_name: "Rollback", role: :student)
     submission = Submission.create!(content_block: block, user: student, text: "done", grade: "P")
 
-    error = assert_raises(ActiveRecord::IrreversibleMigration) { migration.migrate(:down) }
+    statements = []
+    recorder = ->(*, payload) { statements << payload[:sql] }
+    error = ActiveSupport::Notifications.subscribed(recorder, "sql.active_record") do
+      assert_raises(ActiveRecord::IrreversibleMigration) { migration.migrate(:down) }
+    end
     assert_match(/Pass grades/, error.message)
     assert ActiveRecord::Base.connection.column_exists?(:curricula, :grading_scale)
+    # Writers on all three tables are fenced before the Pass probe, so none can commit a Pass
+    # between the probe and the narrower constraints.
+    fence = statements.index { |sql| sql.include?("LOCK TABLE submissions, submission_grade_suggestions, github_issue_deliveries IN SHARE ROW EXCLUSIVE MODE") }
+    probe = statements.index { |sql| sql.include?("FROM submissions WHERE grade = #{AddGradingScaleToCurricula::PASS_GRADE_VALUE}") }
+    assert fence, "rollback fences writers: #{statements.inspect}"
+    assert probe, "rollback probes for Pass grades"
+    assert_operator fence, :<, probe
   ensure
     submission&.destroy
     student&.destroy
