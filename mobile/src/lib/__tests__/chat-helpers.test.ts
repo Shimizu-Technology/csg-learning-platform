@@ -58,6 +58,13 @@ describe('chat-helpers', () => {
     // Inside an already-open fence (including list-contained fences), do not rewrite list-like lines.
     expect(applyMarkdownListEnter('```md\n- item', '```md\n- item\n')).toBeNull();
     expect(applyMarkdownListEnter('- ```js\n  - value', '- ```js\n  - value\n')).toBeNull();
+    // Dedenting out of a list-contained fence ends the fence so subsequent list items continue normally.
+    expect(
+      applyMarkdownListEnter('- ```js\n  const x = 1;\n\n- next', '- ```js\n  const x = 1;\n\n- next\n'),
+    ).toEqual({
+      value: '- ```js\n  const x = 1;\n\n- next\n- ',
+      cursor: 33,
+    });
     // Exiting a noninitial empty list item preserves the separating blank line.
     expect(applyMarkdownListEnter('- first\n- ', '- first\n- \n')).toEqual({
       value: '- first\n\n',

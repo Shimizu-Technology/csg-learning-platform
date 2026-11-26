@@ -2,21 +2,54 @@ import { messagePreview } from './message-format';
 import type { ChannelSummary, DirectConversationSummary, UserSummary } from './types';
 
 function isInsideMarkdownOrListFence(value: string, cursor: number): boolean {
-  const lines = value.slice(0, Math.max(0, cursor)).split('\n').slice(0, -1);
-  let open: string | null = null;
-  for (const line of lines) {
-    if (open === null) {
-      const match = /^(?:[ \t]*(?:[-*+]|\d+[.)])[ \t]+|\s*)(`{3,}|~{3,})(.*)$/.exec(line);
-      if (!match) continue;
-      if (match[1][0] === '`' && match[2].includes('`')) continue;
-      open = match[1];
-    } else {
-      const match = /^\s*(`{3,}|~{3,})(.*)$/.exec(line);
-      if (match && match[1][0] === open[0] && match[1].length >= open.length && match[2].trim() === '') {
+  const beforeCursor = value.slice(0, Math.max(0, cursor));
+  const allLines = beforeCursor.split('\n');
+  const priorLines = allLines.slice(0, -1);
+  const currentLine = allLines[allLines.length - 1] ?? '';
+  let open: { fence: string; minIndent: number } | null = null;
+
+  const tryOpenFence = (line: string): { fence: string; minIndent: number } | null => {
+    const listMatch = /^([ \t]*(?:[-*+]|\d+[.)])[ \t]+)(`{3,}|~{3,})(.*)$/.exec(line);
+    if (listMatch) {
+      if (listMatch[2][0] === '`' && listMatch[3].includes('`')) return null;
+      return { fence: listMatch[2], minIndent: advanceVisualColumns(listMatch[1]) };
+    }
+    const plainMatch = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+    if (plainMatch) {
+      if (plainMatch[1][0] === '`' && plainMatch[2].includes('`')) return null;
+      return { fence: plainMatch[1], minIndent: 0 };
+    }
+    return null;
+  };
+
+  for (const line of priorLines) {
+    if (open !== null) {
+      if (open.minIndent > 0 && line.trim().length > 0) {
+        const leadingIndent = advanceVisualColumns(/^[ \t]*/.exec(line)?.[0] ?? '');
+        if (leadingIndent < open.minIndent) {
+          open = tryOpenFence(line);
+          continue;
+        }
+      }
+      const closeMatch = /^[ \t]*(`{3,}|~{3,})(.*)$/.exec(line);
+      if (
+        closeMatch
+        && closeMatch[1][0] === open.fence[0]
+        && closeMatch[1].length >= open.fence.length
+        && closeMatch[2].trim() === ''
+      ) {
         open = null;
       }
+      continue;
     }
+    open = tryOpenFence(line);
   }
+
+  if (open !== null && open.minIndent > 0 && currentLine.trim().length > 0) {
+    const currentIndent = advanceVisualColumns(/^[ \t]*/.exec(currentLine)?.[0] ?? '');
+    if (currentIndent < open.minIndent) return false;
+  }
+
   return open !== null;
 }
 
