@@ -91,6 +91,7 @@ export default function MessagesScreen() {
     if (!presenceScopeKey) return undefined;
     let active = true;
     const scope = presenceScopeKey;
+    setPresenceNow(Date.now());
     const unsubscribe = subscribeToStaffPresence(api, (event) => {
       if (!active) return;
       setPresenceState((current) => {

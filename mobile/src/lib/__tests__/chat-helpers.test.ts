@@ -55,8 +55,18 @@ describe('chat-helpers', () => {
       value: '-\t```js\n    ',
       cursor: 12,
     });
-    // Inside an already-open fence, do not rewrite list-like lines.
+    // Inside an already-open fence (including list-contained fences), do not rewrite list-like lines.
     expect(applyMarkdownListEnter('```md\n- item', '```md\n- item\n')).toBeNull();
+    expect(applyMarkdownListEnter('- ```js\n  - value', '- ```js\n  - value\n')).toBeNull();
+    // Exiting a noninitial empty list item preserves the separating blank line.
+    expect(applyMarkdownListEnter('- first\n- ', '- first\n- \n')).toEqual({
+      value: '- first\n\n',
+      cursor: 9,
+    });
+    expect(applyMarkdownListEnter('- first\n- \nnext', '- first\n- \n\nnext', { start: 10, end: 10 })).toEqual({
+      value: '- first\n\n\nnext',
+      cursor: 9,
+    });
     // Pre-edit selection resolves Enter inserted before an existing newline unambiguously.
     expect(applyMarkdownListEnter('- item\nnext', '- item\n\nnext', { start: 6, end: 6 })).toEqual({
       value: '- item\n- \nnext',

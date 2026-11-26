@@ -8,7 +8,7 @@ import { typingIndicatorLabel, type TypingUser } from '@/lib/typing';
 export function TypingIndicator({ users }: { users: TypingUser[] }) {
   const styles = useStyles();
   const label = typingIndicatorLabel(users);
-  const [reduceMotion, setReduceMotion] = useState(false);
+  const [reduceMotion, setReduceMotion] = useState(true);
   const [dots] = useState(() => [
     new Animated.Value(0),
     new Animated.Value(0),

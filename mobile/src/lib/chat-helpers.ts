@@ -1,6 +1,24 @@
-import { isInsideMarkdownFence } from './code-paste';
 import { messagePreview } from './message-format';
 import type { ChannelSummary, DirectConversationSummary, UserSummary } from './types';
+
+function isInsideMarkdownOrListFence(value: string, cursor: number): boolean {
+  const lines = value.slice(0, Math.max(0, cursor)).split('\n').slice(0, -1);
+  let open: string | null = null;
+  for (const line of lines) {
+    if (open === null) {
+      const match = /^(?:[ \t]*(?:[-*+]|\d+[.)])[ \t]+|\s*)(`{3,}|~{3,})(.*)$/.exec(line);
+      if (!match) continue;
+      if (match[1][0] === '`' && match[2].includes('`')) continue;
+      open = match[1];
+    } else {
+      const match = /^\s*(`{3,}|~{3,})(.*)$/.exec(line);
+      if (match && match[1][0] === open[0] && match[1].length >= open.length && match[2].trim() === '') {
+        open = null;
+      }
+    }
+  }
+  return open !== null;
+}
 
 export const ONLINE_WINDOW_MS = 2 * 60 * 1000;
 export const PRESENCE_TICK_MS = 30 * 1000;
@@ -106,8 +124,8 @@ export function applyMarkdownListEnter(
   const beforeCaret = prevValue.slice(lineStart, start);
   const afterCaret = prevValue.slice(end);
 
-  // Never rewrite inside an already-open fenced code block.
-  if (isInsideMarkdownFence(prevValue, start)) return null;
+  // Never rewrite inside an already-open fenced code block (including list-item fences).
+  if (isInsideMarkdownOrListFence(prevValue, start)) return null;
 
   // Unordered or ordered list marker at start of line.
   const match = /^([ \t]*)([-*+]|(\d+)([.)]))([ \t]+)(.*)$/.exec(beforeCaret);
@@ -125,7 +143,12 @@ export function applyMarkdownListEnter(
   }
 
   // Empty list item (pressing Enter on `- ` or `1. `): clear the marker to exit the list.
+  // For a noninitial empty item, retain a blank line so subsequent text starts outside the list.
   if (!content.trim() && (afterCaret.length === 0 || afterCaret.startsWith('\n'))) {
+    if (lineStart > 0) {
+      const value = `${prevValue.slice(0, lineStart)}\n${afterCaret}`;
+      return { value, cursor: lineStart + 1 };
+    }
     const value = `${prevValue.slice(0, lineStart)}${afterCaret}`;
     return { value, cursor: lineStart };
   }
