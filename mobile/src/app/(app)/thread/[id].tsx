@@ -118,7 +118,9 @@ export default function ThreadScreen() {
   const [hasNewMessages, setHasNewMessages] = useState(false);
   useFocusEffect(useCallback(() => { focusedRef.current = true; return () => { focusedRef.current = false; }; }, []));
   const userId = user?.id ?? null;
-  const destinationKey = `${userId}:${kind}:${conversationId}:${rootId}:${anchorMessageId || 'latest'}`;
+  const threadIdentity = `${userId}:${kind}:${conversationId}:${rootId}`;
+  const threadIdentityRef = useRef(threadIdentity);
+  const destinationKey = `${threadIdentity}:${anchorMessageId || 'latest'}`;
   const [authorizedDestinationKey, setAuthorizedDestinationKey] = useState<string | null>(null);
   const destinationReady = auth.demo || authorizedDestinationKey === destinationKey;
   const threadCacheKey = useMemo(() => messagingKeys.thread(userId ?? 0, rootId), [rootId, userId]);
@@ -295,6 +297,11 @@ export default function ThreadScreen() {
   }, [acknowledgeSentReply, anchorMessageId, api, auth.demo, conversationId, destinationKey, kind, queryClient, rootId, threadCacheKey, userId, workspaceId]);
 
   useEffect(() => {
+    threadIdentityRef.current = threadIdentity;
+    deletedReplyIdsRef.current.clear();
+  }, [threadIdentity]);
+
+  useEffect(() => {
     queuedReplyIdsRef.current.clear();
     deletedReplyIdsRef.current.clear();
     setQueuedReplyCount(0);
@@ -353,7 +360,7 @@ export default function ThreadScreen() {
         const skipDeletedReplyDecrement = event.event === 'deleted' && !claimDeletedReplyDecrement(deletedReplyIdsRef.current, event.message.id);
         setReplies((current) => mergeMessageEvent(current, event, skipDeletedReplyDecrement));
         if (event.event === 'deleted' && !skipDeletedReplyDecrement) {
-          setRoot((current) => current ? { ...current, reply_count: Math.max(0, (current.reply_count ?? 1) - 1) } : current);
+          setRoot((current) => (current && current.id === rootId ? { ...current, reply_count: Math.max(0, (current.reply_count ?? 1) - 1) } : current));
         }
         if (event.event === 'created') {
           acknowledgeSentReply(event.message);
@@ -646,7 +653,7 @@ export default function ThreadScreen() {
     if (user?.is_staff && message.id > 0) actions.push({ label: message.pinned_at ? 'Unpin message' : 'Pin message', onPress: () => void updateAction(() => api.pinMessage(message.id, Boolean(message.pinned_at))) });
     if (message.mine && message.id > 0) {
       if (canPost && !message.deleted_at) actions.push({ label: 'Edit message', onPress: () => { close(); setActionError(null); setEditingAction(message); setEditBody(message.body); } });
-      actions.push({ label: 'Delete message', destructive: true, onPress: () => { close(); Alert.alert('Delete message?', 'This message will be removed for everyone.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: () => void (async () => { setSavingAction(true); setActionError(null); try { if (!auth.demo) await api.deleteMessage(message.id); if (message.id === rootId) { setRoot(null); } else { const skipDecrement = !claimDeletedReplyDecrement(deletedReplyIdsRef.current, message.id); setReplies((current) => current.filter((item) => item.id !== message.id)); if (!skipDecrement) setRoot((current) => current ? { ...current, reply_count: Math.max(0, (current.reply_count ?? 1) - 1) } : current); } setSelectedMessage(null); } catch (err) { setActionError((err as Error).message); } finally { setSavingAction(false); } })() }]); } });
+      actions.push({ label: 'Delete message', destructive: true, onPress: () => { close(); const initiatingIdentity = threadIdentity; const initiatingRootId = rootId; Alert.alert('Delete message?', 'This message will be removed for everyone.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: () => void (async () => { if (threadIdentityRef.current !== initiatingIdentity) return; setSavingAction(true); setActionError(null); try { if (!auth.demo) await api.deleteMessage(message.id); if (threadIdentityRef.current !== initiatingIdentity) return; if (message.id === initiatingRootId) { setRoot((current) => (current?.id === initiatingRootId ? null : current)); } else { const skipDecrement = !claimDeletedReplyDecrement(deletedReplyIdsRef.current, message.id); setReplies((current) => current.filter((item) => item.id !== message.id)); if (!skipDecrement) setRoot((current) => (current && current.id === initiatingRootId ? { ...current, reply_count: Math.max(0, (current.reply_count ?? 1) - 1) } : current)); } setSelectedMessage(null); } catch (err) { if (threadIdentityRef.current === initiatingIdentity) setActionError((err as Error).message); } finally { if (threadIdentityRef.current === initiatingIdentity) setSavingAction(false); } })() }]); } });
     }
     if (!message.mine && message.id > 0) {
       actions.push({ label: 'Report message', onPress: () => { close(); void reportMessage(message); } });

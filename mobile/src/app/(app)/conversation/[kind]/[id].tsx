@@ -746,7 +746,28 @@ export default function ConversationScreen() {
     }
   };
 
-  const deleteMessage = (message: Message) => Alert.alert('Delete message?', 'The message will no longer appear in the conversation.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: async () => { try { if (!auth.demo) await api.deleteMessage(message.id); const skipParentDecrement = Boolean(message.parent_message_id) && !claimDeletedReplyDecrement(deletedReplyIdsRef.current, message.id); setMessages((current) => removeMessageAndUpdateReplyCount(current, message, skipParentDecrement)); setPinnedMessages((current) => removeMessageAndUpdateReplyCount(current, message, skipParentDecrement)); } catch (requestError) { Alert.alert('Could not remove message', (requestError as Error).message); } } }]);
+  const deleteMessage = (message: Message) => {
+    const requestIdentity = operationIdentity;
+    Alert.alert('Delete message?', 'The message will no longer appear in the conversation.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          if (operationIdentityRef.current !== requestIdentity) return;
+          try {
+            if (!auth.demo) await api.deleteMessage(message.id);
+            if (operationIdentityRef.current !== requestIdentity) return;
+            const skipParentDecrement = Boolean(message.parent_message_id) && !claimDeletedReplyDecrement(deletedReplyIdsRef.current, message.id);
+            setMessages((current) => removeMessageAndUpdateReplyCount(current, message, skipParentDecrement));
+            setPinnedMessages((current) => removeMessageAndUpdateReplyCount(current, message, skipParentDecrement));
+          } catch (requestError) {
+            if (operationIdentityRef.current === requestIdentity) Alert.alert('Could not remove message', (requestError as Error).message);
+          }
+        },
+      },
+    ]);
+  };
   // The message's web address (L-5.2), which opens this conversation at the message for anyone who can read it.
   const copyMessageLink = async (messageId: number) => {
     const link = messagePermalink(kind, id, messageId);
