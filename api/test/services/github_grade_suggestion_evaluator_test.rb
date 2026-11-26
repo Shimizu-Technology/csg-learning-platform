@@ -176,9 +176,13 @@ class GithubGradeSuggestionEvaluatorTest < ActiveSupport::TestCase
       result = original_lock.call(id, mode)
       if !moved && id == original_curriculum_id
         moved = true
-        submission.update_column(:content_block_id, copied_block.id)
-        binding.update_column(:curriculum_module_id, copied_module.id)
-        cohort.update_column(:curriculum_id, copied_curriculum.id)
+        # Use raw PG exec_params so Rails' ActiveRecord query cache is NOT cleared by these
+        # writes, simulating another worker's committed cohort copy while this worker's request
+        # query cache still holds the pre-copy curriculum_id.
+        raw = ActiveRecord::Base.connection.raw_connection
+        raw.exec_params("UPDATE submissions SET content_block_id = $1 WHERE id = $2", [ copied_block.id, submission.id ])
+        raw.exec_params("UPDATE github_repository_bindings SET curriculum_module_id = $1 WHERE id = $2", [ copied_module.id, binding.id ])
+        raw.exec_params("UPDATE cohorts SET curriculum_id = $1 WHERE id = $2", [ copied_curriculum.id, cohort.id ])
       end
       result
     end

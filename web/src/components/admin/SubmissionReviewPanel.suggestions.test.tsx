@@ -933,4 +933,51 @@ describe('SubmissionReviewPanel grading scales and rubric suggestions', () => {
     expect(container.querySelector('[data-grade-suggestion]')?.getAttribute('data-grade-suggestion-stale')).toBe('false')
     expect(container.querySelector<HTMLTextAreaElement>('textarea[id]')!.value).toBe('Keep this draft across scale refresh')
   })
+
+  it('Check GitHub again resolving mid-save does not invalidate an in-flight grade save', async () => {
+    const sub = makeSubmission({ grading_scale: 'letter_abc_redo', grade_suggestion: makeSuggestion({ outcome: 'suggest_b', suggested_grade: 'B' }) })
+    await renderPanel(sub)
+    await act(async () => findButton('B')!.click())
+
+    let resolveRefresh!: (value: { data: { github_checks: NonNullable<Submission['github_checks']>; grade_suggestion: Submission['grade_suggestion'] }; error: null }) => void
+    vi.spyOn(api, 'refreshSubmissionGithubChecks').mockReturnValue(
+      new Promise((resolve) => {
+        resolveRefresh = resolve
+      }) as ReturnType<typeof api.refreshSubmissionGithubChecks>,
+    )
+    const getSpy = vi.spyOn(api, 'getSubmission').mockResolvedValue({
+      data: { submission: sub },
+      error: null,
+    })
+    getSpy.mockClear()
+
+    let resolveGrade!: (value: { data: { submission: Submission }; error: null }) => void
+    const gradeSpy = vi.spyOn(api, 'gradeSubmission').mockReturnValue(
+      new Promise((resolve) => {
+        resolveGrade = resolve
+      }) as ReturnType<typeof api.gradeSubmission>,
+    )
+
+    // Start GitHub refresh, then immediately start Save grade while GitHub refresh is still pending.
+    await act(async () => { findButton('Check GitHub again')!.click() })
+    await act(async () => { findButton('Save grade')!.click() })
+    expect(gradeSpy).toHaveBeenCalledTimes(1)
+
+    // GitHub refresh completes while the grade save is still in flight.
+    await act(async () => {
+      resolveRefresh({ data: { github_checks: sub.github_checks!, grade_suggestion: sub.grade_suggestion }, error: null })
+      await Promise.resolve()
+    })
+
+    // Now the grade save completes — it must NOT be invalidated or left stuck in Saving state.
+    await act(async () => {
+      resolveGrade({ data: { submission: { ...sub, grade: 'B', graded_at: '2026-11-22T01:00:00Z' } }, error: null })
+      await Promise.resolve()
+    })
+    await settle()
+
+    expect(getSpy).not.toHaveBeenCalled()
+    expect(findButton('Saving…')).toBeUndefined()
+    expect(findButton('Save grade')).toBeTruthy()
+  })
 })

@@ -31,6 +31,8 @@ export function useSubmissionReview(
   const confirm = useConfirm()
   const toast = useToast()
   const generation = useRef(0)
+  // Independent generation for silent background refreshes so they never invalidate an active grade save.
+  const quietGeneration = useRef(0)
   const saving = useRef(false)
   // Counts saved grades, so a GitHub refresh that started before one can tell it is out of date.
   const saves = useRef(0)
@@ -63,8 +65,17 @@ export function useSubmissionReview(
       quiet = false,
       overrides?: Partial<Pick<Submission, 'github_checks' | 'grade_suggestion'>>,
     ) => {
-      const request = ++generation.current
+      if (quiet && saving.current) return
+      const request = quiet ? generation.current : ++generation.current
+      const quietRequest = ++quietGeneration.current
       const saveGen = saves.current
+      const isCurrent = () =>
+        quiet
+          ? request === generation.current &&
+            quietRequest === quietGeneration.current &&
+            !saving.current &&
+            saves.current === saveGen
+          : request === generation.current
       if (!quiet) {
         setLoading(true)
         setError(null)
@@ -73,8 +84,7 @@ export function useSubmissionReview(
         if (!Number.isInteger(submissionId) || submissionId <= 0)
           throw new Error('This submission link is invalid.')
         const result = await api.getSubmission(submissionId)
-        if (request !== generation.current) return
-        if (quiet && saves.current !== saveGen) return
+        if (!isCurrent()) return
         if (quiet && (!result || !result.data || result.error || result.fromCache)) return
         setNoAccess(unavailableResponse(result))
         if (unavailableResponse(result)) { setSubmission(null); return }
@@ -125,6 +135,7 @@ export function useSubmissionReview(
     void load()
     return () => {
       generation.current += 1
+      quietGeneration.current += 1
     }
   }, [load])
 
@@ -196,6 +207,7 @@ export function useSubmissionReview(
     const includeOverrideReason = options !== undefined && 'suggestionOverrideReason' in options && options.suggestionOverrideReason !== undefined
     const trimmedOverrideReason = includeOverrideReason ? options.suggestionOverrideReason!.trim() : undefined
     setError(null)
+    quietGeneration.current += 1
     saving.current = true
     setGrading(true)
     const request = generation.current

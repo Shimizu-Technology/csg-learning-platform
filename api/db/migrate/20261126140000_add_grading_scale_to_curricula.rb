@@ -8,9 +8,11 @@
 # SET LOCAL for the transaction-mode pooler. Each step checks what exists, so
 # a rerun after a partial apply (or a migration test) is safe. Rolling back
 # refuses while any Pass grade, Pass delivery or Pass suggestion exists, since
-# the narrower constraints and enum would strand them. It first fences writers
-# on those three tables (SHARE ROW EXCLUSIVE, held to commit), so no Pass can
-# commit between the check and the narrower constraints. Reads go on.
+# the narrower constraints and enum would strand them. Before probing, rollback
+# takes ACCESS EXCLUSIVE on `curricula`, `submission_grade_suggestions`, and
+# `github_issue_deliveries` (starting with `curricula` to preserve canonical
+# Curriculum -> Submission lock order without lock upgrades), then fences
+# writers on `submissions` with SHARE ROW EXCLUSIVE through commit.
 class AddGradingScaleToCurricula < ActiveRecord::Migration[8.1]
   SCALE_CONSTRAINT = "curricula_grading_scale_valid"
   DELIVERY_GRADE_CONSTRAINT = "github_issue_deliveries_grade_valid"
