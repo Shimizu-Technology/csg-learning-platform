@@ -22,7 +22,7 @@ import { UPDATES_STALE_TIME, useUpdatesFocusRefresh } from '@/hooks/use-updates-
 import { useNotificationsQuery } from '@/hooks/use-notifications';
 import { learningKeys } from '@/lib/learning';
 import { messagingKeys } from '@/lib/messaging-cache';
-import { demoAnnouncements } from '@/lib/demo-data';
+import { demoAnnouncements, demoNotifications } from '@/lib/demo-data';
 import { mobileNotificationPath, notificationTitle, routeForViewer } from '@/lib/notification-path';
 import type { components } from '@/lib/api.generated';
 import type { Announcement, AppNotification, PaginationMeta } from '@/lib/types';
@@ -119,13 +119,41 @@ export default function UpdatesScreen() {
     meta: { persist: true },
   });
   const notificationQuery = useNotificationsQuery();
+  const filteredNotificationKey = useMemo(
+    () => [...updatesKeys.notifications(userId), 'filter', notificationFilter] as const,
+    [notificationFilter, userId],
+  );
+  const filteredNotificationQuery = useInfiniteQuery({
+    queryKey: filteredNotificationKey,
+    initialPageParam: 1,
+    getNextPageParam: (last: NotificationListPayload) => last.meta.has_next_page ? last.meta.page + 1 : undefined,
+    queryFn: ({ pageParam }): Promise<NotificationListPayload> => {
+      if (auth.demo) {
+        const items = demoNotifications.filter((item) => notificationMatchesFilter(item, notificationFilter));
+        return Promise.resolve({
+          notifications: items,
+          unread_count: demoNotifications.filter((item) => !item.read_at).length,
+          meta: demoMeta(items.length),
+        });
+      }
+      return api.notifications({
+        page: pageParam,
+        per_page: 50,
+        ...(notificationFilter === 'unread' ? { read: 'unread' as const } : { category: notificationFilter as 'messages' | 'files' | 'updates' }),
+      });
+    },
+    enabled: Boolean(user && notificationFilter !== 'all'),
+    staleTime: auth.demo ? Infinity : UPDATES_STALE_TIME,
+  });
+  const activeNotificationQuery = notificationFilter === 'all' ? notificationQuery : filteredNotificationQuery;
   const { data: announcementData, error: announcementError, isPending: announcementsPending, refetch: refetchAnnouncements } = announcementQuery;
-  const { data: notificationData, error: notificationError, isPending: notificationsPending, refetch: refetchNotifications } = notificationQuery;
+  const { data: notificationData } = notificationQuery;
+  const { data: activeNotificationData, error: notificationError, isPending: notificationsPending, refetch: refetchNotifications } = activeNotificationQuery;
   const announcements = useMemo(() => uniqueUpdates(announcementData?.pages.map((page) => page.announcements) ?? []), [announcementData]);
   const notifications = useMemo(() => uniqueUpdates(notificationData?.pages.map((page) => page.notifications) ?? []), [notificationData]);
   const filteredNotifications = useMemo(
-    () => notifications.filter((item) => notificationMatchesFilter(item, notificationFilter)),
-    [notificationFilter, notifications],
+    () => uniqueUpdates(activeNotificationData?.pages.map((page) => page.notifications) ?? []),
+    [activeNotificationData],
   );
   const unread = notificationData?.pages[0]?.unread_count ?? 0;
   const announcementUnread = announcementData?.pages[0]?.unread_count ?? 0;
@@ -207,7 +235,13 @@ export default function UpdatesScreen() {
 
   const refresh = async () => {
     setRefreshing(true);
-    try { await Promise.all([refetchAnnouncements(), refetchNotifications()]); }
+    try {
+      await Promise.all([
+        refetchAnnouncements(),
+        notificationQuery.refetch(),
+        ...(notificationFilter !== 'all' ? [refetchNotifications()] : []),
+      ]);
+    }
     finally { setRefreshing(false); }
   };
 
@@ -242,9 +276,9 @@ export default function UpdatesScreen() {
     if (!item.read_at) {
       if (auth.demo) {
         const read = { ...item, read_at: new Date().toISOString() };
-        queryClient.setQueryData<PagedUpdates<NotificationListPayload>>(notificationKey, (current) => mapUpdatePages(current, (page) => readNotification(page, read, Math.max(0, (current?.pages[0]?.unread_count ?? 1) - 1))));
+        queryClient.setQueriesData<PagedUpdates<NotificationListPayload>>({ queryKey: notificationKey }, (current) => mapUpdatePages(current, (page) => readNotification(page, read, Math.max(0, (current?.pages[0]?.unread_count ?? 1) - 1))));
       } else {
-        try { const result = await api.markNotificationRead(item.id); queryClient.setQueryData<PagedUpdates<NotificationListPayload>>(notificationKey, (current) => mapUpdatePages(current, (page) => readNotification(page, result.notification, result.unread_count))); invalidateUpdates(); } catch { /* navigation remains useful offline */ }
+        try { const result = await api.markNotificationRead(item.id); queryClient.setQueriesData<PagedUpdates<NotificationListPayload>>({ queryKey: notificationKey }, (current) => mapUpdatePages(current, (page) => readNotification(page, result.notification, result.unread_count))); invalidateUpdates(); } catch { /* navigation remains useful offline */ }
       }
     }
     if (item.target_available === false) { Alert.alert('Item unavailable', 'This item is no longer available.'); return; }
@@ -307,7 +341,7 @@ export default function UpdatesScreen() {
     const now = new Date().toISOString();
     try {
       if (!auth.demo) await api.markAllNotificationsRead();
-      queryClient.setQueryData<PagedUpdates<NotificationListPayload>>(notificationKey, (current) => mapUpdatePages(current, (page) => readAllNotifications(page, now)));
+      queryClient.setQueriesData<PagedUpdates<NotificationListPayload>>({ queryKey: notificationKey }, (current) => mapUpdatePages(current, (page) => readAllNotifications(page, now)));
       queryClient.setQueriesData<PagedUpdates<AnnouncementListPayload>>({ queryKey: updatesKeys.announcementLists(userId) }, (current) => mapUpdatePages(current, (page) => readAllAnnouncements(page, now)));
       if (selectedAnnouncement) setSelectedAnnouncement({ ...selectedAnnouncement, read_at: selectedAnnouncement.read_at || now, unread: false });
       invalidateUpdates();
@@ -315,14 +349,14 @@ export default function UpdatesScreen() {
     } catch (requestError) { Alert.alert('Could not mark notifications read', (requestError as Error).message); }
   };
 
-  const paging = section === 'announcements' ? announcementQuery : notificationQuery;
+  const paging = section === 'announcements' ? announcementQuery : activeNotificationQuery;
   const footer = <View>
     {!!paging.error && <ErrorState message={paging.error.message} retry={() => void (paging.isFetchNextPageError ? paging.fetchNextPage() : paging.refetch())} />}
     {paging.hasNextPage && <Button accessibilityLabel="Load earlier updates" disabled={paging.isFetching} onPress={() => void paging.fetchNextPage()}><Text style={styles.markAllText}>{paging.isFetchingNextPage ? 'Loading…' : 'Load earlier'}</Text></Button>}
   </View>;
 
-  const blockingLoad = section === 'announcements' ? !announcementData && announcementsPending : !notificationData && notificationsPending;
-  const blockingError = section === 'announcements' ? !announcementData && announcementError : !notificationData && notificationError;
+  const blockingLoad = section === 'announcements' ? !announcementData && announcementsPending : !activeNotificationData && notificationsPending;
+  const blockingError = section === 'announcements' ? !announcementData && announcementError : !activeNotificationData && notificationError;
 
   return <SafeAreaView edges={['top']} style={styles.safe}>
     <View style={styles.header}><View><Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.eyebrow}>WHAT MATTERS NOW</Text><Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.heading}>Updates</Text><Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.subhead}>{section === 'announcements' ? focusedCohortId ? managing && isStaff ? 'Manage updates for this cohort' : 'This cohort and school-wide updates' : unreadUpdatesLabel(announcementData?.pages[0]?.unread_count ?? 0) : unread ? `${unread} unread notification${unread === 1 ? '' : 's'}` : 'You’re all caught up'}</Text></View>{user?.is_staff && section === 'announcements' && <Pressable accessibilityRole="button" accessibilityLabel="Post update" onPress={() => setShowEditor(true)} style={styles.compose}><PenLine color={c.text.strong} size={20} /></Pressable>}</View>

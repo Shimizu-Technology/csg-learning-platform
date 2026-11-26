@@ -157,6 +157,20 @@ class SearchTest < ActionDispatch::IntegrationTest
     search(@student, "@Atmatch")
     at_ids = groups.fetch("cohort_file").map { |r| r["id"] }
     assert_equal [ paused_exact.id.to_s, active_partial.id.to_s ], at_ids
+
+    # Underscore-separated titles match identically in active and paused cohorts via PostgreSQL @@.
+    paused_under = @cohort.cohort_files.create!(
+      kind: "doc", title: "budget_notes", folder: "Slides", doc_content: "x",
+      doc_updated_at: 4.days.ago, shared_at: 5.days.ago, created_at: 5.days.ago, updated_at: 4.days.ago, ready: true, uploaded_by: @instructor
+    )
+    active_under = active_cohort.cohort_files.create!(
+      kind: "doc", title: "budget_notes", folder: "Slides", doc_content: "x",
+      doc_updated_at: 1.hour.ago, ready: true, uploaded_by: @instructor
+    )
+    search(@student, "notes")
+    under_ids = groups.fetch("cohort_file").map { |r| r["id"] }
+    assert_includes under_ids, paused_under.id.to_s
+    assert_includes under_ids, active_under.id.to_s
   end
 
   test "staff cohort file search excludes archived owners and applies eligibility before the limit" do

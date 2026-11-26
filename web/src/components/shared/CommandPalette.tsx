@@ -19,6 +19,7 @@ import {
 import { api } from '../../lib/api'
 import { searchDestinationPath } from '../../lib/searchDestination'
 import { shellNavigation } from '../../lib/shellNavigation'
+import { cohortPath } from '../../lib/routes'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { useCohortContext } from '../../contexts/CohortContext'
 import { IconButton } from '../ui/Button'
@@ -130,7 +131,9 @@ export function CommandPalette({ open, isStaff, onClose }: CommandPaletteProps) 
   const list = useRef<HTMLDivElement>(null)
   const storageKey = `csg-search-recent:${user?.id}`
   const nav = shellNavigation({ staff: isStaff, admin: Boolean(user?.is_admin), cohort: selectedCohort, cohorts, schoolFeatures, alumniOnly: enrollments.length > 0 && enrollments.every(e => e.cohort.cohort_type === 'alumni') })
-  const pages: Item[] = Object.values(nav).flat().map(item => ({
+  const navItems = Object.values(nav).flat()
+  const navPaths = new Set(navItems.map(item => item.to.split('?')[0]))
+  const pages: Item[] = navItems.map(item => ({
     id: item.to,
     label: item.label,
     path: item.to,
@@ -143,11 +146,11 @@ export function CommandPalette({ open, isStaff, onClose }: CommandPaletteProps) 
     ...(user?.is_admin ? [{ id: 'new-cohort', label: 'New cohort', path: '/admin/cohorts?create=true', detail: 'Create a cohort', section: 'Actions', category: 'pages' as const, kind: 'action' }] : []),
     ...(isStaff ? [
       { id: 'post-update', label: 'Post update', path: '/announcements?scope=manage', detail: 'Write an update', section: 'Actions', category: 'pages' as const, kind: 'action' },
-      ...(selectedCohort ? [{ id: 'open-cohort-files', label: 'Open cohort files', path: `/admin/cohorts/${selectedCohort.id}?tab=files`, detail: `Manage files for ${selectedCohort.name}`, section: 'Actions', category: 'files' as const, kind: 'cohort_file' }] : []),
+      ...(selectedCohort ? [{ id: 'open-cohort-files', label: 'Open cohort files', path: cohortPath(selectedCohort.id, 'files'), detail: `Manage files for ${selectedCohort.name}`, section: 'Actions', category: 'files' as const, kind: 'cohort_file' }] : []),
       { id: 'open-grading', label: 'Open grading queue', path: '/admin/grading', detail: 'Review learner submissions', section: 'Actions', category: 'learning' as const, kind: 'submission' },
     ] : [
-      { id: 'open-resources', label: 'Open files and resources', path: selectedCohort ? `/resources?cohort_id=${selectedCohort.id}` : '/resources', detail: 'Browse your files and class resources', section: 'Actions', category: 'files' as const, kind: 'cohort_file' },
-      { id: 'open-recordings', label: 'Open recordings', path: selectedCohort ? `/recordings?cohort_id=${selectedCohort.id}` : '/recordings', detail: 'Watch class sessions', section: 'Actions', category: 'learning' as const, kind: 'recording' },
+      ...(navPaths.has('/resources') ? [{ id: 'open-resources', label: 'Open files and resources', path: selectedCohort ? `/resources?cohort_id=${selectedCohort.id}` : '/resources', detail: 'Browse your files and class resources', section: 'Actions', category: 'files' as const, kind: 'cohort_file' }] : []),
+      ...(navPaths.has('/recordings') ? [{ id: 'open-recordings', label: 'Open recordings', path: selectedCohort ? `/recordings?cohort_id=${selectedCohort.id}` : '/recordings', detail: 'Watch class sessions', section: 'Actions', category: 'learning' as const, kind: 'recording' }] : []),
     ]),
   ]
 

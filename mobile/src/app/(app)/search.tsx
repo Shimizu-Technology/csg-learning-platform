@@ -116,7 +116,7 @@ function SearchScreenContent() {
     const clean = term.trim();
     if (clean.length < 2) return;
     void addRecentSearch(userId, clean).then((next) => {
-      if (mountedRef.current) setRecentQueries(next);
+      if (mountedRef.current && next !== null) setRecentQueries(next);
     });
   }, [userId]);
 

@@ -348,7 +348,12 @@ class RecordSearch
     active_ids = active_enrollments.map(&:cohort_id).uniq
     active_scored = []
     if active_ids.any?
-      active_scope = CohortFile.ready.student_visible.where(cohort_id: active_ids, student_id: [ nil, @viewer.id ])
+      still_active = Enrollment.where(user_id: @viewer.id, status: :active)
+        .where("enrollments.cohort_id = cohort_files.cohort_id")
+        .where("enrollments.access_expires_at IS NULL OR enrollments.access_expires_at > CURRENT_TIMESTAMP")
+      active_scope = CohortFile.ready.student_visible
+        .where(cohort_id: active_ids, student_id: [ nil, @viewer.id ])
+        .where(still_active.arel.exists)
       add("cohort_file", matched(active_scope, "title")) do |file|
         enrollment = active_enrollments.find { |e| e.cohort_id == file.cohort_id }
         next unless enrollment && enrollment.file_available_for_read?(file)
@@ -420,9 +425,8 @@ class RecordSearch
       {}
     end
 
-    query_tokens = @words.map(&:downcase)
     query_down = @query.downcase.delete_prefix("@")
-    matched_rows = []
+    candidate_rows = []
     pre_pause.each do |file|
       check_deadline!
       enrollment = by_cohort[file.cohort_id]
@@ -461,36 +465,36 @@ class RecordSearch
       end
 
       doc_text = [ readable_title, readable_filename, readable_folder ].compact.join(" ")
-      lexemes = doc_text.downcase.scan(/[[:alnum:]_]+/)
-      next unless query_tokens.all? { |token| lexemes.any? { |lexeme| lexeme.start_with?(token) } }
-
       snippet = [ readable_folder, readable_filename.presence || (file.doc? ? "Learn Doc" : file.link? ? "Saved link" : nil) ].compact.join(" · ")
-      matched_rows << {
+      candidate_rows << {
         id: file.id,
         priority: readable_title.to_s.downcase == query_down ? 0 : 1,
         doc: doc_text,
         entry: row(file, readable_title, "cohort_file", context: { cohort_id: file.cohort_id }, snippet: snippet)
       }
     end
-    return [] if matched_rows.empty?
+    return [] if candidate_rows.empty?
 
-    ranks = paused_ts_ranks(matched_rows)
-    matched_rows
-      .map { |item| [ item[:priority], -ranks.fetch(item[:id], 0.0), item[:id], item[:entry] ] }
+    ranks = paused_ts_ranks(candidate_rows)
+    candidate_rows
+      .select { |item| ranks.key?(item[:id]) }
+      .map { |item| [ item[:priority], -ranks.fetch(item[:id]), item[:id], item[:entry] ] }
       .sort_by { |priority, neg_rank, id, _| [ priority, neg_rank, id ] }
       .first(LIMIT)
   end
 
-  def paused_ts_ranks(matched_rows)
+  def paused_ts_ranks(candidate_rows)
     tokens = @words.map { |word| "#{word}:*" }.join(" & ")
-    return {} if tokens.empty? || matched_rows.empty?
+    return {} if tokens.empty? || candidate_rows.empty?
 
     sql = ApplicationRecord.sanitize_sql_array([
       "SELECT v.id, ts_rank(to_tsvector('simple', v.doc), to_tsquery('simple', ?)) AS rank " \
-      "FROM unnest(ARRAY[?]::bigint[], ARRAY[?]::text[]) AS v(id, doc)",
+      "FROM unnest(ARRAY[?]::bigint[], ARRAY[?]::text[]) AS v(id, doc) " \
+      "WHERE to_tsvector('simple', v.doc) @@ to_tsquery('simple', ?)",
       tokens,
-      matched_rows.map { |item| item[:id].to_i },
-      matched_rows.map { |item| item[:doc].to_s }
+      candidate_rows.map { |item| item[:id].to_i },
+      candidate_rows.map { |item| item[:doc].to_s },
+      tokens
     ])
     ApplicationRecord.connection.select_rows(sql).to_h { |id, rank| [ id.to_i, rank.to_f ] }
   end
