@@ -10,7 +10,11 @@ jest.mock('lucide-react-native', () => {
   const Icon = () => null;
   return {
     Check: Icon,
+    CheckCheck: Icon,
+    ChevronRight: Icon,
     Copy: Icon,
+    Download: Icon,
+    Eye: Icon,
     FileText: Icon,
     Heart: Icon,
     Laugh: Icon,
@@ -18,10 +22,12 @@ jest.mock('lucide-react-native', () => {
     MessageSquare: Icon,
     MoreHorizontal: Icon,
     MoveHorizontal: Icon,
+    PartyPopper: Icon,
     Pin: Icon,
     RefreshCw: Icon,
     ThumbsUp: Icon,
     TriangleAlert: Icon,
+    Users: Icon,
   };
 });
 
@@ -72,13 +78,34 @@ describe('MessageBubble', () => {
     expect(onLongPress).toHaveBeenCalledTimes(2);
   });
 
-  it('opens reaction details instead of removing a reaction immediately', () => {
+  it('opens reaction details on press when no quick-toggle handler is provided, and toggles in one tap when onToggleReaction is wired', () => {
     const onOpenReaction = jest.fn();
     const screen = render(<MessageBubble message={message} showAuthor mentionUsers={[]} onOpenReaction={onOpenReaction} />);
 
     fireEvent.press(screen.getByLabelText('Thumbs up, 2'));
-
     expect(onOpenReaction).toHaveBeenCalledWith(message, '👍');
+
+    const onToggleReaction = jest.fn();
+    onOpenReaction.mockClear();
+    screen.rerender(
+      <MessageBubble
+        message={message}
+        showAuthor
+        mentionUsers={[]}
+        onToggleReaction={onToggleReaction}
+        onOpenReaction={onOpenReaction}
+      />,
+    );
+
+    fireEvent.press(screen.getByLabelText('Thumbs up, 2'));
+    expect(onToggleReaction).toHaveBeenCalledWith(message, '👍');
+    expect(onOpenReaction).not.toHaveBeenCalled();
+
+    fireEvent(screen.getByLabelText('Thumbs up, 2'), 'longPress');
+    expect(onOpenReaction).toHaveBeenCalledWith(message, '👍');
+
+    fireEvent.press(screen.getByLabelText('Who reacted'));
+    expect(onOpenReaction).toHaveBeenCalledTimes(2);
   });
 
   it('opens image attachments in the native preview flow', () => {

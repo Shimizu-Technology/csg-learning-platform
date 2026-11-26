@@ -8,7 +8,11 @@ jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: true 
 jest.mock('@/providers/session-provider', () => ({ useSession: () => ({ api: {}, user: { id: 9 } }) }));
 jest.mock('@/providers/workspace-provider', () => ({ useWorkspace: () => ({ workspaces, activeWorkspaceId: 1, activeWorkspace: workspaces[0], loading: false, selectWorkspace: jest.fn() }) }));
 jest.mock('@/hooks/use-inbox', () => ({ useInboxQuery: () => ({ data: { channels: [], dms: [] }, isPending: false, isFetching: false, isStale: false }) }));
-jest.mock('@/lib/cable', () => ({ subscribeToUserMessages: jest.fn() }));
+jest.mock('@/lib/cable', () => ({ subscribeToUserMessages: jest.fn(), subscribeToStaffPresence: jest.fn(() => () => {}) }));
+jest.mock('@/lib/conversation-storage', () => ({
+  loadConversationDrafts: jest.fn(async () => new Map()),
+  subscribeDraftChanges: jest.fn(() => () => {}),
+}));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === '__esModule' ? false : () => null }));
 jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: jest.requireActual('react-native').View }));
 it('keeps title, workspace and search in one header and expands search only on demand', () => {

@@ -10,6 +10,18 @@ import {
 
 const authoredStorageWrites = new Map<string, Promise<void>>();
 const MAX_PENDING_WRITE_DRAINS = 10;
+const draftChangeListeners = new Set<() => void>();
+
+export function subscribeDraftChanges(listener: () => void) {
+  draftChangeListeners.add(listener);
+  return () => { draftChangeListeners.delete(listener); };
+}
+
+function notifyDraftChange() {
+  draftChangeListeners.forEach((listener) => {
+    try { listener(); } catch { /* ignore subscriber error */ }
+  });
+}
 
 function enqueueStorageWrite(userId: number, key: string, operation: () => Promise<void>) {
   const generation = userStorageGeneration(userId);
@@ -62,9 +74,42 @@ export async function loadConversationDraft(userId: number, kind: ConversationKi
   return (await readAfterPendingWrites(userId, conversationDraftKey(userId, kind, id))) || '';
 }
 
+export async function loadConversationDrafts(
+  userId: number,
+  targets: { kind: ConversationKind; id: number }[],
+): Promise<Map<string, string>> {
+  const result = new Map<string, string>();
+  if (!userId || targets.length === 0) return result;
+  const generation = userStorageGeneration(userId);
+  const keyToTarget = new Map<string, string>();
+  const keys: string[] = [];
+  for (const target of targets) {
+    const key = conversationDraftKey(userId, target.kind, target.id);
+    if (!keyToTarget.has(key)) {
+      keyToTarget.set(key, `${target.kind}:${target.id}`);
+      keys.push(key);
+    }
+  }
+  try {
+    const pairs = await AsyncStorage.multiGet(keys);
+    if (!userStorageGenerationIsCurrent(userId, generation)) return new Map();
+    for (const [key, value] of pairs) {
+      const targetKey = keyToTarget.get(key);
+      if (targetKey && value?.trim()) result.set(targetKey, value);
+    }
+  } catch {
+    return new Map();
+  }
+  return result;
+}
+
 export function saveConversationDraft(userId: number, kind: ConversationKind, id: number, body: string) {
   const key = conversationDraftKey(userId, kind, id);
-  return enqueueStorageWrite(userId, key, () => body.trim() ? AsyncStorage.setItem(key, body) : AsyncStorage.removeItem(key));
+  return enqueueStorageWrite(userId, key, async () => {
+    if (body.trim()) await AsyncStorage.setItem(key, body);
+    else await AsyncStorage.removeItem(key);
+    notifyDraftChange();
+  });
 }
 
 export async function saveConversationDraftWithRetry(

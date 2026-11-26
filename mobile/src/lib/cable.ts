@@ -90,6 +90,64 @@ export function subscribeToUserMessages(
   return subscription;
 }
 
+export type PresenceEvent = {
+  event: 'presence.updated';
+  user_id: number;
+  last_seen_at: string;
+};
+
+export function subscribeToStaffPresence(
+  api: CsgApi,
+  onEvent: (event: PresenceEvent) => void,
+) {
+  let socket: WebSocket | null = null;
+  let cancelled = false;
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  let attempts = 0;
+  const identifier = JSON.stringify({ channel: 'StaffPresenceChannel' });
+
+  const connect = async () => {
+    if (cancelled) return;
+    try {
+      const { token } = await api.cableToken();
+      if (cancelled) return;
+      const NativeWebSocket = WebSocket as unknown as NativeWebSocketConstructor;
+      socket = new NativeWebSocket(websocketUrl(token), undefined, { headers: { Origin: websocketOrigin() } });
+      socket.onopen = () => socket?.send(JSON.stringify({ command: 'subscribe', identifier }));
+      socket.onmessage = ({ data }) => {
+        try {
+          const envelope = JSON.parse(String(data)) as { type?: string; message?: Partial<PresenceEvent> };
+          if (envelope.type === 'confirm_subscription') { attempts = 0; return; }
+          const msg = envelope.message;
+          if (msg?.event === 'presence.updated' && typeof msg.user_id === 'number' && typeof msg.last_seen_at === 'string') {
+            onEvent({ event: 'presence.updated', user_id: msg.user_id, last_seen_at: msg.last_seen_at });
+          }
+        } catch {
+          // Ignore malformed envelopes.
+        }
+      };
+      socket.onerror = () => socket?.close();
+      socket.onclose = () => {
+        if (cancelled) return;
+        attempts += 1;
+        reconnectTimer = setTimeout(connect, Math.min(1_000 * 2 ** attempts, 30_000));
+      };
+    } catch {
+      if (cancelled) return;
+      attempts += 1;
+      reconnectTimer = setTimeout(connect, Math.min(1_000 * 2 ** attempts, 30_000));
+    }
+  };
+  void connect();
+
+  return () => {
+    cancelled = true;
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+    if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ command: 'unsubscribe', identifier }));
+    socket?.close();
+  };
+}
+
 export function subscribeToMessages(
   api: CsgApi,
   kind: 'channel' | 'dm',
