@@ -331,4 +331,28 @@ describe('BatchReviewView', () => {
     expect(reloadSpy).toHaveBeenCalledTimes(1)
     expect([...container.querySelectorAll('[data-batch-submission]')].map((el) => el.getAttribute('data-batch-submission'))).toEqual(['2'])
   })
+
+  it('still reloads exercise A when an in-flight approval settles after switching to B and returning before B loads', async () => {
+    await renderView(review())
+    const approval = deferred<Awaited<ReturnType<typeof api.batchGradeSubmissions>>>()
+    vi.spyOn(api, 'batchGradeSubmissions').mockReturnValueOnce(approval.promise)
+    const pendingB = deferred<Awaited<ReturnType<typeof api.getBatchReview>>>()
+    const loadSpy = vi.spyOn(api, 'getBatchReview')
+    loadSpy.mockClear()
+    loadSpy
+      .mockReturnValueOnce(pendingB.promise)
+      .mockResolvedValueOnce({ data: review({}, [card(2, 'Bob', 'puts 9')]), error: null })
+
+    await act(async () => button('Approve selected as Pass (1)')!.click())
+    await act(async () => root.render(view(9)))
+    await act(async () => root.render(view(8)))
+    await act(async () => approval.resolve({
+      data: { graded: [{ submission_id: 1, user_id: 101, user_name: 'Alice', grade: 'P', graded_at: 'x', updated_at: 'y' }], skipped: [] },
+      error: null,
+    }))
+    await settle()
+    await settle()
+    expect(loadSpy).toHaveBeenCalledTimes(2)
+    expect([...container.querySelectorAll('[data-batch-submission]')].map((el) => el.getAttribute('data-batch-submission'))).toEqual(['2'])
+  })
 })

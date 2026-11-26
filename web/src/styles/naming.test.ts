@@ -74,6 +74,7 @@ const TERM_EXCEPTIONS: Record<string, string> = {
   'src/pages/admin/LessonEditor.tsx Block counts for learners': 'Staff-only block lesson editor: "block" is the authoring term for pieces of a lesson (README §2), never a learner progress count',
   'src/pages/admin/lessonEditor/BlockCard.tsx Block counts for learners': 'Staff-only block lesson editor: "block" is the authoring term for pieces of a lesson (README §2), never a learner progress count',
   'src/pages/admin/lessonEditor/Inspector.tsx Block counts for learners': 'Staff-only block lesson editor: "block" is the authoring term for pieces of a lesson (README §2), never a learner progress count',
+  'src/lib/codeSandbox.ts Guided / async': 'Embedded QuickJS sandbox bootstrap uses JavaScript `async function` syntax, not learner-facing delivery mode copy',
 }
 
 const ENUM_HUMANIZERS = new Set(['src/lib/glossary.ts', 'src/lib/learnerLabels.ts', 'src/lib/schoolTime.ts', 'src/lib/pushNotifications.ts'])

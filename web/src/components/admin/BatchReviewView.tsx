@@ -245,8 +245,8 @@ export function BatchReviewView({ cohortId, moduleId, lessonId, contentBlockId, 
       result = await api.batchGradeSubmissions({ grade, feedback: feedback.trim() ? feedback : null, items })
     } catch (cause: unknown) {
       toast.error(cause instanceof Error && cause.message ? cause.message : 'Could not approve these submissions.')
-      // The server may have committed before the response failed: reload the active snapshot so stale cards aren't retried.
-      if (loadGeneration.current === loadGen && loadedGeneration.current === snapshot && activeScope.current === scope) {
+      // The server may have committed before the response failed: if this same snapshot is on screen, reload it.
+      if (loadedGeneration.current === snapshot && activeScope.current === scope) {
         setLoaded(null)
         void reload()
       }
@@ -262,8 +262,8 @@ export function BatchReviewView({ cohortId, moduleId, lessonId, contentBlockId, 
     } else {
       toast.error(result.error || 'Could not approve these submissions.')
     }
-    // The instructor moved on or reloaded meanwhile: don't overwrite the snapshot now on screen.
-    if (loadGeneration.current !== loadGen || loadedGeneration.current !== snapshot || activeScope.current !== scope) return
+    // Refresh whenever the same snapshot is still on screen (including after returning from a cancelled switch).
+    if (loadedGeneration.current !== snapshot || activeScope.current !== scope) return
     setSkipped({ scope, items: skippedItems })
     if (result.data) setFeedback('')
     if (result.data || skippedItems.length) await reload()
