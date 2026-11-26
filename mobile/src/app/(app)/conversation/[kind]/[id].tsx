@@ -117,6 +117,7 @@ export default function ConversationScreen() {
   const loadedMessageIdsRef = useRef(new Set<number>());
   loadedMessageIdsRef.current = new Set(messages.map((message) => message.id));
   const queuedMessageIdsRef = useRef(new Set<number>());
+  const deletedReplyIdsRef = useRef(new Set<number>());
   const [mentionUsers, setMentionUsers] = useState<UserSummary[]>(initialSnapshot?.mentionUsers ?? []);
   const [arrivalUnreadBoundaryId, setArrivalUnreadBoundaryId] = useState<number | null>(null);
   const [openingReadState, setOpeningReadState] = useState<Pick<ChannelSummary, 'last_read_at' | 'last_read_message_id' | 'unread_count'> | null>(initialSnapshot?.summary ?? null);
@@ -156,6 +157,7 @@ export default function ConversationScreen() {
   useLayoutEffect(() => {
     const cached = queryClient.getQueryData<ConversationSnapshot>(conversationCacheKey);
     queuedMessageIdsRef.current.clear();
+    deletedReplyIdsRef.current.clear();
     operationIdentityRef.current = operationIdentity;
     loadRequestRef.current += 1;
     loadOlderRequestRef.current += 1;
@@ -203,17 +205,24 @@ export default function ConversationScreen() {
   const [presenceNow, setPresenceNow] = useState(() => Date.now());
   useFocusEffect(useCallback(() => {
     if (!presenceScopeKey) return undefined;
+    let active = true;
+    const scope = presenceScopeKey;
     const unsubscribe = subscribeToStaffPresence(api, (event) => {
-      setPresenceState((current) => ({
-        scopeKey: presenceScopeKey,
-        entries: current.scopeKey === presenceScopeKey
-          ? { ...current.entries, [event.user_id]: event.last_seen_at }
-          : { [event.user_id]: event.last_seen_at },
-      }));
+      if (!active) return;
+      setPresenceState((current) => {
+        if (current.scopeKey !== scope) return current;
+        return {
+          scopeKey: scope,
+          entries: { ...current.entries, [event.user_id]: event.last_seen_at },
+        };
+      });
       setPresenceNow(Date.now());
     });
-    const timer = setInterval(() => setPresenceNow(Date.now()), PRESENCE_TICK_MS);
+    const timer = setInterval(() => {
+      if (active) setPresenceNow(Date.now());
+    }, PRESENCE_TICK_MS);
     return () => {
+      active = false;
       clearInterval(timer);
       unsubscribe();
     };
@@ -461,7 +470,7 @@ export default function ConversationScreen() {
           ? { ...current, can_post: nextChannel.can_post, post_disabled_reason: nextChannel.post_disabled_reason }
           : current);
       }
-      const skipDeletedReplyDecrement = payload.event === 'deleted' && Boolean(payload.message.parent_message_id) && !claimDeletedReplyDecrement(payload.message.id);
+      const skipDeletedReplyDecrement = payload.event === 'deleted' && Boolean(payload.message.parent_message_id) && !claimDeletedReplyDecrement(deletedReplyIdsRef.current, payload.message.id);
       setMessages((current) => mergeMessageEvent(current, payload, skipDeletedReplyDecrement));
       setPinnedMessages((current) => mergePinnedMessageEvent(current, payload, skipDeletedReplyDecrement));
       if (follow) scrollToLatest(false);
@@ -737,7 +746,7 @@ export default function ConversationScreen() {
     }
   };
 
-  const deleteMessage = (message: Message) => Alert.alert('Delete message?', 'The message will no longer appear in the conversation.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: async () => { try { if (!auth.demo) await api.deleteMessage(message.id); const skipParentDecrement = Boolean(message.parent_message_id) && !claimDeletedReplyDecrement(message.id); setMessages((current) => removeMessageAndUpdateReplyCount(current, message, skipParentDecrement)); setPinnedMessages((current) => removeMessageAndUpdateReplyCount(current, message, skipParentDecrement)); } catch (requestError) { Alert.alert('Could not remove message', (requestError as Error).message); } } }]);
+  const deleteMessage = (message: Message) => Alert.alert('Delete message?', 'The message will no longer appear in the conversation.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: async () => { try { if (!auth.demo) await api.deleteMessage(message.id); const skipParentDecrement = Boolean(message.parent_message_id) && !claimDeletedReplyDecrement(deletedReplyIdsRef.current, message.id); setMessages((current) => removeMessageAndUpdateReplyCount(current, message, skipParentDecrement)); setPinnedMessages((current) => removeMessageAndUpdateReplyCount(current, message, skipParentDecrement)); } catch (requestError) { Alert.alert('Could not remove message', (requestError as Error).message); } } }]);
   // The message's web address (L-5.2), which opens this conversation at the message for anyone who can read it.
   const copyMessageLink = async (messageId: number) => {
     const link = messagePermalink(kind, id, messageId);
@@ -863,7 +872,13 @@ export default function ConversationScreen() {
               <Users color={c.text.body} size={18} />
             </View>
           )}
-          <Pressable accessibilityRole="button" accessibilityLabel="Open pinned messages" onPress={() => setShowPins(true)} style={styles.headerCopy}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Open pinned messages"
+            accessibilityValue={{ text: `${title}${dmPeerOnline ? ', Active now' : ''}` }}
+            onPress={() => setShowPins(true)}
+            style={styles.headerCopy}
+          >
             <Text maxFontSizeMultiplier={fontScaleLimits.title} numberOfLines={1} style={styles.title}>{title}</Text>
             <View style={styles.status}>
               {status !== 'connected' && <WifiOff color={c.status.warning.fg} size={12} />}
@@ -966,7 +981,7 @@ export default function ConversationScreen() {
               <FormattingToggleButton expanded={formattingExpanded} disabled={sending} onPress={() => setFormattingExpanded((current) => !current)} />
               <VoiceDraftButton state={voiceDraft.state} disabled={sending || Boolean(editingMessage)} onPress={() => void voiceDraft.start()} />
               </View>}
-            <View style={styles.composerActions}><Pressable accessibilityRole="button" accessibilityLabel="Composer options" accessibilityState={{ expanded: composerToolsExpanded }} onPress={() => setComposerToolsExpanded(!composerToolsExpanded)} style={styles.composerOptions}><MoreHorizontal color={c.text.body} size={20} /></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Attach" disabled={sending || Boolean(editingMessage)} onPress={() => Alert.alert('Add an attachment', undefined, [{ text: 'Photo library', onPress: () => void pickImage() }, { text: 'Choose a file', onPress: () => void pickDocument() }, { text: 'Cancel', style: 'cancel' }])} style={styles.attachButton}><Paperclip color={c.text.body} size={19} /></Pressable><TextInput keyboardAppearance={scheme} ref={composerInputRef} accessibilityLabel={editingMessage ? 'Edit message' : 'Message composer'} accessibilityHint={editingMessage ? 'Update the selected message' : `Enter a message for ${title}`} maxFontSizeMultiplier={fontScaleLimits.content} value={composerValue} selection={composerSelection} onSelectionChange={(event) => updateComposerSelection(event.nativeEvent.selection)} onChangeText={(value) => { const listEdit = applyMarkdownListEnter(composerValue, value); const nextValue = listEdit ? listEdit.value : value; if (messageBodyChangeAllowed(composerValue, nextValue)) { updateComposerValue(nextValue); if (listEdit) updateComposerSelection({ start: listEdit.cursor, end: listEdit.cursor }); } }} onFocus={() => { keyboardShouldFollowRef.current = nearBottomRef.current; if (nearBottomRef.current) scrollToLatest(false); }} placeholder={editingMessage ? 'Edit message' : `Message ${kind === 'channel' ? '#' : ''}${title}`} placeholderTextColor={c.text.muted} multiline {...composerInputBehavior(composerValue, composerSelection)} style={styles.input} />
+            <View style={styles.composerActions}><Pressable accessibilityRole="button" accessibilityLabel="Composer options" accessibilityState={{ expanded: composerToolsExpanded }} onPress={() => setComposerToolsExpanded(!composerToolsExpanded)} style={styles.composerOptions}><MoreHorizontal color={c.text.body} size={20} /></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Attach" disabled={sending || Boolean(editingMessage)} onPress={() => Alert.alert('Add an attachment', undefined, [{ text: 'Photo library', onPress: () => void pickImage() }, { text: 'Choose a file', onPress: () => void pickDocument() }, { text: 'Cancel', style: 'cancel' }])} style={styles.attachButton}><Paperclip color={c.text.body} size={19} /></Pressable><TextInput keyboardAppearance={scheme} ref={composerInputRef} accessibilityLabel={editingMessage ? 'Edit message' : 'Message composer'} accessibilityHint={editingMessage ? 'Update the selected message' : `Enter a message for ${title}`} maxFontSizeMultiplier={fontScaleLimits.content} value={composerValue} selection={composerSelection} onSelectionChange={(event) => updateComposerSelection(event.nativeEvent.selection)} onChangeText={(value) => { const listEdit = applyMarkdownListEnter(composerValue, value, composerSelection); const nextValue = listEdit ? listEdit.value : value; if (messageBodyChangeAllowed(composerValue, nextValue)) { updateComposerValue(nextValue); if (listEdit) updateComposerSelection({ start: listEdit.cursor, end: listEdit.cursor }); } }} onFocus={() => { keyboardShouldFollowRef.current = nearBottomRef.current; if (nearBottomRef.current) scrollToLatest(false); }} placeholder={editingMessage ? 'Edit message' : `Message ${kind === 'channel' ? '#' : ''}${title}`} placeholderTextColor={c.text.muted} multiline {...composerInputBehavior(composerValue, composerSelection)} style={styles.input} />
               <Button variant="primary" accessibilityRole="button" accessibilityLabel={editingMessage ? 'Save edit' : 'Send message'} disabled={!composerHasContent || !composerWithinLimit || sending} onPress={() => void (editingMessage ? saveEdit() : send())} style={({ pressed }) => [styles.send, (!composerHasContent || !composerWithinLimit || sending) && styles.sendDisabled, pressed && styles.pressed]}><Send color={c.text.onAction} size={19} /></Button>
             </View>
           </View>

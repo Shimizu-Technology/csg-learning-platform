@@ -89,17 +89,24 @@ export default function MessagesScreen() {
 
   useFocusEffect(useCallback(() => {
     if (!presenceScopeKey) return undefined;
+    let active = true;
+    const scope = presenceScopeKey;
     const unsubscribe = subscribeToStaffPresence(api, (event) => {
-      setPresenceState((current) => ({
-        scopeKey: presenceScopeKey,
-        entries: current.scopeKey === presenceScopeKey
-          ? { ...current.entries, [event.user_id]: event.last_seen_at }
-          : { [event.user_id]: event.last_seen_at },
-      }));
+      if (!active) return;
+      setPresenceState((current) => {
+        if (current.scopeKey !== scope) return current;
+        return {
+          scopeKey: scope,
+          entries: { ...current.entries, [event.user_id]: event.last_seen_at },
+        };
+      });
       setPresenceNow(Date.now());
     });
-    const timer = setInterval(() => setPresenceNow(Date.now()), PRESENCE_TICK_MS);
+    const timer = setInterval(() => {
+      if (active) setPresenceNow(Date.now());
+    }, PRESENCE_TICK_MS);
     return () => {
+      active = false;
       clearInterval(timer);
       unsubscribe();
     };

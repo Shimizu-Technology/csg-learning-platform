@@ -137,19 +137,17 @@ export function MessageBubble({
           )}
           {blocked ? (
             <Text style={[styles.body, styles.deleted]}>Message hidden — you blocked this user</Text>
+          ) : deleted ? (
+            <Text style={[styles.body, styles.deleted]}>Message removed</Text>
           ) : !!message.body && (
-            deleted ? (
-              <Text style={[styles.body, styles.deleted]}>Message removed</Text>
-            ) : (
-              <FormattedMessage
-                cohortId={cohortId}
-                workspaceId={workspaceId}
-                body={message.body}
-                mentionUsers={mentionUsers}
-                mentionUserIds={message.mention_user_ids}
-                mine={message.mine}
-              />
-            )
+            <FormattedMessage
+              cohortId={cohortId}
+              workspaceId={workspaceId}
+              body={message.body}
+              mentionUsers={mentionUsers}
+              mentionUserIds={message.mention_user_ids}
+              mine={message.mine}
+            />
           )}
           {images.length === 1 && (
             <SingleImageAttachment
@@ -194,7 +192,7 @@ export function MessageBubble({
             </Pressable>
           ))}
         </Pressable>
-        {!blocked && !!message.reactions.length && (
+        {!blocked && !deleted && !!message.reactions.length && (
           <View style={[styles.reactions, message.mine && styles.mineReactions]}>
             {message.reactions.map((reaction) => {
               const option = reactionOption(reaction.emoji);

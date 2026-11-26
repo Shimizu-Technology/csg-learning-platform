@@ -106,6 +106,7 @@ export default function ThreadScreen() {
   const windowMetaRef = useRef(windowMeta);
   windowMetaRef.current = windowMeta;
   const queuedReplyIdsRef = useRef(new Set<number>());
+  const deletedReplyIdsRef = useRef(new Set<number>());
   const [queuedReplyCount, setQueuedReplyCount] = useState(0);
   const loadedReplyIdsRef = useRef(new Set<number>());
   const [loadingPage, setLoadingPage] = useState(false);
@@ -295,6 +296,7 @@ export default function ThreadScreen() {
 
   useEffect(() => {
     queuedReplyIdsRef.current.clear();
+    deletedReplyIdsRef.current.clear();
     setQueuedReplyCount(0);
     positionedRef.current = false;
     readerInteractedRef.current = false;
@@ -348,7 +350,7 @@ export default function ThreadScreen() {
           if (queued.size) { nearBottomRef.current = false; setShowLatest(true); setHasNewMessages(true); }
           return;
         }
-        const skipDeletedReplyDecrement = event.event === 'deleted' && !claimDeletedReplyDecrement(event.message.id);
+        const skipDeletedReplyDecrement = event.event === 'deleted' && !claimDeletedReplyDecrement(deletedReplyIdsRef.current, event.message.id);
         setReplies((current) => mergeMessageEvent(current, event, skipDeletedReplyDecrement));
         if (event.event === 'deleted' && !skipDeletedReplyDecrement) {
           setRoot((current) => current ? { ...current, reply_count: Math.max(0, (current.reply_count ?? 1) - 1) } : current);
@@ -644,7 +646,7 @@ export default function ThreadScreen() {
     if (user?.is_staff && message.id > 0) actions.push({ label: message.pinned_at ? 'Unpin message' : 'Pin message', onPress: () => void updateAction(() => api.pinMessage(message.id, Boolean(message.pinned_at))) });
     if (message.mine && message.id > 0) {
       if (canPost && !message.deleted_at) actions.push({ label: 'Edit message', onPress: () => { close(); setActionError(null); setEditingAction(message); setEditBody(message.body); } });
-      actions.push({ label: 'Delete message', destructive: true, onPress: () => { close(); Alert.alert('Delete message?', 'This message will be removed for everyone.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: () => void (async () => { setSavingAction(true); setActionError(null); try { if (!auth.demo) await api.deleteMessage(message.id); if (message.id === rootId) { setRoot(null); } else { const skipDecrement = !claimDeletedReplyDecrement(message.id); setReplies((current) => current.filter((item) => item.id !== message.id)); if (!skipDecrement) setRoot((current) => current ? { ...current, reply_count: Math.max(0, (current.reply_count ?? 1) - 1) } : current); } setSelectedMessage(null); } catch (err) { setActionError((err as Error).message); } finally { setSavingAction(false); } })() }]); } });
+      actions.push({ label: 'Delete message', destructive: true, onPress: () => { close(); Alert.alert('Delete message?', 'This message will be removed for everyone.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: () => void (async () => { setSavingAction(true); setActionError(null); try { if (!auth.demo) await api.deleteMessage(message.id); if (message.id === rootId) { setRoot(null); } else { const skipDecrement = !claimDeletedReplyDecrement(deletedReplyIdsRef.current, message.id); setReplies((current) => current.filter((item) => item.id !== message.id)); if (!skipDecrement) setRoot((current) => current ? { ...current, reply_count: Math.max(0, (current.reply_count ?? 1) - 1) } : current); } setSelectedMessage(null); } catch (err) { setActionError((err as Error).message); } finally { setSavingAction(false); } })() }]); } });
     }
     if (!message.mine && message.id > 0) {
       actions.push({ label: 'Report message', onPress: () => { close(); void reportMessage(message); } });
@@ -719,7 +721,7 @@ export default function ThreadScreen() {
         {composerToolsExpanded && <View style={styles.composerActions}><FormattingToggleButton expanded={formattingExpanded} disabled={sending} onPress={() => setFormattingExpanded((current) => !current)} /><VoiceDraftButton state={voiceDraft.state} disabled={sending} onPress={() => void voiceDraft.start()} /></View>}
             <View style={styles.composerActions}><Pressable accessibilityRole="button" accessibilityLabel="Composer options" accessibilityState={{ expanded: composerToolsExpanded }} onPress={() => setComposerToolsExpanded(!composerToolsExpanded)} style={styles.composerOptions}><MoreHorizontal color={c.text.body} size={20} /></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Attach" disabled={sending} style={styles.composerOptions} onPress={() => Alert.alert('Add an attachment', undefined, [
               { text: 'Photo library', onPress: () => void pickAttachment(true) }, { text: 'Choose a file', onPress: () => void pickAttachment(false) }, { text: 'Cancel', style: 'cancel' },
-            ])}><Paperclip color={c.text.body} size={19} /></Pressable><TextInput keyboardAppearance={scheme} ref={inputRef} maxFontSizeMultiplier={fontScaleLimits.content} accessibilityLabel="Reply to thread" value={draft} selection={selection} onSelectionChange={(event) => setSelection(event.nativeEvent.selection)} onChangeText={(value) => { const listEdit = applyMarkdownListEnter(draftRef.current, value); const nextValue = listEdit ? listEdit.value : value; if (messageBodyChangeAllowed(draftRef.current, nextValue)) { draftRef.current = nextValue; setDraft(nextValue); if (listEdit) setSelection({ start: listEdit.cursor, end: listEdit.cursor }); } }} placeholder="Reply to thread" placeholderTextColor={c.text.muted} multiline {...composerInputBehavior(draft, selection)} style={styles.input} /><Button variant="primary" accessibilityRole="button" accessibilityLabel="Send reply" disabled={!destinationReady || (!draft.trim() && !attachments.length) || !draftWithinLimit || sending} onPress={() => void send()} style={[styles.send, ((!draft.trim() && !attachments.length) || !draftWithinLimit || sending) && styles.disabled]}><Send color={c.text.onAction} size={19} /></Button></View>
+            ])}><Paperclip color={c.text.body} size={19} /></Pressable><TextInput keyboardAppearance={scheme} ref={inputRef} maxFontSizeMultiplier={fontScaleLimits.content} accessibilityLabel="Reply to thread" value={draft} selection={selection} onSelectionChange={(event) => setSelection(event.nativeEvent.selection)} onChangeText={(value) => { const listEdit = applyMarkdownListEnter(draftRef.current, value, selection); const nextValue = listEdit ? listEdit.value : value; if (messageBodyChangeAllowed(draftRef.current, nextValue)) { draftRef.current = nextValue; setDraft(nextValue); if (listEdit) setSelection({ start: listEdit.cursor, end: listEdit.cursor }); } }} placeholder="Reply to thread" placeholderTextColor={c.text.muted} multiline {...composerInputBehavior(draft, selection)} style={styles.input} /><Button variant="primary" accessibilityRole="button" accessibilityLabel="Send reply" disabled={!destinationReady || (!draft.trim() && !attachments.length) || !draftWithinLimit || sending} onPress={() => void send()} style={[styles.send, ((!draft.trim() && !attachments.length) || !draftWithinLimit || sending) && styles.disabled]}><Send color={c.text.onAction} size={19} /></Button></View>
       </View>
     </> : (
       <View accessible accessibilityRole="text" accessibilityLiveRegion="polite" testID="thread-readonly-notice" style={styles.readOnlyNotice}>

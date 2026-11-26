@@ -35,6 +35,7 @@ export function ConversationRow({
   const hasUnread = item.unread_count > 0;
 
   const accessibilityLabelParts = [`Open ${title}`];
+  if (online && peer) accessibilityLabelParts.push('Active now');
   if (hasUnread) accessibilityLabelParts.push(`${item.unread_count} unread`);
   if (formattedDraft) accessibilityLabelParts.push(`Draft: ${formattedDraft}`);
 

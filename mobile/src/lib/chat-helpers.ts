@@ -70,27 +70,44 @@ function advanceVisualColumns(text: string, startColumn = 0): number {
 /**
  * Native TextInput Markdown list Enter continuation.
  * Triggers only when a single `\n` was just inserted on a non-fenced list line.
+ * Pass the pre-edit `selection` when available so insertion before an existing newline
+ * (e.g. `"- item\nnext"` with caret after `item`) is resolved unambiguously.
  */
 export function applyMarkdownListEnter(
   prevValue: string,
   nextValue: string,
+  selection?: { start: number; end: number },
 ): { value: string; cursor: number } | null {
-  if (nextValue.length !== prevValue.length + 1) return null;
+  let start = -1;
+  let end = -1;
 
-  // Find the single inserted character index.
-  let diffIndex = 0;
-  while (diffIndex < prevValue.length && prevValue[diffIndex] === nextValue[diffIndex]) {
-    diffIndex += 1;
+  if (selection) {
+    const selStart = Math.max(0, Math.min(selection.start, selection.end, prevValue.length));
+    const selEnd = Math.max(selStart, Math.min(Math.max(selection.start, selection.end), prevValue.length));
+    if (nextValue === `${prevValue.slice(0, selStart)}\n${prevValue.slice(selEnd)}`) {
+      start = selStart;
+      end = selEnd;
+    }
   }
-  if (nextValue[diffIndex] !== '\n') return null;
-  if (prevValue.slice(diffIndex) !== nextValue.slice(diffIndex + 1)) return null;
 
-  const lineStart = prevValue.lastIndexOf('\n', diffIndex - 1) + 1;
-  const beforeCaret = prevValue.slice(lineStart, diffIndex);
-  const afterCaret = prevValue.slice(diffIndex);
+  if (start === -1) {
+    if (nextValue.length !== prevValue.length + 1) return null;
+    let diffIndex = 0;
+    while (diffIndex < prevValue.length && prevValue[diffIndex] === nextValue[diffIndex]) {
+      diffIndex += 1;
+    }
+    if (nextValue[diffIndex] !== '\n') return null;
+    if (prevValue.slice(diffIndex) !== nextValue.slice(diffIndex + 1)) return null;
+    start = diffIndex;
+    end = diffIndex;
+  }
+
+  const lineStart = prevValue.lastIndexOf('\n', start - 1) + 1;
+  const beforeCaret = prevValue.slice(lineStart, start);
+  const afterCaret = prevValue.slice(end);
 
   // Never rewrite inside an already-open fenced code block.
-  if (isInsideMarkdownFence(prevValue, diffIndex)) return null;
+  if (isInsideMarkdownFence(prevValue, start)) return null;
 
   // Unordered or ordered list marker at start of line.
   const match = /^([ \t]*)([-*+]|(\d+)([.)]))([ \t]+)(.*)$/.exec(beforeCaret);
@@ -103,8 +120,8 @@ export function applyMarkdownListEnter(
   if (/^(`{3,}|~{3,})/.test(content)) {
     const contentColumn = advanceVisualColumns(`${indent}${marker}${gap}`);
     const padding = ' '.repeat(contentColumn);
-    const value = `${prevValue.slice(0, diffIndex)}\n${padding}${afterCaret}`;
-    return { value, cursor: diffIndex + 1 + padding.length };
+    const value = `${prevValue.slice(0, start)}\n${padding}${afterCaret}`;
+    return { value, cursor: start + 1 + padding.length };
   }
 
   // Empty list item (pressing Enter on `- ` or `1. `): clear the marker to exit the list.
@@ -115,6 +132,6 @@ export function applyMarkdownListEnter(
 
   const nextMarker = digits ? `${Number(digits) + 1}${delim}` : marker;
   const insertion = `\n${indent}${nextMarker} `;
-  const value = `${prevValue.slice(0, diffIndex)}${insertion}${afterCaret}`;
-  return { value, cursor: diffIndex + insertion.length };
+  const value = `${prevValue.slice(0, start)}${insertion}${afterCaret}`;
+  return { value, cursor: start + insertion.length };
 }

@@ -73,5 +73,18 @@ describe('ConversationRow', () => {
     expect(screen.getByText(/Draft:/)).toBeTruthy();
     expect(screen.getByText(/Finishing the PR check now/)).toBeTruthy();
     expect(screen.getByLabelText(/Draft: Finishing the PR check now/)).toBeTruthy();
+    expect(screen.getByLabelText(/Active now/)).toBeTruthy();
+
+    // Offline 1:1 DM omits "Active now" from the accessibility label.
+    screen.rerender(
+      <ConversationRow
+        kind="dm"
+        item={demoDms[0]}
+        currentUserId={7}
+        online={false}
+        onPress={jest.fn()}
+      />,
+    );
+    expect(screen.queryByLabelText(/Active now/)).toBeNull();
   });
 });

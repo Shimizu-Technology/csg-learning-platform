@@ -112,9 +112,14 @@ export function subscribeToStaffPresence(
       const { token } = await api.cableToken();
       if (cancelled) return;
       const NativeWebSocket = WebSocket as unknown as NativeWebSocketConstructor;
-      socket = new NativeWebSocket(websocketUrl(token), undefined, { headers: { Origin: websocketOrigin() } });
-      socket.onopen = () => socket?.send(JSON.stringify({ command: 'subscribe', identifier }));
-      socket.onmessage = ({ data }) => {
+      const currentSocket = new NativeWebSocket(websocketUrl(token), undefined, { headers: { Origin: websocketOrigin() } });
+      socket = currentSocket;
+      currentSocket.onopen = () => {
+        if (cancelled || socket !== currentSocket) return;
+        currentSocket.send(JSON.stringify({ command: 'subscribe', identifier }));
+      };
+      currentSocket.onmessage = ({ data }) => {
+        if (cancelled || socket !== currentSocket) return;
         try {
           const envelope = JSON.parse(String(data)) as { type?: string; message?: Partial<PresenceEvent> };
           if (envelope.type === 'confirm_subscription') { attempts = 0; return; }
@@ -126,9 +131,12 @@ export function subscribeToStaffPresence(
           // Ignore malformed envelopes.
         }
       };
-      socket.onerror = () => socket?.close();
-      socket.onclose = () => {
-        if (cancelled) return;
+      currentSocket.onerror = () => {
+        if (cancelled || socket !== currentSocket) return;
+        currentSocket.close();
+      };
+      currentSocket.onclose = () => {
+        if (cancelled || socket !== currentSocket) return;
         attempts += 1;
         reconnectTimer = setTimeout(connect, Math.min(1_000 * 2 ** attempts, 30_000));
       };
@@ -143,8 +151,18 @@ export function subscribeToStaffPresence(
   return () => {
     cancelled = true;
     if (reconnectTimer) clearTimeout(reconnectTimer);
-    if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ command: 'unsubscribe', identifier }));
-    socket?.close();
+    const activeSocket = socket;
+    socket = null;
+    if (activeSocket) {
+      activeSocket.onopen = null;
+      activeSocket.onmessage = null;
+      activeSocket.onerror = null;
+      activeSocket.onclose = null;
+      if (activeSocket.readyState === WebSocket.OPEN) {
+        activeSocket.send(JSON.stringify({ command: 'unsubscribe', identifier }));
+      }
+      activeSocket.close();
+    }
   };
 }
 

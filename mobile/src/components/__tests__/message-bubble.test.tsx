@@ -142,6 +142,23 @@ describe('MessageBubble', () => {
     expect(screen.queryByLabelText('Thumbs up, 2')).toBeNull();
   });
 
+  it('does not render reaction controls on deleted messages', () => {
+    const deleted = { ...message, deleted_at: '2026-07-25T01:00:00.000Z', body: '' };
+    const screen = render(
+      <MessageBubble
+        message={deleted}
+        showAuthor
+        mentionUsers={[]}
+        onToggleReaction={jest.fn()}
+        onOpenReaction={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Message removed')).toBeTruthy();
+    expect(screen.queryByLabelText('Thumbs up, 2')).toBeNull();
+    expect(screen.queryByLabelText('Who reacted')).toBeNull();
+  });
+
   it('renders fenced code, lists, quotes, and inline formatting without showing markdown markers', () => {
     const formatted = {
       ...message,

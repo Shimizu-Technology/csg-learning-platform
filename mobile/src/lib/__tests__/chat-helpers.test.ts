@@ -57,9 +57,19 @@ describe('chat-helpers', () => {
     });
     // Inside an already-open fence, do not rewrite list-like lines.
     expect(applyMarkdownListEnter('```md\n- item', '```md\n- item\n')).toBeNull();
+    // Pre-edit selection resolves Enter inserted before an existing newline unambiguously.
+    expect(applyMarkdownListEnter('- item\nnext', '- item\n\nnext', { start: 6, end: 6 })).toEqual({
+      value: '- item\n- \nnext',
+      cursor: 9,
+    });
+    // Replacing a selected range with Enter continues the list from selection.start.
+    expect(applyMarkdownListEnter('- item extra', '- item\n', { start: 6, end: 12 })).toEqual({
+      value: '- item\n- ',
+      cursor: 9,
+    });
   });
 
-  it('decrements parent reply_count once across realtime-first and HTTP-second reply deletion', () => {
+  it('decrements parent reply_count once per screen across realtime-first and HTTP-second reply deletion without cross-screen starvation', () => {
     const root: Message = {
       id: 700,
       channel_id: 1,
@@ -80,12 +90,21 @@ describe('chat-helpers', () => {
     };
     const reply: Message = { ...root, id: 701, parent_message_id: 700, reply_count: 0 };
 
-    const skipFirst = !claimDeletedReplyDecrement(reply.id);
-    const afterRealtime = removeMessageAndUpdateReplyCount([root, reply], reply, skipFirst);
-    expect(afterRealtime.find((m) => m.id === 700)?.reply_count).toBe(1);
+    const conversationClaimed = new Set<number>();
+    const threadClaimed = new Set<number>();
 
-    const skipSecond = !claimDeletedReplyDecrement(reply.id);
-    const afterHttp = removeMessageAndUpdateReplyCount(afterRealtime, reply, skipSecond);
-    expect(afterHttp.find((m) => m.id === 700)?.reply_count).toBe(1);
+    const skipConvFirst = !claimDeletedReplyDecrement(conversationClaimed, reply.id);
+    const afterConvRealtime = removeMessageAndUpdateReplyCount([root, reply], reply, skipConvFirst);
+    expect(afterConvRealtime.find((m) => m.id === 700)?.reply_count).toBe(1);
+
+    const skipConvSecond = !claimDeletedReplyDecrement(conversationClaimed, reply.id);
+    const afterConvHttp = removeMessageAndUpdateReplyCount(afterConvRealtime, reply, skipConvSecond);
+    expect(afterConvHttp.find((m) => m.id === 700)?.reply_count).toBe(1);
+
+    // Mounted ThreadScreen maintains its own claim set and still decrements its root once.
+    const skipThreadFirst = !claimDeletedReplyDecrement(threadClaimed, reply.id);
+    expect(skipThreadFirst).toBe(false);
+    const skipThreadSecond = !claimDeletedReplyDecrement(threadClaimed, reply.id);
+    expect(skipThreadSecond).toBe(true);
   });
 });

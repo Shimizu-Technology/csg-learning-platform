@@ -26,15 +26,13 @@ export function pinnedMessagesFrom(messages: Message[]) {
     .sort((left, right) => Date.parse(right.pinned_at || '') - Date.parse(left.pinned_at || ''));
 }
 
-const decrementedDeletedReplyIds = new Set<number>();
-
-/** Symmetric idempotency guard so HTTP and realtime reply deletes decrement parent reply_count once in either order. */
-export function claimDeletedReplyDecrement(messageId: number): boolean {
-  if (decrementedDeletedReplyIds.has(messageId)) return false;
-  decrementedDeletedReplyIds.add(messageId);
-  if (decrementedDeletedReplyIds.size > 200) {
-    const oldest = decrementedDeletedReplyIds.values().next().value;
-    if (oldest !== undefined) decrementedDeletedReplyIds.delete(oldest);
+/** Per-screen idempotency guard so HTTP and realtime reply deletes decrement parent reply_count once in either order without starving other mounted screens. */
+export function claimDeletedReplyDecrement(claimedIds: Set<number>, messageId: number): boolean {
+  if (claimedIds.has(messageId)) return false;
+  claimedIds.add(messageId);
+  if (claimedIds.size > 200) {
+    const oldest = claimedIds.values().next().value;
+    if (oldest !== undefined) claimedIds.delete(oldest);
   }
   return true;
 }
