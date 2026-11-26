@@ -14,8 +14,17 @@ export function useComposerAttachments(userId: number | undefined, selectedTarge
   const attachmentBucketKeyRef = useRef<string | null>(null)
   const pendingAttachmentBucketsRef = useRef(new Map<string, PendingAttachment[]>())
   const pendingAttachmentsRef = useRef(pendingAttachments)
+  const pendingPreviewUrlsRef = useRef(new Set<string>())
   const optimisticAttachmentUrls = useRef(new Map<number, string[]>())
   pendingAttachmentsRef.current = pendingAttachments
+
+  const revokePendingPreviews = (items: PendingAttachment[]) => {
+    items.forEach((item) => {
+      if (!item.previewUrl) return
+      URL.revokeObjectURL(item.previewUrl)
+      pendingPreviewUrlsRef.current.delete(item.previewUrl)
+    })
+  }
 
   const composerDraftKey = userId && selectedTarget ? composerDestinationKey(userId, selectedTarget, activeThreadRootId) : null
 
@@ -31,12 +40,19 @@ export function useComposerAttachments(userId: number | undefined, selectedTarge
   useEffect(() => () => {
     optimisticAttachmentUrls.current.forEach((urls) => urls.forEach((url) => URL.revokeObjectURL(url)))
     optimisticAttachmentUrls.current.clear()
+    pendingPreviewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url))
+    pendingPreviewUrlsRef.current.clear()
   }, [])
 
   /** The submitted files went out with a message: empty the composer and forget that draft's files. */
   const clearSubmittedAttachments = (draftKey: string | null) => {
+    revokePendingPreviews(pendingAttachmentsRef.current)
     setPendingAttachments([])
-    if (draftKey) pendingAttachmentBucketsRef.current.delete(draftKey)
+    if (draftKey) {
+      const bucket = pendingAttachmentBucketsRef.current.get(draftKey)
+      if (bucket) revokePendingPreviews(bucket)
+      pendingAttachmentBucketsRef.current.delete(draftKey)
+    }
   }
 
   const rememberOptimisticAttachmentUrls = (messageId: number, urls: string[]) => {
@@ -89,14 +105,23 @@ export function useComposerAttachments(userId: number | undefined, selectedTarge
   }
 
   const addFiles = (files: File[]) => {
-    const next = files.map((file) => ({
-      file,
-      filename: file.name,
-      content_type: file.type || 'application/octet-stream',
-      byte_size: file.size,
-      progress: 0,
-      uploaded: false,
-    }))
+    const next = files.map((file) => {
+      const contentType = file.type || 'application/octet-stream'
+      let previewUrl: string | undefined
+      if (contentType.startsWith('image/') && typeof URL.createObjectURL === 'function') {
+        previewUrl = URL.createObjectURL(file)
+        pendingPreviewUrlsRef.current.add(previewUrl)
+      }
+      return {
+        file,
+        filename: file.name,
+        content_type: contentType,
+        byte_size: file.size,
+        progress: 0,
+        uploaded: false,
+        previewUrl,
+      }
+    })
     setPendingAttachments((prev) => [...prev, ...next])
   }
 
@@ -117,7 +142,11 @@ export function useComposerAttachments(userId: number | undefined, selectedTarge
   }
 
   const removePendingAttachment = (file: File) => {
-    setPendingAttachments((prev) => prev.filter((item) => item.file !== file))
+    setPendingAttachments((prev) => {
+      const removed = prev.filter((item) => item.file === file)
+      revokePendingPreviews(removed)
+      return prev.filter((item) => item.file !== file)
+    })
   }
 
   return {

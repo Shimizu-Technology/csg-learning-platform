@@ -13,9 +13,23 @@ describe('code paste detection', () => {
     expect(looksLikeCode('first = "12"\nsecond = "3"\nprint(int(first) + int(second))')).toBe(true)
   })
 
+  it('recognizes terminal commands, shell prompts, and error output as code', () => {
+    expect(looksLikeCode('git status\ngit add .\ngit commit -m "Update README"\ngit push')).toBe(true)
+    expect(looksLikeCode('git restore README.md\ngit checkout main\ngit pull')).toBe(true)
+    expect(looksLikeCode('cd ~\nrm -rf .git')).toBe(true)
+    expect(looksLikeCode('$ npm install\n$ npm run dev')).toBe(true)
+    expect(looksLikeCode('PS C:\\Users\\lance\\project> node -v\nnode : The term \'node\' is not recognized as the name of a cmdlet\nAt line:1 char:1\n+ node -v\n+ ~~~~')).toBe(true)
+    expect(looksLikeCode('error: Your local changes to the following files would be overwritten by checkout:\n        README.md\nPlease commit your changes or stash them before you switch branches.\nAborting')).toBe(true)
+    expect(looksLikeCode('Traceback (most recent call last):\n  File "app.py", line 12, in <module>\nTypeError: unsupported operand type(s)')).toBe(true)
+    expect(looksLikeCode('TypeError: Cannot read properties of undefined (reading \'map\')\n    at App (src/App.tsx:14:21)\n    at renderWithHooks (react-dom.js:14985:18)')).toBe(true)
+  })
+
   it('leaves prose, single lines, bullets, and fenced markdown alone', () => {
     expect(looksLikeCode('Hi Ana,\n\nI finished the checkpoint early. Could we meet Tuesday instead?\nThanks!')).toBe(false)
+    expect(looksLikeCode('Hi Leon,\nI got an error when I tried to push.\nCan you help me check it?')).toBe(false)
+    expect(looksLikeCode('1. First pull main\n2. Then run the tests')).toBe(false)
     expect(looksLikeCode('print("hello")')).toBe(false)
+    expect(looksLikeCode('git status')).toBe(false)
     expect(looksLikeCode('Things to fix:\n  - the name\n  - the colon')).toBe(false)
     expect(looksLikeCode('```python\nprint(1)\n```')).toBe(false)
     expect(looksLikeCode('~~~text\n  a\n~~~')).toBe(false)

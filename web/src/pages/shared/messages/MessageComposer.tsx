@@ -46,6 +46,7 @@ export const MessageComposer = memo(forwardRef<MessageComposerHandle, {
   onTyping: (hasContent: boolean) => void
   onFiles: (files: File[]) => void
   onAttach: () => void
+  onEditLastMessage?: () => void
 }>(function MessageComposer({
   draftKey,
   label,
@@ -61,6 +62,7 @@ export const MessageComposer = memo(forwardRef<MessageComposerHandle, {
   onTyping,
   onFiles,
   onAttach,
+  onEditLastMessage,
 }, ref) {
   const editorRef = useRef<MarkdownEditorHandle | null>(null)
   const draftKeyRef = useRef(draftKey)
@@ -230,11 +232,33 @@ export const MessageComposer = memo(forwardRef<MessageComposerHandle, {
 
   const suggestionsRef = useRef({ mentionSuggestions, activeMentionIndex })
   suggestionsRef.current = { mentionSuggestions, activeMentionIndex }
+  const onEditLastMessageRef = useRef(onEditLastMessage)
+  onEditLastMessageRef.current = onEditLastMessage
 
   const handleKeyDown = useCallback((event: globalThis.KeyboardEvent) => {
     const { mentionSuggestions: suggestions, activeMentionIndex: index } = suggestionsRef.current
     // Enter or Tab that confirms an IME composition (Japanese, Chinese, Korean…) isn't a mention pick.
-    if (suggestions.length === 0 || isComposingKey(event)) return false
+    if (isComposingKey(event)) return false
+    if (suggestions.length === 0) {
+      // Slack/Discord shortcut: Up arrow in an empty composer opens inline edit on your last sent message.
+      if (
+        event.key === 'ArrowUp'
+        && !event.shiftKey
+        && !event.altKey
+        && !event.metaKey
+        && !event.ctrlKey
+        && !bodyRef.current.trim()
+        && onEditLastMessageRef.current
+      ) {
+        const currentText = editorRef.current?.getMarkdown() ?? bodyRef.current
+        if (!currentText.trim()) {
+          event.preventDefault()
+          onEditLastMessageRef.current()
+          return true
+        }
+      }
+      return false
+    }
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault()
       const step = event.key === 'ArrowDown' ? 1 : -1

@@ -1116,9 +1116,33 @@ details[open] > :not(summary) {
   animation: message-highlight-pulse 1.5s ease-out;
 }
 
+@keyframes typing-dot-bounce {
+  0%, 80%, 100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
+.typing-dot {
+  animation: typing-dot-bounce 1.2s var(--ease-in-out) infinite;
+}
+
+.typing-dot--2 {
+  animation-delay: 160ms;
+}
+
+.typing-dot--3 {
+  animation-delay: 320ms;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .message-row-enter,
-  .message-row-highlight {
+  .message-row-highlight,
+  .typing-dot {
     animation: none;
   }
 }

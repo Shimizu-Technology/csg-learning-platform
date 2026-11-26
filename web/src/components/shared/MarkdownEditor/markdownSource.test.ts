@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseInline } from '../../../lib/messageFormat'
-import { markdownSourceEdit } from './markdownSource'
+import { markdownEnterAddsLine, markdownListEnterEdit, markdownListIndentEdit, markdownSourceEdit } from './markdownSource'
 
 function apply(value: string, start: number, end: number) {
   const edit = markdownSourceEdit(value, start, end, 'code')
@@ -82,4 +82,31 @@ it('still toggles real emphasis next to identifiers and code', () => {
   const caret = value.indexOf('snake') + 2
   const edit = markdownSourceEdit(value, caret, caret, 'italic')
   expect(value.slice(0, edit.start) + edit.text + value.slice(edit.end)).toBe('call `x_y` with snake_case now')
+})
+
+describe('Markdown list Enter and Tab helpers', () => {
+  it('treats list items and code fences as multi-line Enter blocks', () => {
+    expect(markdownEnterAddsLine('1. first step', 13)).toBe(true)
+    expect(markdownEnterAddsLine('- item', 6)).toBe(true)
+    expect(markdownEnterAddsLine('plain text', 10)).toBe(false)
+    expect(markdownEnterAddsLine('```js\nconst x = 1', 17)).toBe(true)
+  })
+
+  it('continues numbered and bulleted lists and exits on an empty item', () => {
+    const ordered = markdownListEnterEdit('1. Pull main', 12, 12)!
+    expect('1. Pull main'.slice(0, ordered.start) + ordered.text + '1. Pull main'.slice(ordered.end)).toBe('1. Pull main\n2. ')
+
+    const bullet = markdownListEnterEdit('  - Nested item', 15, 15)!
+    expect('  - Nested item'.slice(0, bullet.start) + bullet.text + '  - Nested item'.slice(bullet.end)).toBe('  - Nested item\n  - ')
+
+    const exit = markdownListEnterEdit('1. Pull main\n2. ', 16, 16)!
+    expect('1. Pull main\n2. '.slice(0, exit.start) + exit.text + '1. Pull main\n2. '.slice(exit.end)).toBe('1. Pull main\n')
+  })
+
+  it('indents and outdents list items with Tab / Shift+Tab', () => {
+    const indented = markdownListIndentEdit('- item', 6, 6, false)!
+    expect('- item'.slice(0, indented.start) + indented.text + '- item'.slice(indented.end)).toBe('  - item')
+    const outdented = markdownListIndentEdit('  - item', 8, 8, true)!
+    expect('  - item'.slice(0, outdented.start) + outdented.text + '  - item'.slice(outdented.end)).toBe('- item')
+  })
 })

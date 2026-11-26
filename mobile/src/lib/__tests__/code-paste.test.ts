@@ -4,7 +4,10 @@ describe('code in messages', () => {
   it('recognises indented Python and code-like lines, but not prose', () => {
     expect(looksLikeCode('for price in prices:\n    total = total + price\nprint(total)')).toBe(true);
     expect(looksLikeCode('amount = 75\nbudget = 100')).toBe(true);
+    expect(looksLikeCode('git status\ngit add .\ngit commit -m "fix"')).toBe(true);
+    expect(looksLikeCode('error: Your local changes to the following files would be overwritten by checkout:\nPlease commit your changes or stash them\nAborting')).toBe(true);
     expect(looksLikeCode('Hi! I finished E2.\nCan you check it?')).toBe(false);
+    expect(looksLikeCode('Hi Leon,\nI got an error when I tried to push.\nCan you help?')).toBe(false);
     expect(looksLikeCode('print("one line")')).toBe(false);
     expect(looksLikeCode('```python\nx = 1\n```')).toBe(false);
   });

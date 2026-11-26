@@ -62,7 +62,13 @@ export function MessageFormattingToolbar({ value, selection, visible, disabled, 
   const [url, setUrl] = useState('https://');
   // Markdown mode's Preview (design spec §9.2): the draft through the same renderer readers see.
   const [preview, setPreview] = useState(false);
-  const showPreview = visible && preview && value.trim().length > 0;
+  const hasText = value.trim().length > 0;
+  const [hadText, setHadText] = useState(hasText);
+  if (hasText !== hadText) {
+    setHadText(hasText);
+    if (!hasText && preview) setPreview(false);
+  }
+  const showPreview = visible && preview && hasText;
   const active = useMemo(() => new Set(ACTIONS.filter(({ action }) => messageFormatIsActive(value, selection, action)).map(({ action }) => action)), [selection, value]);
 
 

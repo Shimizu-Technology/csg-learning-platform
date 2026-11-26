@@ -179,13 +179,82 @@ export function markdownSourceEdit(value: string, start: number, end: number, ac
   }
 }
 
+const MARKDOWN_LIST_LINE = /^([ \t]*)(?:([-*+])|(\d+)([.)]))([ \t]+)(.*)$/
+
+function parseMarkdownListLine(value: string, caret: number) {
+  if (isInsideMarkdownFence(value, caret)) return null
+  const { from, to } = lineBounds(value, caret, caret)
+  const line = value.slice(from, to)
+  const match = line.match(MARKDOWN_LIST_LINE)
+  if (!match) return null
+  const indent = match[1]
+  const bullet = match[2]
+  const numberText = match[3]
+  const delimiter = match[4]
+  const space = match[5]
+  const body = match[6]
+  const prefixLength = indent.length + (bullet ? bullet.length : numberText.length + delimiter.length) + space.length
+  return { from, to, indent, bullet, number: numberText ? Number(numberText) : null, delimiter, space, body, prefixLength }
+}
+
 /**
  * Markdown mode: Enter adds a line instead of sending while the caret is in
- * an open ``` fence, counting the caret's own line (§9.7), so pressing Enter
- * after typing "```js" starts the block.
+ * an open ``` fence (counting the caret's own line, §9.7) or on a bulleted /
+ * numbered list item, matching Rich mode and Slack.
  */
 export function markdownEnterAddsLine(value: string, caret: number) {
-  return isInsideMarkdownFence(`${value.slice(0, caret)}\n`, caret + 1)
+  if (isInsideMarkdownFence(`${value.slice(0, caret)}\n`, caret + 1)) return true
+  return parseMarkdownListLine(value, caret) !== null
+}
+
+/**
+ * Markdown mode: pressing Enter inside a bulleted or numbered list continues
+ * the list on the next line (incrementing ordered items), or exits the list by
+ * clearing an empty marker — matching Rich mode and Slack.
+ */
+export function markdownListEnterEdit(value: string, start: number, end: number): SourceEdit | null {
+  if (isInsideMarkdownFence(`${value.slice(0, start)}\n`, start + 1)) return null
+  const info = parseMarkdownListLine(value, start)
+  if (!info || end > info.to) return null
+  const contentStart = info.from + info.prefixLength
+  if (start < contentStart) return null
+  // Empty list item (e.g. "2. " or "- "): Enter exits the list cleanly.
+  if (info.body.trim().length === 0 && start === end) {
+    return { start: info.from, end: info.to, text: '', selectionStart: info.from, selectionEnd: info.from }
+  }
+  const nextMarker = info.bullet ? info.bullet : `${(info.number ?? 1) + 1}${info.delimiter}`
+  const insertion = `\n${info.indent}${nextMarker}${info.space}`
+  const nextCaret = start + insertion.length
+  return { start, end, text: insertion, selectionStart: nextCaret, selectionEnd: nextCaret }
+}
+
+/**
+ * Markdown mode: Tab / Shift+Tab on a list line indents or outdents the list
+ * item by two spaces so nested lists work naturally without leaving the box.
+ */
+export function markdownListIndentEdit(value: string, start: number, end: number, outdent: boolean): SourceEdit | null {
+  if (isInsideMarkdownFence(value, start)) return null
+  const { from, to } = lineBounds(value, start, end)
+  const lines = value.slice(from, to).split('\n')
+  if (!lines.some((line) => MARKDOWN_LIST_LINE.test(line))) return null
+  if (!lines.every((line) => !line.trim() || MARKDOWN_LIST_LINE.test(line))) return null
+
+  let firstDelta = 0
+  const nextLines = lines.map((line, index) => {
+    if (!line.trim()) return line
+    if (outdent) {
+      const removed = line.startsWith('  ') ? 2 : line.startsWith('\t') || line.startsWith(' ') ? 1 : 0
+      if (index === 0) firstDelta = -removed
+      return line.slice(removed)
+    }
+    if (index === 0) firstDelta = 2
+    return `  ${line}`
+  })
+  const text = nextLines.join('\n')
+  if (text === value.slice(from, to)) return null
+  const nextStart = start === end ? Math.max(from, start + firstDelta) : from
+  const nextEnd = start === end ? nextStart : from + text.length
+  return { start: from, end: to, text, selectionStart: nextStart, selectionEnd: nextEnd }
 }
 
 /**

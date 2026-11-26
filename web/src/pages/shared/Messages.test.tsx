@@ -109,7 +109,7 @@ describe('MessageEditSurface', () => {
     )
 
     expect(html).toContain('aria-label="Formatting"')
-    expect(html).not.toContain('aria-label="Editor mode"')
+    expect(html).toContain('aria-label="Editor mode"')
     expect(html).toContain('Save changes')
     expect(html).not.toContain('disabled=""')
   })

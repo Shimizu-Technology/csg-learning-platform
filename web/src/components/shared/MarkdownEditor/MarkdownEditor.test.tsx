@@ -126,26 +126,78 @@ describe('Rich typing rules (§9.4)', () => {
   })
 })
 
-describe('calm composer: formatting behind Aa', () => {
-  it('hides formatting and the editor mode until Aa is pressed, and remembers the choice', async () => {
+describe('composer formatting toolbar defaults', () => {
+  it('shows formatting and editor mode by default on desktop, lets Aa toggle it, and remembers hiding it', async () => {
     localStorage.removeItem('csg-composer-formatting')
     const first = await mount({ variant: 'composer' })
     const aa = first.button('Formatting')
-    expect(aa.getAttribute('aria-pressed')).toBe('false')
-    expect(first.host.querySelector('[role="toolbar"]')).toBeNull()
-    expect(first.button('Markdown')).toBeUndefined()
-    act(() => aa.click())
-    expect(first.button('Formatting').getAttribute('aria-pressed')).toBe('true')
+    expect(aa.getAttribute('aria-pressed')).toBe('true')
     expect(first.host.querySelector('[role="toolbar"]')).not.toBeNull()
     expect(first.button('Bold')).toBeTruthy()
     expect(first.button('Markdown')).toBeTruthy()
-    expect(localStorage.getItem('csg-composer-formatting')).toBe('shown')
+
+    act(() => aa.click())
+    expect(first.button('Formatting').getAttribute('aria-pressed')).toBe('false')
+    expect(first.host.querySelector('[role="toolbar"]')).toBeNull()
+    expect(first.button('Markdown')).toBeUndefined()
+    expect(localStorage.getItem('csg-composer-formatting')).toBe('hidden')
+
     act(() => root!.unmount()); container!.remove()
     const second = await mount({ variant: 'composer' })
-    expect(second.host.querySelector('[role="toolbar"]')).not.toBeNull()
-    act(() => second.button('Formatting').click())
     expect(second.host.querySelector('[role="toolbar"]')).toBeNull()
-    expect(localStorage.getItem('csg-composer-formatting')).toBeNull()
+    act(() => second.button('Formatting').click())
+    expect(second.host.querySelector('[role="toolbar"]')).not.toBeNull()
+    expect(localStorage.getItem('csg-composer-formatting')).toBe('shown')
+  })
+
+  it('keeps formatting tucked behind Aa by default on phones', async () => {
+    localStorage.removeItem('csg-composer-formatting')
+    const original = window.matchMedia
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: (query: string) => ({ matches: query.includes('max-width'), media: query, addEventListener: () => {}, removeEventListener: () => {} }),
+    })
+    try {
+      const mobile = await mount({ variant: 'composer' })
+      expect(mobile.button('Formatting').getAttribute('aria-pressed')).toBe('false')
+      expect(mobile.host.querySelector('[role="toolbar"]')).toBeNull()
+    } finally {
+      Object.defineProperty(window, 'matchMedia', { configurable: true, value: original })
+    }
+  })
+
+  it('continues and exits numbered lists on Enter in Markdown mode without sending, and exits Preview after send', async () => {
+    writeEditorPreferences(undefined, { mode: 'markdown', enterSends: true })
+    const onSubmit = vi.fn()
+    const { ref, host, textarea, button } = await mount({ variant: 'composer', defaultValue: '1. First step', onSubmit })
+    const input = textarea()
+    act(() => {
+      input.focus()
+      input.setSelectionRange(input.value.length, input.value.length)
+    })
+    press(input, 'Enter')
+    await tick()
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(textarea().value).toBe('1. First step\n2. ')
+
+    // Enter on an empty list item exits the list instead of sending.
+    press(textarea(), 'Enter')
+    await tick()
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(textarea().value).toBe('1. First step\n')
+
+    // Sending from Preview returns to Write mode immediately.
+    act(() => button('Preview').click())
+    await tick()
+    expect(textarea()).toBeNull()
+    const previewRegion = host.querySelector('[role="region"][aria-label^="Preview of"]') as HTMLElement
+    expect(previewRegion).toBeTruthy()
+    press(previewRegion, 'Enter', { metaKey: true })
+    expect(onSubmit).toHaveBeenCalledTimes(1)
+    act(() => ref.current!.clear())
+    await tick()
+    expect(textarea()).not.toBeNull()
+    expect(textarea().value).toBe('')
   })
 })
 
@@ -223,7 +275,6 @@ describe('Enter in the composer (§9.7)', () => {
   it('with the setting off, Enter adds a line and ⌘/Ctrl+Enter sends, and the choice is saved', async () => {
     const onSubmit = vi.fn()
     const { editor, surface, host, button } = await mount({ variant: 'composer', onSubmit })
-    act(() => button('Formatting').click())
     act(() => button('Formatting help').click())
     const toggle = host.querySelector('[role="switch"]') as HTMLButtonElement
     expect(toggle.getAttribute('aria-checked')).toBe('true')
@@ -245,7 +296,7 @@ describe('Enter in the composer (§9.7)', () => {
     act(() => { box.focus(); box.setSelectionRange(5, 5) })
     act(() => { box.dispatchEvent(new KeyboardEvent('keyup', { key: 'End', bubbles: true })) })
     expect(press(box, 'Enter').defaultPrevented).toBe(false)
-    expect(host.textContent).toContain('In a code block, Enter adds a line')
+    expect(host.textContent).toContain('In a list or code block, Enter adds a line')
     expect(onSubmit).not.toHaveBeenCalled()
     act(() => { box.value = '```js\nx\n```'; box.setSelectionRange(box.value.length, box.value.length) })
     expect(press(box, 'Enter').defaultPrevented).toBe(true)
@@ -680,7 +731,6 @@ describe('review round 2', () => {
     try {
       const onSubmit = vi.fn()
       const { host, button: find, editor, surface } = await mount({ variant: 'composer', onSubmit })
-      act(() => find('Formatting').click())
       act(() => find('Formatting help').click())
       const toggle = () => host.querySelector('[role="switch"]') as HTMLButtonElement
       act(() => toggle().click())
@@ -699,8 +749,7 @@ describe('review round 2', () => {
 
   it('gives the Enter switch and mode buttons 44px touch targets on phones', async () => {
     const { host, button: find } = await mount({ variant: 'composer' })
-    act(() => find('Formatting').click())
-      act(() => find('Formatting help').click())
+    act(() => find('Formatting help').click())
     expect(host.querySelector('[role="switch"]')!.className).toMatch(/\bmin-h-11\b/)
     for (const name of ['Rich', 'Markdown']) expect(find(name).className).toMatch(/(^|\s)min-h-11(\s|$)/)
   })
