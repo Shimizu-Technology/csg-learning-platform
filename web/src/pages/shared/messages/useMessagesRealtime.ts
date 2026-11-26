@@ -30,6 +30,9 @@ export function useMessagesRealtime({ userId, isStaff = false, selectedTarget, s
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([])
   const presenceScopeKey = isStaff && userId ? `${userId}:staff` : ''
   const [presenceState, setPresenceState] = useState<{ scopeKey: string; entries: Record<number, string> }>({ scopeKey: presenceScopeKey, entries: {} })
+  if (presenceState.scopeKey !== presenceScopeKey) {
+    setPresenceState({ scopeKey: presenceScopeKey, entries: {} })
+  }
   const [presenceNow, setPresenceNow] = useState(() => Date.now())
   const [, setRealtimeSubscriptionVersion] = useState(0)
   const realtimeSubscriptionRef = useRef<RealtimeSubscription | null>(null)

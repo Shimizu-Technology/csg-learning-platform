@@ -7,6 +7,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { writeEditorPreferences } from '../../components/shared/MarkdownEditor'
 import type { ChannelSummary, MessageView as ChannelMessage, MessageSourceSummary } from '../../types/api'
+import { claimDeletedReplyDecrement, removeMessageAndUpdateReplyCount } from './messages/helpers'
 import { Messages } from './Messages'
 
 /**
@@ -675,5 +676,20 @@ describe('premium chat inbox, header, reactions, media, and threads', () => {
     } finally {
       if (originalDescriptor) Object.defineProperty(window, 'localStorage', originalDescriptor)
     }
+  })
+
+  it('decrements parent reply_count once regardless of realtime vs HTTP delete delivery order', () => {
+    const root = message(500, { reply_count: 2 })
+    const deletedReply = message(501, { parent_message_id: 500, body: 'Deleted reply' })
+    const survivingReply = message(502, { parent_message_id: 500, body: 'Surviving reply' })
+
+    // Realtime arrives first, then HTTP response arrives second for the same reply ID.
+    const skipFirst = !claimDeletedReplyDecrement(deletedReply.id)
+    const afterRealtime = removeMessageAndUpdateReplyCount([root, deletedReply, survivingReply], deletedReply, skipFirst)
+    expect(afterRealtime.find((m) => m.id === 500)?.reply_count).toBe(1)
+
+    const skipSecond = !claimDeletedReplyDecrement(deletedReply.id)
+    const afterHttp = removeMessageAndUpdateReplyCount(afterRealtime, deletedReply, skipSecond)
+    expect(afterHttp.find((m) => m.id === 500)?.reply_count).toBe(1)
   })
 })

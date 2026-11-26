@@ -5,7 +5,7 @@ import { firstUnreadMessageId, latestVisibleReadReceipts } from '../../../lib/me
 import { type ReturnContext } from '../../../lib/navigationContext';
 import type { MessageView as ChannelMessage, ChannelMessageEvent, ChannelSummary, DirectConversationSummary, MessageDestination, MessageWindowMeta, User } from '../../../types/api';
 import { removeStoredFailure, storedFailureMessages } from './failedSends';
-import { cacheConversationView, cachedWindowIsContiguous, consumeLocallyDeletedMessage, conversationPath, createMessageArrivals, mergeIncomingMessage, mergeMessageWindow, messageBelongsToTarget, positionMessageAnchor, recordMessageArrival, removeMessageAndUpdateReplyCount, restoreFailedSends, rootMessageIdFor, saveConversationScroll, sortChronologicalMessages, sortPinnedMessages, targetKey, targetMatches, upsertPinnedMessage, type MessageArrivals } from './helpers';
+import { cacheConversationView, cachedWindowIsContiguous, claimDeletedReplyDecrement, conversationPath, createMessageArrivals, mergeIncomingMessage, mergeMessageWindow, messageBelongsToTarget, positionMessageAnchor, recordMessageArrival, removeMessageAndUpdateReplyCount, restoreFailedSends, rootMessageIdFor, saveConversationScroll, sortChronologicalMessages, sortPinnedMessages, targetKey, targetMatches, upsertPinnedMessage, type MessageArrivals } from './helpers';
 import type { ConversationViewSnapshot, LocalMessage, Target, TargetLoadOptions } from './types';
 import type { ConversationState } from './useConversationState';
 import type { MessagesRoute } from './useMessagesRoute';
@@ -825,7 +825,7 @@ export function useConversationWindow({ user, toast, route, conversation, direct
         setUnreadBoundaryId((current) => current ?? message.id)
       }
 
-      const skipDeletedReplyDecrement = event.event === 'deleted' && consumeLocallyDeletedMessage(message.id)
+      const skipDeletedReplyDecrement = event.event === 'deleted' && Boolean(message.parent_message_id) && !claimDeletedReplyDecrement(message.id)
       setMessages((prev) => {
         if (event.event === 'deleted') return removeMessageAndUpdateReplyCount(prev, message, skipDeletedReplyDecrement)
         const matchingLocal = prev.find((item) => item.id === message.id || (

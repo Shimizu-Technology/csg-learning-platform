@@ -145,19 +145,17 @@ export function directConversationPeer(
   return others.length === 1 ? others[0] : null
 }
 
-/** Tracks reply deletions applied locally so the matching realtime echo does not decrement reply_count twice. */
-const locallyDeletedMessageIds = new Set<number>()
+/** Tracks reply IDs whose parent reply_count was already decremented so HTTP and realtime delete events are idempotent in either order. */
+const decrementedDeletedReplyIds = new Set<number>()
 
-export function markLocallyDeletedMessage(messageId: number) {
-  locallyDeletedMessageIds.add(messageId)
-  if (locallyDeletedMessageIds.size > 100) {
-    const oldest = locallyDeletedMessageIds.values().next().value
-    if (oldest !== undefined) locallyDeletedMessageIds.delete(oldest)
+export function claimDeletedReplyDecrement(messageId: number): boolean {
+  if (decrementedDeletedReplyIds.has(messageId)) return false
+  decrementedDeletedReplyIds.add(messageId)
+  if (decrementedDeletedReplyIds.size > 200) {
+    const oldest = decrementedDeletedReplyIds.values().next().value
+    if (oldest !== undefined) decrementedDeletedReplyIds.delete(oldest)
   }
-}
-
-export function consumeLocallyDeletedMessage(messageId: number) {
-  return locallyDeletedMessageIds.delete(messageId)
+  return true
 }
 
 export function removeMessageAndUpdateReplyCount(

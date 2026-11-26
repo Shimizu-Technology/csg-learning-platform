@@ -57,6 +57,8 @@ export function Messages() {
     || directory.showWorkspaceMembers
   )
 
+  const navigableRecent = sidebarCollapsed ? recent : visibleRecent
+
   useEffect(() => {
     if (typeof window === 'undefined') return
     const onKeyDown = (event: KeyboardEvent) => {
@@ -65,13 +67,13 @@ export function Messages() {
       if (event.altKey && !event.metaKey && !event.ctrlKey && !event.shiftKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
         if (hasOpenOverlay || overlayInDom) return
         if (isEditableOrOverlayTarget(event.target) || isEditableOrOverlayTarget(document.activeElement)) return
-        if (visibleRecent.length < 2) return
+        if (navigableRecent.length < 2) return
         const currentIndex = selectedTarget
-          ? visibleRecent.findIndex((item) => item.type === selectedTarget.type && item.summary.id === selectedTarget.id)
+          ? navigableRecent.findIndex((item) => item.type === selectedTarget.type && item.summary.id === selectedTarget.id)
           : -1
         const step = event.key === 'ArrowDown' ? 1 : -1
-        const nextIndex = currentIndex < 0 ? 0 : (currentIndex + step + visibleRecent.length) % visibleRecent.length
-        const next = visibleRecent[nextIndex]
+        const nextIndex = currentIndex < 0 ? 0 : (currentIndex + step + navigableRecent.length) % navigableRecent.length
+        const next = navigableRecent[nextIndex]
         if (!next) return
         event.preventDefault()
         selectTarget({ type: next.type, id: next.summary.id })
@@ -85,7 +87,7 @@ export function Messages() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [activeThreadRootId, hasOpenOverlay, isDesktop, selectTarget, selectedTarget, setActiveThreadRootId, visibleRecent])
+  }, [activeThreadRootId, hasOpenOverlay, isDesktop, navigableRecent, selectTarget, selectedTarget, setActiveThreadRootId])
 
   if (directory.loading) return <MessagesLoadingShell />
   const view = messagesPresentation(controller)
