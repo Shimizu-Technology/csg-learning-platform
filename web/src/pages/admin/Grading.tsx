@@ -10,7 +10,9 @@ import {
   ChevronRight,
   Clock,
   ExternalLink,
+  FolderOpen,
   Inbox,
+  Keyboard,
   Layers,
   MessageSquareText,
   RefreshCw,
@@ -66,6 +68,7 @@ import type { GradingQueueItem, Submission } from '../../types/api'
 import { RecordLink } from '../../components/shared/RecordLink'
 import { RecordHeader } from '../../components/shared/RecordHeader'
 import { RelatedPanel, scrollToSection } from '../../components/shared/RelatedPanel'
+import { Modal } from '../../components/shared/Modal'
 import { cohortScopeOptions, PageHeader, ScopeControl } from '../../components/ui/PageHeader'
 import { useGuardedLinkClick } from '../../lib/useLeaveGuard'
 import { useToast } from '../../contexts/ToastContext'
@@ -170,6 +173,7 @@ export function Grading() {
   const [loaded, setLoaded] = useState<Submission | null>(null)
   const [showContext, setShowContext] = useState(false)
   const [openingMessage, setOpeningMessage] = useState(false)
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
   // Links that leave the page ask about unsaved feedback in the open review first.
   const guardLeave = useGuardedLinkClick(() => panel.current?.confirmLeave())
   // Module grids opened from here come back to this list with its filter ("Grading · Redo").
@@ -287,6 +291,40 @@ export function Grading() {
   }
   const step = (target: QueueItem | undefined) =>
     target ? async () => { if (await leaveReview()) select(target.id) } : undefined
+
+  const keyboardRef = useRef({ nextInQueue, previousInQueue, step })
+  keyboardRef.current = { nextInQueue, previousInQueue, step }
+
+  useEffect(() => {
+    if (batchMode) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return
+      const target = event.target instanceof Element ? event.target : null
+      if (target?.closest('input, textarea, select, [contenteditable="true"], [role="textbox"]')) return
+      if (event.key === '?') {
+        const modal = document.querySelector('[data-app-modal]')
+        if (modal && !shortcutsOpen) return
+        event.preventDefault()
+        setShortcutsOpen((open) => !open)
+        return
+      }
+      if (document.querySelector('[data-app-modal]')) return
+      // SubmissionReviewPanel already owns J/K and grade keys when focus is inside it.
+      if (target?.closest('[aria-label="Submission review"]')) return
+      const key = event.key.toLowerCase()
+      if (key === 'j' && keyboardRef.current.nextInQueue) {
+        event.preventDefault()
+        if (event.repeat) return
+        void keyboardRef.current.step(keyboardRef.current.nextInQueue)?.()
+      } else if (key === 'k' && keyboardRef.current.previousInQueue) {
+        event.preventDefault()
+        if (event.repeat) return
+        void keyboardRef.current.step(keyboardRef.current.previousInQueue)?.()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [batchMode, shortcutsOpen])
   // The list without its open review: where Back to queue goes on a phone.
   const queuePath = (() => {
     const params = new URLSearchParams(location.search)
@@ -379,7 +417,16 @@ export function Grading() {
               </Button>
             )}
           </>}
-          menu={[{ key: 'refresh', label: loading ? 'Refreshing…' : 'Refresh', icon: <RefreshCw aria-hidden="true" />, onSelect: () => { void loadSubmissions(); if (batchMode) setBatchRefreshToken((n) => n + 1) } }]}
+          menu={[
+            { key: 'refresh', label: loading ? 'Refreshing…' : 'Refresh', icon: <RefreshCw aria-hidden="true" />, onSelect: () => { void loadSubmissions(); if (batchMode) setBatchRefreshToken((n) => n + 1) } },
+            ...(cohortId ? [{
+              key: 'files',
+              label: 'Cohort files',
+              icon: <FolderOpen aria-hidden="true" />,
+              onSelect: () => { void leaveReview().then((ok) => { if (ok) navigate(`${cohortPath(cohortId)}?tab=files`) }) },
+            }] : []),
+            ...(!batchMode ? [{ key: 'shortcuts', label: 'Keyboard shortcuts', icon: <Keyboard aria-hidden="true" />, onSelect: () => setShortcutsOpen(true) }] : []),
+          ]}
         />
       </div>
 
@@ -756,6 +803,30 @@ export function Grading() {
         </section>
       </div>
       )}
+      <Modal open={shortcutsOpen && !batchMode} onClose={() => setShortcutsOpen(false)} title="Keyboard shortcuts" size="md">
+        <dl className="space-y-3 text-sm">
+          <div className="flex items-center justify-between gap-4">
+            <dt className="text-ink-secondary">Next submission</dt>
+            <dd><kbd className="rounded-lg border border-line bg-surface-sunken px-2 py-0.5 font-mono text-xs text-ink">J</kbd></dd>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <dt className="text-ink-secondary">Previous submission</dt>
+            <dd><kbd className="rounded-lg border border-line bg-surface-sunken px-2 py-0.5 font-mono text-xs text-ink">K</kbd></dd>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <dt className="text-ink-secondary">Choose grade (in review)</dt>
+            <dd><kbd className="rounded-lg border border-line bg-surface-sunken px-2 py-0.5 font-mono text-xs text-ink">A</kbd> / <kbd className="rounded-lg border border-line bg-surface-sunken px-2 py-0.5 font-mono text-xs text-ink">B</kbd> / <kbd className="rounded-lg border border-line bg-surface-sunken px-2 py-0.5 font-mono text-xs text-ink">C</kbd> / <kbd className="rounded-lg border border-line bg-surface-sunken px-2 py-0.5 font-mono text-xs text-ink">R</kbd></dd>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <dt className="text-ink-secondary">Save grade</dt>
+            <dd><kbd className="rounded-lg border border-line bg-surface-sunken px-2 py-0.5 font-mono text-xs text-ink">⌘Enter</kbd> / <kbd className="rounded-lg border border-line bg-surface-sunken px-2 py-0.5 font-mono text-xs text-ink">Ctrl+Enter</kbd></dd>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <dt className="text-ink-secondary">Toggle this guide</dt>
+            <dd><kbd className="rounded-lg border border-line bg-surface-sunken px-2 py-0.5 font-mono text-xs text-ink">?</kbd></dd>
+          </div>
+        </dl>
+      </Modal>
     </div>
   )
 }

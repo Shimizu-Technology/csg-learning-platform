@@ -65,8 +65,8 @@ export default function RecordingDetailScreen() {
     if (recordingId === null || !trackProgress) return;
     if (auth.demo) return;
     const response = await api.updateWatchProgress(recordingId, progress);
-    queryClient.setQueryData<RecordingsPayload>(key, (current) => updateProgress(current, itemKey, response.watch_progress));
-  }, [api, auth.demo, itemKey, key, queryClient, recordingId, trackProgress]);
+    queryClient.setQueriesData<RecordingsPayload>({ queryKey: learningKeys.recordings(user?.id ?? 0) }, (current) => updateProgress(current, itemKey, response.watch_progress));
+  }, [api, auth.demo, itemKey, queryClient, recordingId, trackProgress, user?.id]);
 
   if (query.isPending && !query.data) return <SafeAreaView style={styles.safe}><LoadingState label="Opening recording" /></SafeAreaView>;
   if (query.error && !query.data) return <SafeAreaView style={styles.safe}><View style={styles.backRow}><BackButton style={styles.back} /></View><ErrorState message={(query.error as Error).message} retry={() => void query.refetch()} /></SafeAreaView>;
