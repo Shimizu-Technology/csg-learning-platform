@@ -345,11 +345,12 @@ export function CohortFileUploader({ cohortId, studentId, folderPresets, default
   const chosenFolder = folder === '__custom' ? customFolder.trim() : folder
   const pending = queue.filter((item) => item.status !== 'done')
   const single = queue.length === 1
-  // Keep default destination synced when switching folders only while the queue is empty.
+  const queueEmpty = queue.length === 0
+  // Keep default destination synced when switching folders or clearing the queue while empty.
   useEffect(() => {
-    if (queueRef.current.length > 0 || running) return
+    if (!queueEmpty || running) return
     setFolder(defaultFolder || folderPresets[0] || 'General')
-  }, [defaultFolder, folderPresets, running])
+  }, [defaultFolder, folderPresets, queueEmpty, running])
 
   const commitQueue = (change: (current: QueuedFile[]) => QueuedFile[]) => {
     queueRef.current = change(queueRef.current)

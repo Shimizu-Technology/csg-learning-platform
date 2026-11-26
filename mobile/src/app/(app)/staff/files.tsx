@@ -150,7 +150,7 @@ export default function StaffCohortFilesScreen() {
   const filteredStudentFiles = openFolder
     ? sortDriveFiles(
       openFolder.files.filter(
-        (file) => file.id === activeDocFileId || file.id === openFileId || ((validStudentSubfolder === 'All' || file.folder === validStudentSubfolder) && matchesDriveTypeFilter(file, typeFilter)),
+        (file) => (file.kind === 'doc' && (file.id === activeDocFileId || file.id === openFileId)) || ((validStudentSubfolder === 'All' || file.folder === validStudentSubfolder) && matchesDriveTypeFilter(file, typeFilter)),
       ),
       sort,
     )
