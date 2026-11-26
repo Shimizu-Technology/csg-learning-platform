@@ -48,6 +48,24 @@ class LessonBlockEditorTest < ActionDispatch::IntegrationTest
     assert_equal before, progress.reload.attributes
   end
 
+  test "saves runner starter code and checks, and refuses a malformed runner with 422" do
+    runner = { enabled: true, language: "javascript", starter_code: "function ticketPrice(age) {}",
+               checks: [ { id: "kids", name: "Kids pay 5", code: "assertEqual(5, ticketPrice(8))" } ] }
+    body = payload
+    body[:blocks].find { |block| block[:id] == @exercise.id }[:submission_config] = { runner: runner, note: "kept" }
+    put_editor(@admin, body)
+    assert_response :success
+    assert_equal runner.deep_stringify_keys, @exercise.reload.submission_config["runner"]
+    assert_equal "kept", @exercise.submission_config["note"]
+
+    body = payload
+    body[:blocks].find { |block| block[:id] == @exercise.id }[:submission_config] = { runner: runner.merge(checks: runner[:checks] * 2) }
+    put_editor(@admin, body)
+    assert_response :unprocessable_entity
+    assert_match(/runner check ids must be unique/, response.body)
+    assert_equal 1, @exercise.reload.submission_config.dig("runner", "checks").length
+  end
+
   test "section validation rolls back a bulk save and allows an exact duration boundary" do
     key = "content_videos/11111111-1111-4111-8111-111111111111/original.mp4"
     @video.update!(s3_video_key: key, s3_video_duration_seconds: 120, metadata: { "archive_role" => "keep" })

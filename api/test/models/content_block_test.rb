@@ -30,6 +30,53 @@ class ContentBlockTest < ActiveSupport::TestCase
     end
   end
 
+  test "runner config keeps other keys, trims checks and drops empty optional fields" do
+    block = @lesson.content_blocks.create!(block_type: :exercise, position: 0, submission_type: :text_submission, submission_config: {
+      "notes" => "keep me",
+      runner: { enabled: true, language: " Ruby ", starter_code: "", checks: [ { id: " c1 ", name: " Prints ", code: "assert true" } ] }
+    })
+
+    assert_equal "keep me", block.submission_config["notes"]
+    assert_equal({ "enabled" => true, "language" => "ruby", "checks" => [ { "id" => "c1", "name" => "Prints", "code" => "assert true" } ] },
+      block.submission_config["runner"])
+    assert block.runner_checks?
+
+    block.update!(submission_config: { "runner" => { "enabled" => "false", "checks" => [] } })
+    assert_equal({ "enabled" => false }, block.reload.submission_config["runner"])
+    assert_not block.runner_checks?
+  end
+
+  test "runner config refuses malformed shapes, oversized code, duplicate ids, too many checks and other languages" do
+    check = ->(id = "c1", **overrides) { { "id" => id, "name" => "Check", "code" => "assert true" }.merge(overrides.stringify_keys) }
+    invalid = {
+      "not an object" => "runner must be an object",
+      { "enabled" => "yes" } => "runner enabled must be true or false",
+      { "language" => "python" } => "runner language must be ruby or javascript",
+      { "timeout" => 5 } => "runner has unsupported settings: timeout",
+      { "starter_code" => 12 } => "runner starter code must be text",
+      { "starter_code" => "x" * 20_001 } => "runner starter code must be 20,000 characters or fewer",
+      { "checks" => "assert true" } => "runner checks must be a list",
+      { "checks" => Array.new(21) { |index| check.call("c#{index}") } } => "runner can have at most 20 checks",
+      { "checks" => [ "assert true" ] } => "runner check 1 must have only an id, name and code",
+      { "checks" => [ check.call.merge("passed" => true) ] } => "runner check 1 must have only an id, name and code",
+      { "checks" => [ check.call(" ") ] } => "runner check 1 needs a id",
+      { "checks" => [ check.call(name: "") ] } => "runner check 1 needs a name",
+      { "checks" => [ check.call(code: " ") ] } => "runner check 1 needs a check code",
+      { "checks" => [ check.call("x" * 65) ] } => "runner check 1 id must be 64 characters or fewer",
+      { "checks" => [ check.call(name: "x" * 121) ] } => "runner check 1 name must be 120 characters or fewer",
+      { "checks" => [ check.call(code: "x" * 10_001) ] } => "runner check 1 code must be 10,000 characters or fewer",
+      { "checks" => [ check.call, check.call ] } => "runner check ids must be unique"
+    }
+    invalid.each do |runner, message|
+      block = @lesson.content_blocks.build(block_type: :exercise, position: 0, submission_type: :text_submission, submission_config: { "runner" => runner })
+      assert_not block.valid?, runner.inspect.first(80)
+      assert_includes block.errors[:submission_config], message, runner.inspect.first(80)
+    end
+
+    limits = { "starter_code" => "x" * 20_000, "checks" => Array.new(20) { |index| check.call("c#{index}", code: "x" * 10_000) } }
+    assert @lesson.content_blocks.build(block_type: :exercise, position: 0, submission_config: { "runner" => limits }).valid?
+  end
+
   test "normalizes duplicated protocol prefixes in video urls" do
     block = @lesson.content_blocks.create!(
       block_type: :video,

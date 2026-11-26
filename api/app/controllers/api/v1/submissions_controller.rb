@@ -3,7 +3,6 @@ module Api
     class SubmissionsController < ApplicationController
       class StaleGradingWrite < StandardError; end
       class SupersededAttempt < StandardError; end
-      class InvalidSuggestionDecision < StandardError; end
       class GradeOffScale < StandardError; end
       REDO_FEEDBACK_REQUIRED = "Write feedback before choosing Redo, so the student knows what to change.".freeze
       GRADE_INVALID = "Grade must be A, B, C or R.".freeze
@@ -226,10 +225,7 @@ module Api
         return if performed?
 
         enrollment = @submission.enrollment
-        use_v2_issue_delivery = GithubIssueDeliveryPlanner.enabled_for?(enrollment&.cohort)
-        # A Redo posts to GitHub only by the same rule that warned the grader (UX-1).
-        redo_issue_route = redo_grade ? GithubIssueService.redo_issue_route(@submission) : nil
-        suggestions_enabled = GithubGradeSuggestionEvaluator.enabled_for?(enrollment&.cohort, school: school_features)
+        writer = SubmissionGradeWriter.new(submission: @submission, grader: current_user, school_features: school_features).prepare(grade)
         # Lock order (Curriculum.lock_for_content!, CurriculumCopyForCohort): the curriculum FOR
         # SHARE, then the enrollment guard, then the submission. A scale change (curricula#update,
         # FOR UPDATE) waits for this grade, or this grade waits for it and then reads the new scale.
@@ -249,85 +245,19 @@ module Api
             raise StaleGradingWrite unless current_curriculum_id == curriculum_id
             raise GradeOffScale, grade_off_scale_message(locked_scale) unless Curriculum.grades_for_scale(locked_scale).include?(grade)
 
-            @submission.update!(
+            writer.record!(
               grade: grade,
               feedback: params[:feedback],
-              graded_by_id: current_user.id,
-              graded_at: Time.current
+              grading_scale: locked_scale,
+              criterion_results: criterion_results_provided ? requested_results : nil,
+              suggestion_decision: requested_suggestion_decision,
+              override_reason_provided: override_reason_provided,
+              override_reason: suggestion_override_reason
             )
-
-            if criterion_results_provided
-              @submission.submission_criterion_results.destroy_all
-              requested_results.each do |result|
-                @submission.submission_criterion_results.create!(result)
-              end
-            end
-
-            progress = Progress.find_or_initialize_by(
-              enrollment: enrollment,
-              user_id: @submission.user_id,
-              content_block_id: @submission.content_block_id
-            )
-            progress.update!(status: @submission.grade == "R" ? :in_progress : :completed)
-            ActivityEvent.record!(event_type: "submission_graded", actor: current_user,
-              subject_user: @submission.user, cohort: enrollment&.cohort, record: @submission)
-            CourseCompletion.evaluate!(enrollment, actor: current_user) unless redo_grade
-
-            if suggestions_enabled
-              record_grade_suggestion_decision!(
-                submission: @submission,
-                grading_scale: locked_scale,
-                grade: grade,
-                requested_decision: requested_suggestion_decision,
-                override_reason_provided: override_reason_provided,
-                override_reason: suggestion_override_reason,
-                decided_at: @submission.graded_at
-              )
-            end
-
-            if use_v2_issue_delivery && (!redo_grade || redo_issue_route == :v2)
-              GithubIssueDeliveryPlanner.record!(
-                submission: @submission,
-                grade: @submission.grade,
-                feedback: @submission.feedback
-              )
-            elsif use_v2_issue_delivery && redo_grade
-              # This Redo stays in Learn; an earlier queued Redo (with older feedback) must not
-              # post later if the repository is verified after all.
-              GithubIssueDeliveryPlanner.obsolete_pending!(
-                enrollment_id: @submission.enrollment_id,
-                content_block_id: @submission.content_block_id
-              )
-            end
           end
         end
 
-        @submission.association(:submission_grade_suggestion).reset if suggestions_enabled
-
-        if @submission.grade == "R"
-          NotificationEmailService.send_redo_notification(
-            user: @submission.user,
-            submission: @submission,
-            feedback: @submission.feedback
-          )
-        end
-
-        SubmissionNotificationJob.perform_later("graded", @submission.id, @submission.graded_at.iso8601(6))
-
-        if use_v2_issue_delivery
-          @submission.association(:github_issue_deliveries).reset
-        else
-          token = ENV["GITHUB_ORGANIZATION_ADMIN_TOKEN"]
-          if token.present? && (!redo_grade || redo_issue_route == :legacy)
-            GithubIssueService.handle_grade(
-              submission: @submission,
-              grade: @submission.grade,
-              feedback: @submission.feedback,
-              token: token
-            )
-            @submission.reload
-          end
-        end
+        writer.deliver!
 
         render json: { submission: submission_json(@submission, include_github_checks: true, staff_view: true) }
       rescue SupersededAttempt
@@ -338,7 +268,7 @@ module Api
           error: "This submission changed after you opened it. Your draft was kept; review the latest version before saving again.",
           code: "stale_submission"
         }, status: :conflict
-      rescue InvalidSuggestionDecision, GradeOffScale => error
+      rescue SubmissionGradeWriter::InvalidSuggestionDecision, GradeOffScale => error
         render json: { errors: [ error.message ] }, status: :unprocessable_entity
       rescue ActiveRecord::RecordInvalid => error
         render json: { errors: error.record.errors.full_messages }, status: :unprocessable_entity
@@ -500,81 +430,6 @@ module Api
         trimmed.presence
       end
 
-      def record_grade_suggestion_decision!(submission:, grading_scale:, grade:, requested_decision:, override_reason_provided:, override_reason:, decided_at:)
-        suggestion = SubmissionGradeSuggestion.lock.find_by(submission_id: submission.id)
-        if suggestion.nil?
-          if requested_decision.present? && requested_decision != "dismissed"
-            raise InvalidSuggestionDecision, "Suggestion decision does not match the saved grade and suggestion state."
-          end
-          return
-        end
-
-        active_policy = ExerciseCheckPolicy.active.find_by(content_block_id: submission.content_block_id)
-        stale = suggestion.stale_for?(
-          active_policy: active_policy,
-          latest_submission_id: submission.id,
-          submission_commit_sha: submission.commit_sha,
-          grading_scale: grading_scale
-        )
-
-        computed_decision = if stale
-          nil
-        elsif (suggested = SubmissionGradeSuggestion::GRADE_FOR_OUTCOME[suggestion.outcome])
-          grade == suggested ? "accepted" : "overridden"
-        elsif suggestion.outcome == "review_for_redo"
-          grade == "R" ? "accepted" : "overridden"
-        end
-
-        if requested_decision.present? && requested_decision != "dismissed" && requested_decision != computed_decision
-          raise InvalidSuggestionDecision, "Suggestion decision does not match the saved grade and suggestion state."
-        end
-
-        timestamp = decided_at || Time.current
-
-        if stale && requested_decision != "dismissed"
-          if suggestion.decision.present?
-            archived_evidence = (suggestion.evidence || {}).deep_dup
-            archived_evidence["prior_decision"] = {
-              "decision" => suggestion.decision,
-              "override_reason" => suggestion.override_reason,
-              "decided_by_id" => suggestion.decided_by_id,
-              "decided_at" => suggestion.decided_at&.iso8601(6),
-              "prior_outcome" => suggestion.outcome,
-              "prior_suggested_grade" => suggestion.suggested_grade,
-              "prior_reason_code" => suggestion.reason_code,
-              "prior_policy_version" => suggestion.policy_version,
-              "prior_commit_sha" => suggestion.commit_sha,
-              "superseded_at" => timestamp.iso8601(6)
-            }
-            suggestion.update!(
-              evidence: archived_evidence,
-              decision: nil,
-              override_reason: nil,
-              decided_by_id: nil,
-              decided_at: nil
-            )
-          end
-          return
-        end
-
-        decision = requested_decision == "dismissed" ? "dismissed" : computed_decision
-        return unless decision
-
-        reason = if decision == "accepted"
-          nil
-        elsif override_reason_provided
-          override_reason
-        elsif %w[overridden dismissed].include?(suggestion.decision)
-          suggestion.override_reason
-        end
-
-        suggestion.update!(
-          decision: decision,
-          override_reason: reason,
-          decided_by_id: current_user.id,
-          decided_at: timestamp
-        )
-      end
       def grade_off_scale_message(grading_scale)
         grading_scale == "pass_redo" ? PASS_REDO_GRADE_INVALID : GRADE_INVALID
       end

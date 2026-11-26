@@ -25,6 +25,8 @@ class ContentBlock < ApplicationRecord
   validates :block_type, presence: true
   validates :position, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   before_validation :normalize_video_url
+  before_validation :normalize_submission_runner
+  validate :submission_runner_is_valid
   before_validation :clear_replaced_video_version_duration
   before_validation :establish_video_version_duration
   validate :video_versions_are_valid
@@ -64,6 +66,19 @@ class ContentBlock < ApplicationRecord
   after_destroy_commit :delete_stored_video
 
   MAX_PER_LESSON = 20
+
+  # submission_config["runner"]: the browser code runner on a text submission.
+  # Every key is optional. Checks run in the student's and the instructor's
+  # browsers (never on the server); the grading screen always runs these, the
+  # author's canonical checks, against the saved submission text.
+  RUNNER_LANGUAGES = %w[ruby javascript].freeze
+  RUNNER_KEYS = %w[enabled language starter_code checks].freeze
+  RUNNER_CHECK_KEYS = %w[id name code].freeze
+  RUNNER_MAX_CHECKS = 20
+  RUNNER_STARTER_CODE_MAX = 20_000
+  RUNNER_CHECK_ID_MAX = 64
+  RUNNER_CHECK_NAME_MAX = 120
+  RUNNER_CHECK_CODE_MAX = 10_000
 
   # Learner work and destructive block changes meet on the block row.
   #
@@ -265,6 +280,16 @@ class ContentBlock < ApplicationRecord
     exercise_like? || submission_checkpoint?
   end
 
+  def runner_config
+    runner = submission_config.is_a?(Hash) ? submission_config["runner"] : nil
+    runner.is_a?(Hash) ? runner : {}
+  end
+
+  # True when the browser runner is on and has checks the grading screen runs.
+  def runner_checks?
+    runner_config["enabled"] == true && runner_config["checks"].is_a?(Array) && runner_config["checks"].any?
+  end
+
   # The legacy source remains the block's watch-credit anchor. Old clients use
   # video_stream without a version id and receive the first version as well.
   def video_versions
@@ -412,6 +437,90 @@ class ContentBlock < ApplicationRecord
     return if exercise_like?
 
     exercise_check_policies.active.update_all(active: false, updated_at: Time.current)
+  end
+
+  # Trims the runner's text fields and drops empty optional ones, so a blank
+  # starter or an empty check list reads the same as none. Unknown shapes are
+  # left for submission_runner_is_valid to refuse.
+  def normalize_submission_runner
+    return unless submission_config.is_a?(Hash)
+
+    config = submission_config.deep_stringify_keys
+    runner = config["runner"]
+    return self.submission_config = config unless runner.is_a?(Hash)
+
+    runner = runner.dup
+    runner["enabled"] = runner["enabled"] == "true" if %w[true false].include?(runner["enabled"])
+    runner["language"] = runner["language"].strip.downcase if runner["language"].is_a?(String)
+    runner.delete("starter_code") if runner.key?("starter_code") && (runner["starter_code"].nil? || runner["starter_code"] == "")
+    if runner["checks"].is_a?(Array)
+      runner["checks"] = runner["checks"].map do |check|
+        next check unless check.is_a?(Hash)
+
+        check.to_h { |key, value| [ key, %w[id name].include?(key) && value.is_a?(String) ? value.strip : value ] }
+      end
+    end
+    runner.delete("checks") if runner.key?("checks") && (runner["checks"].nil? || runner["checks"] == [])
+    self.submission_config = config.merge("runner" => runner)
+  end
+
+  def submission_runner_is_valid
+    unless submission_config.is_a?(Hash)
+      errors.add(:submission_config, "must be an object")
+      return
+    end
+    return unless submission_config.key?("runner")
+
+    runner = submission_config["runner"]
+    unless runner.is_a?(Hash)
+      errors.add(:submission_config, "runner must be an object")
+      return
+    end
+    unknown = runner.keys - RUNNER_KEYS
+    errors.add(:submission_config, "runner has unsupported settings: #{unknown.join(', ')}") if unknown.any?
+    if runner.key?("enabled") && ![ true, false ].include?(runner["enabled"])
+      errors.add(:submission_config, "runner enabled must be true or false")
+    end
+    if runner.key?("language") && !RUNNER_LANGUAGES.include?(runner["language"])
+      errors.add(:submission_config, "runner language must be ruby or javascript")
+    end
+    if runner.key?("starter_code")
+      starter = runner["starter_code"]
+      if !starter.is_a?(String)
+        errors.add(:submission_config, "runner starter code must be text")
+      elsif starter.length > RUNNER_STARTER_CODE_MAX
+        errors.add(:submission_config, "runner starter code must be #{RUNNER_STARTER_CODE_MAX.to_fs(:delimited)} characters or fewer")
+      end
+    end
+    runner_checks_are_valid(runner["checks"]) if runner.key?("checks")
+  end
+
+  def runner_checks_are_valid(checks)
+    unless checks.is_a?(Array)
+      errors.add(:submission_config, "runner checks must be a list")
+      return
+    end
+    if checks.length > RUNNER_MAX_CHECKS
+      errors.add(:submission_config, "runner can have at most #{RUNNER_MAX_CHECKS} checks")
+      return
+    end
+    checks.each_with_index do |check, index|
+      label = "runner check #{index + 1}"
+      unless check.is_a?(Hash) && (check.keys - RUNNER_CHECK_KEYS).empty?
+        errors.add(:submission_config, "#{label} must have only an id, name and code")
+        next
+      end
+      { "id" => RUNNER_CHECK_ID_MAX, "name" => RUNNER_CHECK_NAME_MAX, "code" => RUNNER_CHECK_CODE_MAX }.each do |key, max|
+        value = check[key]
+        if !value.is_a?(String) || value.strip.empty?
+          errors.add(:submission_config, "#{label} needs a #{key == 'code' ? 'check code' : key}")
+        elsif value.length > max
+          errors.add(:submission_config, "#{label} #{key == 'code' ? 'code' : key} must be #{max.to_fs(:delimited)} characters or fewer")
+        end
+      end
+    end
+    ids = checks.filter_map { |check| check["id"] if check.is_a?(Hash) && check["id"].is_a?(String) }
+    errors.add(:submission_config, "runner check ids must be unique") if ids.uniq.length != ids.length
   end
 
   def normalize_video_url

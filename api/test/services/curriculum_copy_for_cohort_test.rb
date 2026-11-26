@@ -33,6 +33,16 @@ class CurriculumCopyForCohortTest < ActiveSupport::TestCase
     end
   end
 
+  test "copy keeps the exercise runner's starter code and checks" do
+    config = { "runner" => { "enabled" => true, "language" => "ruby", "starter_code" => "def count\nend",
+      "checks" => [ { "id" => "c1", "name" => "Counts to ten", "code" => "assert_equal 10, count" } ] }, "note" => "kept" }
+    @f.blocks.fetch(:exercise).update_columns(submission_config: config)
+    copy!(@f.instructor)
+    copied = ContentBlock.joins(lesson: :curriculum_module).where(modules: { curriculum_id: @f.cohort.reload.curriculum_id }).find_by!(title: "Build it")
+    assert_not_equal @f.blocks.fetch(:exercise).id, copied.id
+    assert_equal config, copied.submission_config
+  end
+
   test "copy remaps learner extension targets and revision history" do
     enrollment = @f.cohort.enrollments.find_by!(user: @f.learner)
     content = AssignedLearningContent.new(enrollment)

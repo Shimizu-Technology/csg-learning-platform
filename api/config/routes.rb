@@ -350,6 +350,9 @@ Rails.application.routes.draw do
 
       # Submissions
       get "grading_queue", to: "grading_queue#index"
+      # Before resources :submissions, so the batch paths aren't read as ids.
+      get "submissions/batch_review", to: "submission_batches#show"
+      post "submissions/batch_grade", to: "submission_batches#create"
       resources :submissions, only: [ :index, :show, :create, :update ] do
         resource :github_checks, only: [ :show, :create ], controller: "submission_github_checks"
         member do

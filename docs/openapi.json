@@ -433,6 +433,99 @@
         }
       }
     },
+    "/api/v1/submissions/batch_review": {
+      "get": {
+        "summary": "Batch review: one exercise's ungraded work (staff)",
+        "description": "Ungraded latest attempts on one exercise in the viewer's scope (the cohort named, or every cohort they may see), with answer text, links, runner config and grade suggestions, so passing work can be approved together. Old module, lesson and block ids from before a cohort's copy resolve to the copy's when cohort_id is given.",
+        "parameters": [
+          {
+            "name": "cohort_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "module_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Limit the exercise list to this module."
+          },
+          {
+            "name": "lesson_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Limit the exercise list to this lesson."
+          },
+          {
+            "name": "content_block_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "The exercise to review; defaults to the one with the most waiting."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchReviewResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/submissions/batch_grade": {
+      "post": {
+        "summary": "Approve several submissions with Pass or B (staff)",
+        "description": "Grades each listed ungraded latest attempt with the same passing grade and optional feedback, exactly as a single grade saves it. Locks curricula (FOR SHARE), then enrollments, then submissions, each in ascending id order, and checks every item under those locks. Items that fail a check are skipped with a reason; 422 when none could be graded.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchGradeInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchGradeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request, or nothing could be graded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchGrade422Response"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/submissions/{id}": {
       "get": {
         "responses": {
@@ -9604,7 +9697,8 @@
           },
           "submission_config": {
             "type": "object",
-            "additionalProperties": {}
+            "additionalProperties": {},
+            "description": "Exercise submission settings. `runner` (optional) configures the in-browser code runner on a text submission: `enabled` (boolean), `language` (`ruby` or `javascript`), `starter_code` (string, at most 20,000 characters) and `checks` (at most 20 `{ id, name, code }` objects with unique non-blank ids of at most 64 characters, names of at most 120 and code of at most 10,000). Checks run in browsers, never on the server: the student's, and the instructor's, which always runs these against the saved submission text. Other keys are kept as sent."
           },
           "metadata": {
             "type": "object",
@@ -10423,6 +10517,469 @@
         ],
         "additionalProperties": false
       },
+      "BatchGradeInput": {
+        "type": "object",
+        "description": "Approve several ungraded latest attempts with one passing grade. Staff only; every item must be in a cohort the viewer may see.",
+        "properties": {
+          "grade": {
+            "type": "string",
+            "enum": [
+              "P",
+              "B"
+            ],
+            "description": "P on Pass / Redo curricula, B on A / B / C / Redo curricula. Redo, A and C are graded individually; any other value is refused with 422."
+          },
+          "feedback": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional feedback saved on every graded submission."
+          },
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 50,
+            "items": {
+              "type": "object",
+              "properties": {
+                "submission_id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "base_submission_updated_at": {
+                  "type": "string",
+                  "description": "The submission's updated_at (ISO 8601) as the reviewer saw it. A submission changed since is skipped as stale."
+                }
+              },
+              "required": [
+                "submission_id",
+                "base_submission_updated_at"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Unique submission ids, at most 50."
+          }
+        },
+        "required": [
+          "grade",
+          "items"
+        ],
+        "additionalProperties": false
+      },
+      "BatchGradeGradedItem": {
+        "type": "object",
+        "properties": {
+          "submission_id": {
+            "type": "integer"
+          },
+          "user_id": {
+            "type": "integer"
+          },
+          "user_name": {
+            "type": "string"
+          },
+          "grade": {
+            "type": "string",
+            "enum": [
+              "P",
+              "B"
+            ]
+          },
+          "graded_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "submission_id",
+          "user_id",
+          "user_name",
+          "grade",
+          "graded_at",
+          "updated_at"
+        ],
+        "additionalProperties": false
+      },
+      "BatchGradeSkippedItem": {
+        "type": "object",
+        "properties": {
+          "submission_id": {
+            "type": "integer"
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "not_found",
+              "superseded",
+              "already_graded",
+              "stale",
+              "content_moved",
+              "learning_state_reset",
+              "off_scale",
+              "rubric"
+            ],
+            "description": "not_found also covers submissions outside the viewer's cohorts. superseded: a newer attempt exists. already_graded. stale: changed since base_submission_updated_at. content_moved: moved to a cohort copy. learning_state_reset: the learner's progress was restarted. off_scale: the grade isn't on the curriculum's scale. rubric: the exercise uses a rubric and is graded individually."
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "submission_id",
+          "code",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "BatchGradeResponse": {
+        "type": "object",
+        "properties": {
+          "graded": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BatchGradeGradedItem"
+            }
+          },
+          "skipped": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BatchGradeSkippedItem"
+            }
+          }
+        },
+        "required": [
+          "graded",
+          "skipped"
+        ],
+        "additionalProperties": false
+      },
+      "BatchGrade422Response": {
+        "type": "object",
+        "description": "The request was malformed (only `errors`), or no item could be graded (`errors` with empty `graded` and every item in `skipped`).",
+        "properties": {
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "graded": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BatchGradeGradedItem"
+            },
+            "maxItems": 0
+          },
+          "skipped": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BatchGradeSkippedItem"
+            }
+          }
+        },
+        "required": [
+          "errors"
+        ],
+        "additionalProperties": false
+      },
+      "BatchReviewExercise": {
+        "type": "object",
+        "description": "An exercise with ungraded latest attempts in the batch review's scope.",
+        "properties": {
+          "content_block_id": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "lesson_id": {
+            "type": "integer"
+          },
+          "lesson_title": {
+            "type": "string"
+          },
+          "module_id": {
+            "type": "integer"
+          },
+          "module_name": {
+            "type": "string"
+          },
+          "module_position": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "waiting": {
+            "type": "integer",
+            "description": "Ungraded latest attempts waiting here."
+          },
+          "has_rubric": {
+            "type": "boolean",
+            "description": "Rubric exercises are graded individually, never in a batch."
+          },
+          "grading_scale": {
+            "type": "string",
+            "enum": [
+              "letter_abc_redo",
+              "pass_redo"
+            ]
+          }
+        },
+        "required": [
+          "content_block_id",
+          "title",
+          "lesson_id",
+          "lesson_title",
+          "module_id",
+          "module_name",
+          "module_position",
+          "waiting",
+          "has_rubric",
+          "grading_scale"
+        ],
+        "additionalProperties": false
+      },
+      "BatchReviewExerciseDetail": {
+        "type": "object",
+        "description": "The chosen exercise: its summary plus what the cards need to show and check the answers.",
+        "properties": {
+          "content_block_id": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "lesson_id": {
+            "type": "integer"
+          },
+          "lesson_title": {
+            "type": "string"
+          },
+          "module_id": {
+            "type": "integer"
+          },
+          "module_name": {
+            "type": "string"
+          },
+          "module_position": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "waiting": {
+            "type": "integer"
+          },
+          "has_rubric": {
+            "type": "boolean"
+          },
+          "grading_scale": {
+            "type": "string",
+            "enum": [
+              "letter_abc_redo",
+              "pass_redo"
+            ]
+          },
+          "submission_type": {
+            "type": "string"
+          },
+          "filename": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "language_hint": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "submission_config": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "Exercise submission settings. `runner` (optional) configures the in-browser code runner on a text submission: `enabled` (boolean), `language` (`ruby` or `javascript`), `starter_code` (string, at most 20,000 characters) and `checks` (at most 20 `{ id, name, code }` objects with unique non-blank ids of at most 64 characters, names of at most 120 and code of at most 10,000). Checks run in browsers, never on the server: the student's, and the instructor's, which always runs these against the saved submission text. Other keys are kept as sent."
+          }
+        },
+        "required": [
+          "content_block_id",
+          "title",
+          "lesson_id",
+          "lesson_title",
+          "module_id",
+          "module_name",
+          "module_position",
+          "waiting",
+          "has_rubric",
+          "grading_scale",
+          "submission_type",
+          "filename",
+          "language_hint",
+          "submission_config"
+        ],
+        "additionalProperties": false
+      },
+      "BatchReviewSubmission": {
+        "type": "object",
+        "description": "One ungraded latest attempt on the chosen exercise, oldest first.",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "enrollment_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "latest_submission_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "user_id": {
+            "type": "integer"
+          },
+          "user_name": {
+            "type": "string"
+          },
+          "cohort_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "cohort_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "num_submissions": {
+            "type": "integer"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string",
+            "description": "Send back as base_submission_updated_at."
+          },
+          "submission_type": {
+            "type": "string"
+          },
+          "text": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "repo_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "github_code_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pr_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "live_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "commit_sha": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "grade_suggestion": {
+            "$ref": "#/components/schemas/SubmissionGradeSuggestion",
+            "description": "Present when the cohort has GitHub grade suggestions enabled and a suggestion exists."
+          }
+        },
+        "required": [
+          "id",
+          "enrollment_id",
+          "latest_submission_id",
+          "user_id",
+          "user_name",
+          "cohort_id",
+          "cohort_name",
+          "num_submissions",
+          "created_at",
+          "updated_at",
+          "submission_type",
+          "text",
+          "repo_url",
+          "github_code_url",
+          "pr_url",
+          "live_url",
+          "commit_sha"
+        ],
+        "additionalProperties": false
+      },
+      "BatchReviewResponse": {
+        "type": "object",
+        "properties": {
+          "exercises": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BatchReviewExercise"
+            },
+            "description": "Exercises with work waiting, most waiting first (at most 100)."
+          },
+          "exercise": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BatchReviewExerciseDetail"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "content_block_id when given and visible, otherwise the exercise with the most waiting; null when nothing waits."
+          },
+          "submissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BatchReviewSubmission"
+            },
+            "description": "At most max_batch_size, oldest first."
+          },
+          "total_count": {
+            "type": "integer",
+            "description": "Ungraded latest attempts on the chosen exercise, including any beyond this page."
+          },
+          "max_batch_size": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "exercises",
+          "exercise",
+          "submissions",
+          "total_count",
+          "max_batch_size"
+        ],
+        "additionalProperties": false
+      },
       "SubmissionGradeInput": {
         "type": "object",
         "properties": {
@@ -10759,7 +11316,8 @@
           },
           "submission_config": {
             "type": "object",
-            "additionalProperties": {}
+            "additionalProperties": {},
+            "description": "Exercise submission settings. `runner` (optional) configures the in-browser code runner on a text submission: `enabled` (boolean), `language` (`ruby` or `javascript`), `starter_code` (string, at most 20,000 characters) and `checks` (at most 20 `{ id, name, code }` objects with unique non-blank ids of at most 64 characters, names of at most 120 and code of at most 10,000). Checks run in browsers, never on the server: the student's, and the instructor's, which always runs these against the saved submission text. Other keys are kept as sent."
           },
           "language_hint": {
             "type": [
@@ -15526,7 +16084,8 @@
           },
           "submission_config": {
             "type": "object",
-            "additionalProperties": {}
+            "additionalProperties": {},
+            "description": "Exercise submission settings. `runner` (optional) configures the in-browser code runner on a text submission: `enabled` (boolean), `language` (`ruby` or `javascript`), `starter_code` (string, at most 20,000 characters) and `checks` (at most 20 `{ id, name, code }` objects with unique non-blank ids of at most 64 characters, names of at most 120 and code of at most 10,000). Checks run in browsers, never on the server: the student's, and the instructor's, which always runs these against the saved submission text. Other keys are kept as sent."
           },
           "metadata": {
             "type": "object",
@@ -18395,7 +18954,8 @@
           },
           "submission_config": {
             "type": "object",
-            "additionalProperties": {}
+            "additionalProperties": {},
+            "description": "Exercise submission settings. `runner` (optional) configures the in-browser code runner on a text submission: `enabled` (boolean), `language` (`ruby` or `javascript`), `starter_code` (string, at most 20,000 characters) and `checks` (at most 20 `{ id, name, code }` objects with unique non-blank ids of at most 64 characters, names of at most 120 and code of at most 10,000). Checks run in browsers, never on the server: the student's, and the instructor's, which always runs these against the saved submission text. Other keys are kept as sent."
           },
           "metadata": {
             "type": "object",
