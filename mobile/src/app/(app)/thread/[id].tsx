@@ -299,6 +299,10 @@ export default function ThreadScreen() {
   useEffect(() => {
     threadIdentityRef.current = threadIdentity;
     deletedReplyIdsRef.current.clear();
+    setSavingAction(false);
+    setActionError(null);
+    setSelectedMessage(null);
+    setEditingAction(null);
   }, [threadIdentity]);
 
   useEffect(() => {
@@ -636,10 +640,17 @@ export default function ThreadScreen() {
     else setReplies((current) => current.map((item) => item.id === message.id ? message : item));
   };
   const updateAction = async (action: () => Promise<{ message: Message }>) => {
+    const initiatingIdentity = threadIdentity;
     setSavingAction(true); setActionError(null);
-    try { applyActionMessage((await action()).message); setEditingAction(null); setSelectedMessage(null); }
-    catch (error) { setActionError((error as Error).message); }
-    finally { setSavingAction(false); }
+    try {
+      const updated = (await action()).message;
+      if (threadIdentityRef.current !== initiatingIdentity) return;
+      applyActionMessage(updated);
+      setEditingAction(null);
+      setSelectedMessage(null);
+    }
+    catch (error) { if (threadIdentityRef.current === initiatingIdentity) setActionError((error as Error).message); }
+    finally { if (threadIdentityRef.current === initiatingIdentity) setSavingAction(false); }
   };
   const messageActions = selectedMessage ? (() => {
     const message = selectedMessage;
