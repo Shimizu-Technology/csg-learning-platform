@@ -39,7 +39,7 @@ export interface SubmissionDraft extends SubmissionDraftFields {
   saved_at: string;
 }
 
-export type StoredGradingGrade = 'A' | 'B' | 'C' | 'R';
+export type StoredGradingGrade = 'A' | 'B' | 'C' | 'R' | 'P';
 export type StoredRubricRating = 'exceeds' | 'meets' | 'developing' | 'redo';
 
 export interface GradingDraft {
@@ -130,7 +130,7 @@ export async function loadGradingDraft(userId: number, submissionId: number): Pr
 
   try {
     const draft = JSON.parse(value) as Partial<GradingDraft>;
-    const grades = [ 'A', 'B', 'C', 'R', null ];
+    const grades = [ 'A', 'B', 'C', 'R', 'P', null ];
     const ratings = [ 'exceeds', 'meets', 'developing', 'redo', null ];
     if (!Object.prototype.hasOwnProperty.call(draft, 'grade') || !grades.includes(draft.grade as StoredGradingGrade | null) || typeof draft.feedback !== 'string' || typeof draft.saved_at !== 'string') throw new Error('Invalid grading draft');
     if (draft.base_submission_updated_at !== null && typeof draft.base_submission_updated_at !== 'string') throw new Error('Invalid grading draft version');

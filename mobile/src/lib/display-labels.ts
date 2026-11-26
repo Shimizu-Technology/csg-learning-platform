@@ -60,8 +60,10 @@ export function humanize(value: string | null | undefined, labels: Record<string
   return words ? words.charAt(0).toUpperCase() + words.slice(1).toLowerCase() : '';
 }
 
-/** Grades as people read them: "R" is stored, "Redo" is shown. */
+/** Grades as people read them: "R" and "P" are stored, "Redo" and "Pass" are shown. */
 export function gradeLabel(grade: string | null | undefined): string {
   if (!grade) return '';
-  return grade === 'R' ? 'Redo' : grade;
+  if (grade === 'R') return 'Redo';
+  if (grade === 'P') return 'Pass';
+  return grade;
 }

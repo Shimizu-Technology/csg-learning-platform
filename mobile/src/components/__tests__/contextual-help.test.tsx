@@ -145,3 +145,17 @@ it('reuses client_request_id only for unchanged retries and generates a new id a
   expect(mockReply.mock.calls[2][1].body).toBe('Updated draft');
   expect(input().props.value).toBe('');
 });
+
+it('lets the learner add details to an open request before any instructor reply', async () => {
+  const waiting: HelpRequest = { ...resolved, id: 5, status: 'open', staff_response: null, replies: [] };
+  const note = { id: 3, body: 'TypeError: undefined', from_student: true, resolved_request: false, author: { id: 4, full_name: 'Student' }, created_at: '' };
+  mockHelpRequests.mockResolvedValue({ help_requests: [waiting] });
+  mockReply.mockResolvedValue({ help_request: { ...waiting, replies: [note] } });
+  const screen = show();
+  fireEvent.press(await screen.findByLabelText('Help request status: Sent to your instructor'));
+  expect(screen.getByText('Add more details or paste an error message while you wait')).toBeTruthy();
+  expect(screen.queryByText('Answer their question or share what happened when you tried it')).toBeNull();
+  fireEvent.changeText(screen.getByLabelText('Add to your question'), 'TypeError: undefined');
+  await act(async () => { fireEvent.press(screen.getByRole('button', { name: 'Add details' })); });
+  expect(mockReply).toHaveBeenCalledWith(5, expect.objectContaining({ body: 'TypeError: undefined', resolve: false }));
+});
