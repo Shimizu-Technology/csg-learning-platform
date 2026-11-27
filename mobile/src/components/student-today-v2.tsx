@@ -465,7 +465,7 @@ export function StudentTodayV2({ dashboard, githubApp, refresh }: { dashboard: S
               <CalendarClock color={c.status.info.fg} size={18} />
             </View>
             <View style={styles.flex}>
-              <Text style={styles.heroKicker}>Next live session</Text>
+              <Text style={styles.heroKicker}>Next live class</Text>
               <Text style={styles.rowTitle}>{nextSession.title || 'Live class'}</Text>
               <Text style={styles.meta}>
                 {formatCourseDateTime(nextSession.starts_at, { weekday: true, fallback: nextSession.starts_at })}
