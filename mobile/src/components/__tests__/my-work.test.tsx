@@ -1,17 +1,46 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import MyWork from '@/app/(app)/my-work';
+import { themedAlert } from '@/lib/alerts';
 
 const mockPush = jest.fn();
 const mockMyWork = jest.fn();
 const mockCreateCohortDm = jest.fn();
+let mockFocusCallback: (() => void | (() => void)) | null = null;
+let mockFocusCleanup: (() => void) | null = null;
 
+function simulateBlur() {
+  act(() => {
+    mockFocusCleanup?.();
+    mockFocusCleanup = null;
+  });
+}
+
+function simulateFocus() {
+  act(() => {
+    const cleanup = mockFocusCallback?.();
+    mockFocusCleanup = typeof cleanup === 'function' ? cleanup : null;
+  });
+}
+
+jest.mock('@/lib/alerts', () => ({
+  themedAlert: { alert: jest.fn() },
+}));
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: mockPush }),
   useLocalSearchParams: () => ({ cohort_id: '4' }),
   useFocusEffect: (cb: () => void | (() => void)) => {
     const { useEffect } = jest.requireActual('react');
-    useEffect(() => cb(), [cb]);
+    useEffect(() => {
+      mockFocusCallback = cb;
+      const cleanup = cb();
+      mockFocusCleanup = typeof cleanup === 'function' ? cleanup : null;
+      return () => {
+        mockFocusCleanup?.();
+        mockFocusCleanup = null;
+        if (mockFocusCallback === cb) mockFocusCallback = null;
+      };
+    }, [cb]);
   },
 }));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => (name === '__esModule' ? false : () => null) }));
@@ -140,5 +169,50 @@ describe('MyWork screen', () => {
     resolveDm?.({ direct_conversation: { id: 99 } });
     await Promise.resolve();
     expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  it('suppresses stale DM success and rejection after blur and refocus, while uninterrupted rejection alerts', async () => {
+    let resolveDm: ((value: { direct_conversation: { id: number } }) => void) | undefined;
+    let rejectDm: ((reason?: unknown) => void) | undefined;
+    mockCreateCohortDm.mockImplementationOnce(
+      () => new Promise((resolve) => { resolveDm = resolve; }),
+    );
+    const view = render(
+      <QueryClientProvider client={client}>
+        <MyWork />
+      </QueryClientProvider>,
+    );
+
+    const askBtn = await view.findByText('Ask about this feedback');
+    fireEvent.press(askBtn);
+    expect(mockCreateCohortDm).toHaveBeenCalledTimes(1);
+
+    // Blur and refocus while request is pending (screen stays mounted; refocus also refreshes My Work).
+    simulateBlur();
+    simulateFocus();
+    await waitFor(() => expect(mockMyWork).toHaveBeenCalledTimes(2));
+
+    await act(async () => {
+      resolveDm?.({ direct_conversation: { id: 77 } });
+    });
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(themedAlert.alert).not.toHaveBeenCalled();
+
+    // Stale rejection after blur+refocus also suppresses alert, and unlocks for retry.
+    mockCreateCohortDm.mockImplementationOnce(
+      () => new Promise((_resolve, reject) => { rejectDm = reject; }),
+    );
+    fireEvent.press(view.getByText('Ask about this feedback'));
+    simulateBlur();
+    simulateFocus();
+    await act(async () => {
+      rejectDm?.(new Error('network'));
+    });
+    expect(themedAlert.alert).not.toHaveBeenCalled();
+
+    // Uninterrupted focus rejection control case shows alert.
+    mockCreateCohortDm.mockRejectedValueOnce(new Error('server error'));
+    fireEvent.press(view.getByText('Ask about this feedback'));
+    await waitFor(() => expect(themedAlert.alert).toHaveBeenCalledWith('Could not open conversation', 'Try again in a moment.'));
   });
 });

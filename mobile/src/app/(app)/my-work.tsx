@@ -41,27 +41,41 @@ export default function MyWork() {
   const openingDmRef = useRef(false);
   const mountedRef = useRef(true);
   const focusedRef = useRef(true);
+  const focusGenerationRef = useRef(0);
+  const hasBlurredRef = useRef(false);
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
     };
   }, []);
-  useFocusEffect(
-    useCallback(() => {
-      focusedRef.current = true;
-      return () => {
-        focusedRef.current = false;
-      };
-    }, []),
-  );
   const valid = Number.isSafeInteger(cohortId) && cohortId > 0;
+  const enabled = Boolean(user && valid);
   const query = useQuery({
     queryKey: ['my-work', user?.id, cohortId],
     queryFn: ({ signal }) => api.myWork(cohortId, signal),
-    enabled: Boolean(user && valid),
+    enabled,
     staleTime: 0,
   });
+  const refetchRef = useRef(query.refetch);
+  const enabledRef = useRef(enabled);
+  useEffect(() => {
+    refetchRef.current = query.refetch;
+    enabledRef.current = enabled;
+  }, [enabled, query.refetch]);
+  useFocusEffect(
+    useCallback(() => {
+      focusedRef.current = true;
+      if (hasBlurredRef.current && enabledRef.current) {
+        void refetchRef.current();
+      }
+      return () => {
+        focusedRef.current = false;
+        hasBlurredRef.current = true;
+        focusGenerationRef.current += 1;
+      };
+    }, []),
+  );
   const work = query.data?.my_work;
   const defaultTab: WorkTab = work
     ? work.counts.needs_you > 0
@@ -81,14 +95,15 @@ export default function MyWork() {
 
   const askAboutFeedback = async (item: MyWorkItem) => {
     if (!item.ask_to || openingDmRef.current) return;
+    const focusGen = focusGenerationRef.current;
     openingDmRef.current = true;
     setOpeningDmId(item.submission_id);
     try {
       const result = await api.createCohortDm(item.cohort_id, [item.ask_to.id]);
-      if (!focusedRef.current || !mountedRef.current) return;
+      if (!focusedRef.current || !mountedRef.current || focusGenerationRef.current !== focusGen) return;
       router.push(`/conversation/dm/${result.direct_conversation.id}` as Href);
     } catch {
-      if (focusedRef.current && mountedRef.current) {
+      if (focusedRef.current && mountedRef.current && focusGenerationRef.current === focusGen) {
         Alert.alert('Could not open conversation', 'Try again in a moment.');
       }
     } finally {
@@ -118,6 +133,13 @@ export default function MyWork() {
           refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} tintColor={c.text.body} />}
           contentContainerStyle={styles.content}
         >
+          {query.isRefetchError && (
+            <View accessibilityRole="alert" style={styles.refreshBanner}>
+              <Text style={styles.refreshBannerText}>Could not refresh your work.</Text>
+              <Button size="sm" variant="secondary" label="Try again" onPress={() => void query.refetch()} />
+            </View>
+          )}
+
           <View style={styles.segmented} accessibilityRole="tablist">
             {TABS.map((tab) => {
               const active = activeTab === tab.key;
@@ -186,11 +208,12 @@ export default function MyWork() {
                     : item.status === 'redo'
                       ? 'Redo'
                       : 'Reviewed';
+                const titleSuffix = item.block_title && item.block_title !== item.lesson_title ? `, ${item.block_title}` : '';
                 return (
                   <View key={item.submission_id} style={[styles.itemRow, idx > 0 && styles.rowDivider]}>
                     <PressableScale
                       accessibilityRole="button"
-                      accessibilityLabel={`Open ${item.lesson_title}`}
+                      accessibilityLabel={`Open ${item.lesson_title}${titleSuffix}`}
                       onPress={() => openLesson(item)}
                       style={styles.itemTap}
                     >
@@ -213,20 +236,20 @@ export default function MyWork() {
                         </View>
                         <Badge label={statusText} tone={tone} />
                       </View>
-                      {!!item.expected_review_on && item.status === 'waiting' && (
-                        <Text style={styles.expectedReview}>
-                          Feedback expected by {formatCourseDate(item.expected_review_on, { withYear: false, weekday: true })}
-                        </Text>
-                      )}
-                      {!!item.feedback && (
-                        <View style={[styles.feedbackBox, item.status === 'redo' && styles.feedbackBoxRedo]}>
-                          <AuthoredContent compact written body={item.feedback} />
-                        </View>
-                      )}
-                      {item.status === 'redo' && item.submissions_closed && (
-                        <Text style={styles.closedNote}>Submissions are closed for this week.</Text>
-                      )}
                     </PressableScale>
+                    {!!item.expected_review_on && item.status === 'waiting' && (
+                      <Text style={styles.expectedReview}>
+                        Feedback expected by {formatCourseDate(item.expected_review_on, { withYear: false, weekday: true })}
+                      </Text>
+                    )}
+                    {!!item.feedback && (
+                      <View style={[styles.feedbackBox, item.status === 'redo' && styles.feedbackBoxRedo]}>
+                        <AuthoredContent compact written body={item.feedback} />
+                      </View>
+                    )}
+                    {item.status === 'redo' && item.submissions_closed && (
+                      <Text style={styles.closedNote}>Submissions are closed.</Text>
+                    )}
                     {item.status !== 'waiting' && (
                       <View style={styles.actions}>
                         {item.status === 'redo' && (
@@ -281,6 +304,19 @@ const useStyles = makeStyles(({ colors: c, radius }) => StyleSheet.create({
   headerTitle: { color: c.text.strong, fontFamily: fonts.extraBold, fontSize: 18, letterSpacing: -0.3 },
   headerSubtitle: { color: c.text.muted, fontFamily: fonts.medium, fontSize: 12, marginTop: 1 },
   content: { padding: 16, paddingBottom: 48, gap: 14 },
+  refreshBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: radius.control,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: c.status.warning.border,
+    backgroundColor: c.status.warning.bg,
+  },
+  refreshBannerText: { flex: 1, color: c.status.warning.fg, fontFamily: fonts.semibold, fontSize: 13 },
   segmented: {
     padding: 4,
     borderRadius: radius.card,

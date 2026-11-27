@@ -232,7 +232,9 @@ const useStyles = makeStyles(({ colors: c, radius, shadow }) => StyleSheet.creat
   chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   statChip: {
     minHeight: 44,
+    maxWidth: '100%',
     paddingHorizontal: 13,
+    paddingVertical: 8,
     borderRadius: radius.chip,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: c.border.subtle,
@@ -242,7 +244,7 @@ const useStyles = makeStyles(({ colors: c, radius, shadow }) => StyleSheet.creat
     gap: 7,
     ...shadow.raised,
   },
-  statChipText: { ...tabularNums, color: c.text.strong, fontFamily: fonts.semibold, fontSize: 13 },
+  statChipText: { ...tabularNums, flexShrink: 1, color: c.text.strong, fontFamily: fonts.semibold, fontSize: 13 },
   attentionBanner: {
     minHeight: 48,
     paddingHorizontal: 14,
