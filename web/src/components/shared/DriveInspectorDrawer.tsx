@@ -57,6 +57,16 @@ export function DriveInspectorDrawer({
   const [downloadError, setDownloadError] = useState('')
   const [reviewDraft, setReviewDraft] = useState('')
   const [commentsSnapshot, setCommentsSnapshot] = useState<CohortFileCommentsSnapshot | null>(null)
+  const commentsSnapshotRef = useRef<CohortFileCommentsSnapshot | null>(null)
+  const updateCommentsSnapshot = (next: CohortFileCommentsSnapshot | null) => {
+    commentsSnapshotRef.current = next
+    setCommentsSnapshot(next)
+  }
+  const [postingComment, setPostingComment] = useState(false)
+  const [commentPostError, setCommentPostError] = useState('')
+  const postingCommentRef = useRef(false)
+  const activeFileIdRef = useRef<number | null>(file?.id ?? null)
+  activeFileIdRef.current = file?.id ?? null
   const asideRef = useRef<HTMLElement>(null)
   const reviewContainerRef = useRef<HTMLDivElement>(null)
   const prevIsDesktopRef = useRef(isDesktop)
@@ -70,7 +80,10 @@ export function DriveInspectorDrawer({
 
   useEffect(() => {
     setReviewDraft('')
-    setCommentsSnapshot(null)
+    updateCommentsSnapshot(null)
+    setPostingComment(false)
+    setCommentPostError('')
+    postingCommentRef.current = false
     wasEditingReviewRef.current = false
   }, [file?.id])
 
@@ -137,6 +150,37 @@ export function DriveInspectorDrawer({
       setDownloadError(cause instanceof Error ? cause.message : 'Download failed.')
     } finally {
       setDownloading(false)
+    }
+  }
+
+  const handleSubmitComment = async (body: string) => {
+    if (postingCommentRef.current) return
+    const submittingFile = file
+    const submittedRaw = reviewDraft
+    postingCommentRef.current = true
+    setPostingComment(true)
+    setCommentPostError('')
+    try {
+      const result = await api.createCohortFileComment(cohortId, submittingFile.id, body)
+      if (activeFileIdRef.current !== submittingFile.id) return
+      if (!result.data) {
+        setCommentPostError(result.error || 'Could not post your comment.')
+        return
+      }
+      const created = result.data.comment
+      const existing = commentsSnapshotRef.current?.comments ?? []
+      const merged = existing.some((item) => item.id === created.id) ? existing : [...existing, created]
+      updateCommentsSnapshot({
+        comments: merged,
+        canComment: commentsSnapshotRef.current?.canComment ?? true,
+      })
+      setReviewDraft((current) => (current === submittedRaw ? '' : current))
+      onFileChange?.({ ...submittingFile, comment_count: merged.length })
+    } finally {
+      if (activeFileIdRef.current === submittingFile.id) {
+        postingCommentRef.current = false
+        setPostingComment(false)
+      }
     }
   }
 
@@ -279,7 +323,10 @@ export function DriveInspectorDrawer({
             draft={reviewDraft}
             onDraftChange={setReviewDraft}
             initialCommentsSnapshot={commentsSnapshot}
-            onCommentsSnapshotChange={setCommentsSnapshot}
+            onCommentsSnapshotChange={updateCommentsSnapshot}
+            postingComment={postingComment}
+            commentPostError={commentPostError}
+            onSubmitComment={handleSubmitComment}
             onFileChange={onFileChange}
           />
         </div>

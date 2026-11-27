@@ -8,10 +8,13 @@ import { CommandPalette } from './CommandPalette'
 import { DriveInspectorDrawer } from './DriveInspectorDrawer'
 import { Modal } from './Modal'
 
+const createCohortFileCommentMock = vi.fn()
+
 vi.mock('../../lib/api', () => ({
   api: {
     updateCohortFile: vi.fn(),
     getCohortFileComments: vi.fn(async () => ({ data: { comments: [], can_comment: true }, error: null })),
+    createCohortFileComment: (...args: unknown[]) => createCohortFileCommentMock(...args),
     searchEverything: vi.fn(async () => ({ data: { groups: [], partial: false }, error: null })),
   },
 }))
@@ -298,5 +301,86 @@ describe('DriveInspectorDrawer', () => {
     expect(desktopTextarea.value).toBe('Great start on the layout!')
     expect(document.activeElement).toBe(desktopTextarea)
     rafSpy.mockRestore()
+  })
+
+  it('keeps comment submission pending across breakpoint resize without duplicating requests', async () => {
+    createCohortFileCommentMock.mockReset()
+    let resolvePost!: (value: unknown) => void
+    createCohortFileCommentMock.mockImplementation(
+      () => new Promise((resolve) => { resolvePost = resolve }),
+    )
+
+    const matcher = createResponsiveMatcher(false)
+    const onFileChange = vi.fn()
+    const studentFile: CohortFile = {
+      ...sampleFile,
+      folder: 'Student work',
+      student_id: 99,
+      uploaded_by_role: 'student',
+    }
+
+    await act(async () => {
+      root.render(
+        <DriveInspectorDrawer
+          cohortId={7}
+          file={studentFile}
+          folderOptions={['Student work']}
+          review={{ staff: true, canChange: true }}
+          onClose={vi.fn()}
+          onOpenPreview={vi.fn()}
+          onFileChange={onFileChange}
+        />,
+      )
+    })
+
+    const mobileTextarea = document.querySelector<HTMLTextAreaElement>('textarea')!
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')!.set!
+      setter.call(mobileTextarea, 'Looks clean!')
+      mobileTextarea.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+
+    // Start submitting in the mobile drawer
+    const mobileSubmit = document.querySelector<HTMLButtonElement>('button[type="submit"]')!
+    act(() => { mobileSubmit.click() })
+    expect(createCohortFileCommentMock).toHaveBeenCalledTimes(1)
+    expect(mobileSubmit.disabled).toBe(true)
+
+    // Resize across breakpoint while submission is still pending
+    await act(async () => {
+      matcher.setMatches(true)
+    })
+
+    const desktopTextarea = container.querySelector<HTMLTextAreaElement>('aside textarea')!
+    const desktopSubmit = container.querySelector<HTMLButtonElement>('aside button[type="submit"]')!
+    expect(desktopTextarea.disabled).toBe(true)
+    expect(desktopSubmit.disabled).toBe(true)
+    expect(desktopSubmit.textContent).toContain('Posting')
+
+    // Attempting to submit again on desktop must NOT fire a duplicate request
+    act(() => { desktopSubmit.click() })
+    expect(createCohortFileCommentMock).toHaveBeenCalledTimes(1)
+
+    // Resolve the deferred comment post
+    await act(async () => {
+      resolvePost({
+        data: {
+          comment: {
+            id: 501,
+            body: 'Looks clean!',
+            author_name: 'Ina Instructor',
+            author_role: 'staff',
+            created_at: '2026-11-28T00:00:00Z',
+            can_delete: true,
+          },
+        },
+        error: null,
+      })
+    })
+
+    expect(container.querySelector('aside')?.textContent).toContain('Looks clean!')
+    expect(container.querySelector<HTMLTextAreaElement>('aside textarea')!.value).toBe('')
+    expect(container.querySelector<HTMLTextAreaElement>('aside textarea')!.disabled).toBe(false)
+    expect(onFileChange).toHaveBeenCalledWith(expect.objectContaining({ comment_count: 1 }))
   })
 })

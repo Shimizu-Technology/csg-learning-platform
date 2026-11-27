@@ -112,6 +112,9 @@ export function CohortFileComments({
   onDraftChange,
   initialSnapshot,
   onSnapshotChange,
+  posting: controlledPosting,
+  postError: controlledPostError,
+  onSubmitComment,
 }: {
   cohortId: number
   file: CohortFile
@@ -120,29 +123,40 @@ export function CohortFileComments({
   onDraftChange?: (value: string) => void
   initialSnapshot?: CohortFileCommentsSnapshot | null
   onSnapshotChange?: (snapshot: CohortFileCommentsSnapshot) => void
+  posting?: boolean
+  postError?: string
+  onSubmitComment?: (body: string) => Promise<void>
 }) {
   const id = useId()
   const confirm = useConfirm()
-  const [comments, setComments] = useState<CohortFileComment[] | null>(() => initialSnapshot?.comments ?? null)
-  const [canComment, setCanComment] = useState(() => initialSnapshot?.canComment ?? false)
+  const [localComments, setLocalComments] = useState<CohortFileComment[] | null>(() => initialSnapshot?.comments ?? null)
+  const [localCanComment, setLocalCanComment] = useState(() => initialSnapshot?.canComment ?? false)
+  const comments = initialSnapshot ? initialSnapshot.comments : localComments
+  const canComment = initialSnapshot ? initialSnapshot.canComment : localCanComment
   const [loadError, setLoadError] = useState('')
   const [attempt, setAttempt] = useState(0)
   const [localDraft, setLocalDraft] = useState('')
   const draft = controlledDraft ?? localDraft
   const setDraft = onDraftChange ?? setLocalDraft
-  const [posting, setPosting] = useState(false)
-  const [error, setError] = useState('')
+  const [localPosting, setLocalPosting] = useState(false)
+  const posting = controlledPosting ?? localPosting
+  const [localError, setLocalError] = useState('')
+  const error = controlledPostError || localError
   const onSnapshotChangeRef = useRef(onSnapshotChange)
   onSnapshotChangeRef.current = onSnapshotChange
 
+  const hasInitialSnapshotRef = useRef(Boolean(initialSnapshot))
+  hasInitialSnapshotRef.current = Boolean(initialSnapshot)
+
   useEffect(() => {
+    if (attempt === 0 && hasInitialSnapshotRef.current) return
     let live = true
     setLoadError('')
     void api.getCohortFileComments(cohortId, file.id).then((result) => {
       if (!live) return
       if (result.data) {
-        setComments(result.data.comments)
-        setCanComment(result.data.can_comment)
+        setLocalComments(result.data.comments)
+        setLocalCanComment(result.data.can_comment)
         onSnapshotChangeRef.current?.({ comments: result.data.comments, canComment: result.data.can_comment })
       } else setLoadError(result.error || 'Could not load comments.')
     })
@@ -152,13 +166,17 @@ export function CohortFileComments({
   const post = async () => {
     const body = draft.trim()
     if (!body || posting || body.length > MAX_COMMENT_LENGTH) return
-    setPosting(true)
-    setError('')
+    if (onSubmitComment) {
+      await onSubmitComment(body)
+      return
+    }
+    setLocalPosting(true)
+    setLocalError('')
     const result = await api.createCohortFileComment(cohortId, file.id, body)
-    setPosting(false)
-    if (!result.data) return setError(result.error || 'Could not post your comment.')
+    setLocalPosting(false)
+    if (!result.data) return setLocalError(result.error || 'Could not post your comment.')
     const next = [...(comments || []), result.data.comment]
-    setComments(next)
+    setLocalComments(next)
     onSnapshotChangeRef.current?.({ comments: next, canComment })
     setDraft('')
     onCountChange?.(next.length)
@@ -167,9 +185,9 @@ export function CohortFileComments({
     const ok = await confirm({ title: 'Delete this comment?', description: 'It is removed for everyone who can see this file.', confirmLabel: 'Delete comment', tone: 'danger' })
     if (!ok) return
     const result = await api.deleteCohortFileComment(cohortId, file.id, comment.id)
-    if (result.error) return setError(result.error)
+    if (result.error) return setLocalError(result.error)
     const next = (comments || []).filter((item) => item.id !== comment.id)
-    setComments(next)
+    setLocalComments(next)
     onSnapshotChangeRef.current?.({ comments: next, canComment })
     onCountChange?.(next.length)
   }
@@ -240,6 +258,9 @@ export function CohortFileReviewPanel({
   onDraftChange,
   initialCommentsSnapshot,
   onCommentsSnapshotChange,
+  postingComment,
+  commentPostError,
+  onSubmitComment,
 }: {
   cohortId: number
   file: CohortFile
@@ -249,6 +270,9 @@ export function CohortFileReviewPanel({
   onDraftChange?: (value: string) => void
   initialCommentsSnapshot?: CohortFileCommentsSnapshot | null
   onCommentsSnapshotChange?: (snapshot: CohortFileCommentsSnapshot) => void
+  postingComment?: boolean
+  commentPostError?: string
+  onSubmitComment?: (body: string) => Promise<void>
 }) {
   return (
     <div className="space-y-5">
@@ -260,6 +284,9 @@ export function CohortFileReviewPanel({
         onDraftChange={onDraftChange}
         initialSnapshot={initialCommentsSnapshot}
         onSnapshotChange={onCommentsSnapshotChange}
+        posting={postingComment}
+        postError={commentPostError}
+        onSubmitComment={onSubmitComment}
         onCountChange={(count) => onFileChange({ ...file, comment_count: count })}
       />
     </div>
