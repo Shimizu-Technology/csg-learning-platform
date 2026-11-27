@@ -295,7 +295,7 @@ export default function MessagesScreen() {
           )}
         </ScrollView>
       )}
-      <Modal visible={showWorkspaces} transparent animationType="fade" onRequestClose={() => setShowWorkspaces(false)}>
+      <Modal visible={showWorkspaces} transparent animationType="slide" onRequestClose={() => setShowWorkspaces(false)}>
         <View style={styles.modalRoot}>
           <Pressable accessibilityRole="button" accessibilityLabel="Close cohort and community switcher" onPress={() => setShowWorkspaces(false)} style={StyleSheet.absoluteFill} />
           <View style={styles.sheet}>

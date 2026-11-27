@@ -125,7 +125,7 @@ export default function MyWork() {
       {!valid ? (
         <ErrorState message="Choose a course to view your work." />
       ) : query.isPending ? (
-        <LoadingState label="Loading your work" />
+        <LoadingState variant="skeleton" label="Loading your work" />
       ) : !work ? (
         <ErrorState message="Could not load your work." retry={() => void query.refetch()} />
       ) : (

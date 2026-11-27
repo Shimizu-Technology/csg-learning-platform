@@ -16,6 +16,7 @@ import { CohortLinkForm } from '@/components/cohort-link-form';
 import { DriveFilterBar, DriveFolderStrip } from '@/components/drive-controls';
 import { EmptyState, ErrorState, LoadingState } from '@/components/screen-states';
 import { StaffOnlyScreen } from '@/components/staff-only-screen';
+import { BottomSheet } from '@/components/ui/bottom-sheet';
 import { Button } from '@/components/ui/button';
 import { fonts } from '@/constants/csg-theme';
 import { themedAlert as Alert } from '@/lib/alerts';
@@ -72,6 +73,9 @@ export default function StaffCohortFilesScreen() {
   const [needsReviewOnly, setNeedsReviewOnly] = useState(false);
   const [openFileId, setOpenFileId] = useState<number | null>(Number(fileParam) || null);
   const [activeDocFileId, setActiveDocFileId] = useState<number | null>(null);
+  const [renamingFolder, setRenamingFolder] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState('');
+  const [savingRename, setSavingRename] = useState(false);
   const queryClient = useQueryClient();
   // A new notification link while this screen is open opens its item too.
   const [linked, setLinked] = useState(`${cohort_id}:${student}:${fileParam}`);
@@ -277,7 +281,33 @@ export default function StaffCohortFilesScreen() {
     ]);
   };
 
+  const openRenameFolder = (folderName: string) => {
+    setRenamingFolder(folderName);
+    setRenameDraft(folderName);
+  };
+
+  const submitRenameFolder = async () => {
+    if (!renamingFolder || !selectedCohortId || savingRename) return;
+    const nextName = renameDraft.trim();
+    if (!nextName || nextName === renamingFolder) {
+      setRenamingFolder(null);
+      return;
+    }
+    setSavingRename(true);
+    try {
+      const result = await api.renameCohortFolder(selectedCohortId, { from_folder: renamingFolder, to_folder: nextName });
+      setClassFolder(result.folder || nextName);
+      setRenamingFolder(null);
+      void filesQuery.refetch();
+    } catch (error) {
+      Alert.alert('Could not rename folder', (error as Error).message);
+    } finally {
+      setSavingRename(false);
+    }
+  };
+
   return shell(
+    <>
     <ScrollView
       keyboardDismissMode="on-drag"
       keyboardShouldPersistTaps="handled"
@@ -326,7 +356,13 @@ export default function StaffCohortFilesScreen() {
                 </View>
               </View>
             )}
-        <DriveFolderStrip folders={classFolderSummaries} activeFolder={validClassFolder} rootLabel="Class files" onSelectFolder={setClassFolder} />
+        <DriveFolderStrip
+          folders={classFolderSummaries}
+          activeFolder={validClassFolder}
+          rootLabel="Class files"
+          onSelectFolder={setClassFolder}
+          onRenameFolder={openRenameFolder}
+        />
         {(classFiles.length > 0) && (
           <DriveFilterBar
             typeFilter={typeFilter}
@@ -463,7 +499,34 @@ export default function StaffCohortFilesScreen() {
         {needsReviewOnly && !waiting && <Text style={styles.copy}>Nothing is waiting for review.</Text>}
         {!folders.length && <EmptyState title="No student folders yet" copy="Every enrolled student gets a private folder automatically." />}
       </>}
-    </ScrollView>,
+    </ScrollView>
+    <BottomSheet
+      visible={Boolean(renamingFolder)}
+      onClose={() => { if (!savingRename) setRenamingFolder(null); }}
+      closeDisabled={savingRename}
+      title="Rename folder"
+      subtitle={renamingFolder ? `Move all files in “${renamingFolder}” to a new folder name.` : undefined}
+      scrollable={false}
+    >
+      <TextInput
+        keyboardAppearance={scheme}
+        accessibilityLabel="New folder name"
+        value={renameDraft}
+        onChangeText={setRenameDraft}
+        placeholder="Folder name"
+        placeholderTextColor={c.text.muted}
+        editable={!savingRename}
+        autoFocus
+        returnKeyType="done"
+        onSubmitEditing={() => void submitRenameFolder()}
+        style={styles.renameInput}
+      />
+      <View style={styles.buttonRow}>
+        <Button style={styles.grow} variant="secondary" label="Cancel" disabled={savingRename} onPress={() => setRenamingFolder(null)} />
+        <Button style={styles.grow} variant="primary" label={savingRename ? 'Renaming…' : 'Rename'} loading={savingRename} disabled={savingRename || !renameDraft.trim()} onPress={() => void submitRenameFolder()} />
+      </View>
+    </BottomSheet>
+    </>,
   );
 }
 
@@ -478,5 +541,6 @@ const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   folderTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 13, marginTop: 4 }, title: { color: c.text.strong, fontFamily: fonts.extraBold, fontSize: 22 }, copy: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 17, marginTop: 2 },
   backRow: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start' },
   search: { minHeight: 48, borderRadius: 14, backgroundColor: c.surface.raised, borderWidth: 1, borderColor: c.border.subtle, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10 }, input: { flex: 1, color: c.text.strong, fontFamily: fonts.regular, fontSize: 14 },
+  renameInput: { minHeight: 48, borderRadius: 14, backgroundColor: c.surface.sunken, borderWidth: 1, borderColor: c.border.subtle, paddingHorizontal: 14, color: c.text.strong, fontFamily: fonts.regular, fontSize: 15 },
   person: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 64, borderRadius: 16, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, padding: 14 }, flex: { flex: 1, minWidth: 0 }, name: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 15 },
 }));

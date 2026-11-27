@@ -31,7 +31,7 @@ export function ReactionDetailsSheet({ message, initialEmoji, onClose, onToggle 
   const SelectedIcon = option?.Icon;
 
   return (
-    <Modal animationType="fade" onRequestClose={onClose} presentationStyle="pageSheet" visible={Boolean(message)}>
+    <Modal animationType="slide" onRequestClose={onClose} presentationStyle="pageSheet" visible={Boolean(message)}>
       <SafeAreaView edges={['top', 'bottom']} style={styles.safe}>
         <View style={styles.header}>
           <View>

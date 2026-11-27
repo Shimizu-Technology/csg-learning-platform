@@ -345,7 +345,7 @@ function SearchScreenContent() {
         )}
       </ScrollView>}
       {authorContext && <MessageAuthorContext author={authorContext} onClose={() => setAuthorContext(null)} />}
-      <Modal visible={Boolean(workspaceChoice)} transparent animationType="fade" onRequestClose={() => setWorkspaceChoice(null)}><View style={styles.overlay}><View style={styles.sheet}><ScrollView contentContainerStyle={styles.choices}><Text accessibilityRole="header" style={styles.heading}>Choose a cohort or community</Text>{openError && <Text style={styles.error}>{openError}</Text>}{workspaceChoice?.workspaces.map((workspace) => <Button key={workspace.id} disabled={opening} variant="secondary" onPress={() => void openDm(workspaceChoice, workspace)}>{workspace.name}</Button>)}<Button variant="secondary" onPress={() => setWorkspaceChoice(null)}>Cancel</Button></ScrollView></View></View></Modal>
+      <Modal visible={Boolean(workspaceChoice)} transparent animationType="slide" onRequestClose={() => setWorkspaceChoice(null)}><View style={styles.overlay}><View style={styles.sheet}><ScrollView contentContainerStyle={styles.choices}><Text accessibilityRole="header" style={styles.heading}>Choose a cohort or community</Text>{openError && <Text style={styles.error}>{openError}</Text>}{workspaceChoice?.workspaces.map((workspace) => <Button key={workspace.id} disabled={opening} variant="secondary" onPress={() => void openDm(workspaceChoice, workspace)}>{workspace.name}</Button>)}<Button variant="secondary" onPress={() => setWorkspaceChoice(null)}>Cancel</Button></ScrollView></View></View></Modal>
     </SafeAreaView>
   );
 }
