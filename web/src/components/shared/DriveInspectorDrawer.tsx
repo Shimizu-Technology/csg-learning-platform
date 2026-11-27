@@ -62,11 +62,14 @@ export function DriveInspectorDrawer({
     commentsSnapshotRef.current = next
     setCommentsSnapshot(next)
   }
-  const [postingComment, setPostingComment] = useState(false)
+  const [pendingTokensByFile, setPendingTokensByFile] = useState<Record<number, number>>({})
+  const pendingTokensRef = useRef(new Map<number, number>())
+  const nextRequestTokenRef = useRef(0)
+  const visitGenerationRef = useRef(0)
   const [commentPostError, setCommentPostError] = useState('')
-  const postingCommentRef = useRef(false)
   const activeFileIdRef = useRef<number | null>(file?.id ?? null)
   activeFileIdRef.current = file?.id ?? null
+  const postingComment = file ? Boolean(pendingTokensByFile[file.id]) : false
   const asideRef = useRef<HTMLElement>(null)
   const reviewContainerRef = useRef<HTMLDivElement>(null)
   const prevIsDesktopRef = useRef(isDesktop)
@@ -79,11 +82,10 @@ export function DriveInspectorDrawer({
   }, [file])
 
   useEffect(() => {
+    visitGenerationRef.current += 1
     setReviewDraft('')
     updateCommentsSnapshot(null)
-    setPostingComment(false)
     setCommentPostError('')
-    postingCommentRef.current = false
     wasEditingReviewRef.current = false
   }, [file?.id])
 
@@ -154,14 +156,17 @@ export function DriveInspectorDrawer({
   }
 
   const handleSubmitComment = async (body: string) => {
-    if (postingCommentRef.current) return
+    if (pendingTokensRef.current.has(file.id)) return
     const submittingFile = file
     const submittedRaw = reviewDraft
-    postingCommentRef.current = true
-    setPostingComment(true)
+    const submittedVisit = visitGenerationRef.current
+    const token = ++nextRequestTokenRef.current
+    pendingTokensRef.current.set(submittingFile.id, token)
+    setPendingTokensByFile((prev) => ({ ...prev, [submittingFile.id]: token }))
     setCommentPostError('')
     try {
       const result = await api.createCohortFileComment(cohortId, submittingFile.id, body)
+      if (pendingTokensRef.current.get(submittingFile.id) !== token) return
       if (activeFileIdRef.current !== submittingFile.id) return
       if (!result.data) {
         setCommentPostError(result.error || 'Could not post your comment.')
@@ -174,12 +179,19 @@ export function DriveInspectorDrawer({
         comments: merged,
         canComment: commentsSnapshotRef.current?.canComment ?? true,
       })
-      setReviewDraft((current) => (current === submittedRaw ? '' : current))
+      if (visitGenerationRef.current === submittedVisit) {
+        setReviewDraft((current) => (current === submittedRaw ? '' : current))
+      }
       onFileChange?.({ ...submittingFile, comment_count: merged.length })
     } finally {
-      if (activeFileIdRef.current === submittingFile.id) {
-        postingCommentRef.current = false
-        setPostingComment(false)
+      if (pendingTokensRef.current.get(submittingFile.id) === token) {
+        pendingTokensRef.current.delete(submittingFile.id)
+        setPendingTokensByFile((prev) => {
+          if (prev[submittingFile.id] !== token) return prev
+          const next = { ...prev }
+          delete next[submittingFile.id]
+          return next
+        })
       }
     }
   }

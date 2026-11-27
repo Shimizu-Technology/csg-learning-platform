@@ -383,4 +383,79 @@ describe('DriveInspectorDrawer', () => {
     expect(container.querySelector<HTMLTextAreaElement>('aside textarea')!.disabled).toBe(false)
     expect(onFileChange).toHaveBeenCalledWith(expect.objectContaining({ comment_count: 1 }))
   })
+
+  it('tracks pending comment submissions per file across switching away and back', async () => {
+    createCohortFileCommentMock.mockReset()
+    let resolvePost!: (value: unknown) => void
+    createCohortFileCommentMock.mockImplementation(
+      () => new Promise((resolve) => { resolvePost = resolve }),
+    )
+    mockDesktopMatch(true)
+
+    const fileA: CohortFile = {
+      ...sampleFile,
+      id: 42,
+      title: 'File A',
+      folder: 'Student work',
+      student_id: 99,
+      uploaded_by_role: 'student',
+    }
+    const fileB: CohortFile = {
+      ...fileA,
+      id: 43,
+      title: 'File B',
+    }
+
+    function SwitchHarness({ active }: { active: CohortFile }) {
+      return (
+        <DriveInspectorDrawer
+          cohortId={7}
+          file={active}
+          folderOptions={['Student work']}
+          review={{ staff: true, canChange: true }}
+          onClose={vi.fn()}
+          onOpenPreview={vi.fn()}
+          onFileChange={vi.fn()}
+        />
+      )
+    }
+
+    await act(async () => { root.render(<SwitchHarness active={fileA} />) })
+    const textareaA = container.querySelector<HTMLTextAreaElement>('aside textarea')!
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')!.set!
+      setter.call(textareaA, 'Pending comment on A')
+      textareaA.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    act(() => { container.querySelector<HTMLButtonElement>('aside button[type="submit"]')!.click() })
+    expect(createCohortFileCommentMock).toHaveBeenCalledTimes(1)
+
+    // Switch to File B: File B is NOT blocked by File A's pending submission
+    await act(async () => { root.render(<SwitchHarness active={fileB} />) })
+    expect(container.querySelector<HTMLTextAreaElement>('aside textarea')!.disabled).toBe(false)
+
+    // Switch back to File A while still pending: File A stays locked against duplicate submit
+    await act(async () => { root.render(<SwitchHarness active={fileA} />) })
+    expect(container.querySelector<HTMLTextAreaElement>('aside textarea')!.disabled).toBe(true)
+    expect(container.querySelector<HTMLButtonElement>('aside button[type="submit"]')!.disabled).toBe(true)
+
+    // Resolve File A's request: File A unlocks cleanly and shows the new comment
+    await act(async () => {
+      resolvePost({
+        data: {
+          comment: {
+            id: 502,
+            body: 'Pending comment on A',
+            author_name: 'Ina Instructor',
+            author_role: 'staff',
+            created_at: '2026-11-28T00:00:00Z',
+            can_delete: true,
+          },
+        },
+        error: null,
+      })
+    })
+    expect(container.querySelector('aside')?.textContent).toContain('Pending comment on A')
+    expect(container.querySelector<HTMLTextAreaElement>('aside textarea')!.disabled).toBe(false)
+  })
 })
