@@ -32,8 +32,8 @@ class VoiceAudioInspectionTest < ActiveSupport::TestCase
       assert_equal "The recording is not a valid WebM file.", error.message
     end
 
-    # Under-reported Info.Duration cannot hide an overlong cluster timeline.
-    with_upload(webm_bytes(duration_seconds: 10.0, cluster_timestamps_ms: [ 0, 301_000 ]), content_type: "audio/webm", filename: "voice.webm") do |upload|
+    # Under-reported Info.Duration cannot hide an overlong cluster timeline, even when blocks precede Timestamp.
+    with_upload(webm_bytes(duration_seconds: 10.0, cluster_timestamps_ms: [ 0, 301_000 ], block_before_timestamp: true), content_type: "audio/webm", filename: "voice.webm") do |upload|
       error = assert_raises(VoiceAudioInspection::InvalidAudio) { VoiceAudioInspection.call(upload) }
       assert_equal "Recordings must be 5 minutes or shorter.", error.message
     end
@@ -113,6 +113,33 @@ class VoiceAudioInspectionTest < ActiveSupport::TestCase
       assert_equal "The recording is not a valid Ogg file.", error.message
     end
 
+    # Nonzero initial granule (e.g., cropped/joined stream starting at 10 minutes) measures elapsed audio, not raw granule.
+    cropped_ogg = ogg_opus_bytes(duration_seconds: 12.0, initial_granule_offset: 600 * 48_000)
+    with_upload(cropped_ogg, content_type: "audio/ogg;codecs=opus", filename: "voice.ogg") do |upload|
+      result = VoiceAudioInspection.call(upload)
+      assert_equal 12.0, result.fetch(:duration_seconds)
+    end
+
+    # Malformed OpusTags with truncated vendor string length must be rejected.
+    bad_tags_payload = "OpusTags".b + [ 999 ].pack("V") + "csg".b + [ 0 ].pack("V")
+    bad_tags = ogg_page(header_type: 0x02, granule: 0, serial: 1, sequence: 0, payload: opus_head_payload(312)) +
+      ogg_page(header_type: 0x00, granule: 0, serial: 1, sequence: 1, payload: bad_tags_payload) +
+      ogg_page(header_type: 0x04, granule: 312 + 960, serial: 1, sequence: 2, payload: "\xFC\x01\x02\x03".b)
+    with_upload(bad_tags, content_type: "audio/ogg", filename: "voice.ogg") do |upload|
+      error = assert_raises(VoiceAudioInspection::InvalidAudio) { VoiceAudioInspection.call(upload, duration_seconds: 5) }
+      assert_equal "The recording is not a valid Ogg file.", error.message
+    end
+
+    # Malformed OpusHead with invalid channel mapping family 0 + 3 channels must be rejected.
+    bad_head = "OpusHead".b + [ 1, 3, 312, 48_000, 0, 0 ].pack("CCvVvC")
+    bad_head_ogg = ogg_page(header_type: 0x02, granule: 0, serial: 1, sequence: 0, payload: bad_head) +
+      ogg_page(header_type: 0x00, granule: 0, serial: 1, sequence: 1, payload: opus_tags_payload) +
+      ogg_page(header_type: 0x04, granule: 312 + 960, serial: 1, sequence: 2, payload: "\xFC\x01\x02\x03".b)
+    with_upload(bad_head_ogg, content_type: "audio/ogg", filename: "voice.ogg") do |upload|
+      error = assert_raises(VoiceAudioInspection::InvalidAudio) { VoiceAudioInspection.call(upload, duration_seconds: 5) }
+      assert_equal "The recording is not a valid Ogg file.", error.message
+    end
+
     # Missing OpusTags comment header must be rejected.
     missing_tags = ogg_page(header_type: 0x02, granule: 0, serial: 1, sequence: 0, payload: opus_head_payload(312)) +
       ogg_page(header_type: 0x04, granule: 48_312, serial: 1, sequence: 1, payload: "\xFC\x01\x02\x03".b)
@@ -184,7 +211,7 @@ class VoiceAudioInspectionTest < ActiveSupport::TestCase
     box("ftyp", "M4A \0\0\0\0M4A isom") + box("moov", box("mvhd", mvhd_payload))
   end
 
-  def webm_bytes(duration_seconds:, timecode_scale: 1_000_000, cluster_timestamps_ms: [], opus_toc: 0xFC)
+  def webm_bytes(duration_seconds:, timecode_scale: 1_000_000, cluster_timestamps_ms: [], opus_toc: 0xFC, block_before_timestamp: false)
     ebml_header = ebml_element("\x1A\x45\xDF\xA3".b, ebml_element("\x42\x82".b, "webm".b))
     info_children = ebml_element("\x2A\xD7\xB1".b, [ timecode_scale ].pack("N"))
     if duration_seconds
@@ -202,7 +229,8 @@ class VoiceAudioInspectionTest < ActiveSupport::TestCase
     clusters = cluster_timestamps_ms.map do |ts_ms|
       ts_el = ebml_element("\xE7".b, [ ts_ms ].pack("N"))
       simple_block = ebml_element("\xA3".b, "\x81\x00\x00\x80".b + [ opus_toc, 0x01 ].pack("CC"))
-      ebml_element("\x1F\x43\xB6\x75".b, ts_el + simple_block)
+      body = block_before_timestamp ? (simple_block + ts_el) : (ts_el + simple_block)
+      ebml_element("\x1F\x43\xB6\x75".b, body)
     end.join.b
     segment = "\x18\x53\x80\x67".b + "\x01\xFF\xFF\xFF\xFF\xFF\xFF\xFF".b + info + tracks + clusters
     ebml_header + segment
@@ -216,17 +244,44 @@ class VoiceAudioInspectionTest < ActiveSupport::TestCase
     "OpusTags".b + [ 3 ].pack("V") + "csg".b + [ 0 ].pack("V")
   end
 
-  def ogg_opus_bytes(duration_seconds:, pre_skip: 312, serial: 1)
-    granule = pre_skip + (duration_seconds.to_f * 48_000).round
-    ogg_page(header_type: 0x02, granule: 0, serial: serial, sequence: 0, payload: opus_head_payload(pre_skip)) +
-      ogg_page(header_type: 0x00, granule: 0, serial: serial, sequence: 1, payload: opus_tags_payload) +
-      ogg_page(header_type: 0x04, granule: granule, serial: serial, sequence: 2, payload: "\xFC\x01\x02\x03".b)
+  def ogg_opus_bytes(duration_seconds:, pre_skip: 312, serial: 1, initial_granule_offset: 0)
+    total_samples = pre_skip + (duration_seconds.to_f * 48_000).round
+    # Each packet encodes up to 48 x 60ms Opus frames (138,240 samples = 2.88s) in 3 bytes.
+    packets = []
+    remaining = total_samples
+    while remaining > 0
+      frames = [ (remaining.to_f / 2_880).ceil, 48 ].min
+      packets << [ 0x1B, frames, 0x00 ].pack("CCC")
+      remaining -= frames * 2_880
+    end
+
+    pages = [
+      ogg_page(header_type: 0x02, granule: 0, serial: serial, sequence: 0, payload: opus_head_payload(pre_skip)),
+      ogg_page(header_type: 0x00, granule: 0, serial: serial, sequence: 1, payload: opus_tags_payload)
+    ]
+
+    seq = 2
+    produced = 0
+    packets.each_slice(2).with_index do |slice, idx|
+      last_page = (idx + 1) * 2 >= packets.length
+      produced += slice.sum { |pkt| pkt.getbyte(1) * 2_880 }
+      page_granule = initial_granule_offset + (last_page ? total_samples : produced)
+      pages << ogg_page_packets(header_type: last_page ? 0x04 : 0x00, granule: page_granule, serial: serial, sequence: seq, packets: slice)
+      seq += 1
+    end
+    pages.join.b
   end
 
   def ogg_page(header_type:, granule:, serial:, sequence:, payload:)
+    ogg_page_packets(header_type: header_type, granule: granule, serial: serial, sequence: sequence, packets: [ payload ])
+  end
+
+  def ogg_page_packets(header_type:, granule:, serial:, sequence:, packets:)
+    lacing = packets.map(&:bytesize)
+    body = packets.join.b
     raw = "OggS".b +
-      [ 0, header_type, granule, serial, sequence, 0, 1, payload.bytesize ].pack("CCq<VVVCC") +
-      payload
+      [ 0, header_type, granule, serial, sequence, 0, lacing.length, *lacing ].pack("CCq<VVVC*") +
+      body
     crc = ogg_crc(raw)
     raw[22, 4] = [ crc ].pack("V")
     raw

@@ -171,12 +171,20 @@ class TranscriptionsTest < ActionDispatch::IntegrationTest
   def ogg_opus_bytes(duration_seconds:, pre_skip: 312)
     opus_head = "OpusHead".b + [ 1, 1, pre_skip, 48_000, 0, 0 ].pack("CCvVvC")
     opus_tags = "OpusTags".b + [ 3 ].pack("V") + "csg".b + [ 0 ].pack("V")
-    granule = pre_skip + (duration_seconds.to_f * 48_000).round
-    ogg_page(0x02, 0, 0, opus_head) + ogg_page(0x00, 0, 1, opus_tags) + ogg_page(0x04, granule, 2, "\xFC\x01\x02\x03".b)
+    total_samples = pre_skip + (duration_seconds.to_f * 48_000).round
+    packets = []
+    remaining = total_samples
+    while remaining > 0
+      frames = [ (remaining.to_f / 2_880).ceil, 48 ].min
+      packets << [ 0x1B, frames, 0x00 ].pack("CCC")
+      remaining -= frames * 2_880
+    end
+    ogg_page(0x02, 0, 0, [ opus_head ]) + ogg_page(0x00, 0, 1, [ opus_tags ]) + ogg_page(0x04, total_samples, 2, packets)
   end
 
-  def ogg_page(header_type, granule, seq, payload)
-    raw = "OggS".b + [ 0, header_type, granule, 1, seq, 0, 1, payload.bytesize ].pack("CCq<VVVCC") + payload
+  def ogg_page(header_type, granule, seq, packets)
+    lacing = packets.map(&:bytesize)
+    raw = "OggS".b + [ 0, header_type, granule, 1, seq, 0, lacing.length, *lacing ].pack("CCq<VVVC*") + packets.join.b
     crc = 0
     raw.each_byte { |b| crc = ((crc << 8) & 0xFFFFFFFF) ^ VoiceAudioInspection::OGG_CRC_TABLE[((crc >> 24) ^ b) & 0xFF] }
     raw[22, 4] = [ crc ].pack("V")

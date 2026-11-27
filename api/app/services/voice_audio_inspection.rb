@@ -394,9 +394,7 @@ class VoiceAudioInspection
   def parse_webm_cluster!(bytes, start_at, end_at, audio_tracks:, timecode_scale:, budget:, unknown_size: false)
     offset = start_at
     cluster_ts = nil
-    min_ts = nil
-    max_end_ts = nil
-    block_count = 0
+    pending_blocks = []
 
     while offset < end_at
       consume_ebml_budget!(budget)
@@ -405,7 +403,7 @@ class VoiceAudioInspection
 
       # Unknown-size Cluster ends when the next top-level Segment child begins.
       if unknown_size && WEBM_SEGMENT_CHILD_IDS.include?(id)
-        return [ min_ts, max_end_ts, block_count, offset ]
+        return finalize_webm_cluster!(cluster_ts, pending_blocks, offset)
       end
 
       size, payload_start = read_ebml_size(bytes, after_id, end_at)
@@ -416,29 +414,38 @@ class VoiceAudioInspection
       elsif id == WEBM_SIMPLE_BLOCK_ID
         block = parse_webm_block!(bytes, payload_start, payload_start + size)
         track = audio_tracks[block[:track_number]]
-        if cluster_ts && track
-          start_ticks = cluster_ts + block[:rel_ts]
-          end_ticks = start_ticks + block_duration_ticks(bytes, block, track: track, explicit_duration_ticks: nil, timecode_scale: timecode_scale)
-          min_ts = min_ts ? [ min_ts, start_ticks ].min : start_ticks
-          max_end_ts = max_end_ts ? [ max_end_ts, end_ticks ].max : end_ticks
-          block_count += 1
+        if track
+          dur = block_duration_ticks(bytes, block, track: track, explicit_duration_ticks: nil, timecode_scale: timecode_scale)
+          pending_blocks << [ block[:rel_ts], dur ]
         end
       elsif id == WEBM_BLOCK_GROUP_ID
         block, explicit_duration_ticks = parse_block_group!(bytes, payload_start, payload_start + size, budget)
         track = block && audio_tracks[block[:track_number]]
-        if cluster_ts && track
-          start_ticks = cluster_ts + block[:rel_ts]
-          end_ticks = start_ticks + block_duration_ticks(bytes, block, track: track, explicit_duration_ticks: explicit_duration_ticks, timecode_scale: timecode_scale)
-          min_ts = min_ts ? [ min_ts, start_ticks ].min : start_ticks
-          max_end_ts = max_end_ts ? [ max_end_ts, end_ticks ].max : end_ticks
-          block_count += 1
+        if track
+          dur = block_duration_ticks(bytes, block, track: track, explicit_duration_ticks: explicit_duration_ticks, timecode_scale: timecode_scale)
+          pending_blocks << [ block[:rel_ts], dur ]
         end
       end
 
       offset = payload_start + size
     end
 
-    [ min_ts, max_end_ts, block_count, offset ]
+    finalize_webm_cluster!(cluster_ts, pending_blocks, offset)
+  end
+
+  def finalize_webm_cluster!(cluster_ts, pending_blocks, next_offset)
+    return [ nil, nil, 0, next_offset ] if pending_blocks.empty?
+    raise InvalidAudio, "The recording is not a valid WebM file." unless cluster_ts
+
+    min_ts = nil
+    max_end_ts = nil
+    pending_blocks.each do |rel_ts, dur_ticks|
+      start_ticks = cluster_ts + rel_ts
+      end_ticks = start_ticks + dur_ticks
+      min_ts = min_ts ? [ min_ts, start_ticks ].min : start_ticks
+      max_end_ts = max_end_ts ? [ max_end_ts, end_ticks ].max : end_ticks
+    end
+    [ min_ts, max_end_ts, pending_blocks.length, next_offset ]
   end
 
   def parse_block_group!(bytes, start_at, end_at, budget)
@@ -614,6 +621,9 @@ class VoiceAudioInspection
     pre_skip = 0
     header_packets = []
     current_packet = +"".b
+    audio_packet_head = +"".b
+    initial_granule_offset = nil
+    first_page_samples = 0
     last_granule = nil
 
     while offset < limit
@@ -664,6 +674,9 @@ class VoiceAudioInspection
         if header_packets.length < required_headers
           raise InvalidAudio, "The recording is not a valid Ogg file." if current_packet.bytesize + lacing > MAX_OGG_HEADER_PACKET_BYTES
           current_packet << bytes.byteslice(data_cursor, lacing)
+        elsif initial_granule_offset.nil? && audio_packet_head.bytesize < 2 && lacing.positive?
+          take = [ 2 - audio_packet_head.bytesize, lacing ].min
+          audio_packet_head << bytes.byteslice(data_cursor, take)
         end
         data_cursor += lacing
         next unless lacing < 255
@@ -676,10 +689,16 @@ class VoiceAudioInspection
           elsif header_packets.length == 2
             validate_ogg_comment_header!(codec, header_packets[1])
           elsif header_packets.length == 3 && codec == :vorbis
-            raise InvalidAudio, "The recording is not a valid Ogg file." unless header_packets[2].start_with?("\x05vorbis".b)
+            validate_vorbis_setup_header!(header_packets[2])
           end
         else
           audio_packets_completed += 1
+          if initial_granule_offset.nil? && codec == :opus
+            dur_ns = opus_packet_duration_ns(audio_packet_head, 0, audio_packet_head.bytesize)
+            raise InvalidAudio, "The recording is not a valid Ogg file." unless dur_ns
+            first_page_samples += (dur_ns * 48) / 1_000_000
+          end
+          audio_packet_head = +"".b
         end
       end
       expecting_continuation = segment_count.positive? && last_lacing == 255
@@ -687,6 +706,9 @@ class VoiceAudioInspection
       if audio_packets_completed.positive?
         raise InvalidAudio, "The recording is not a valid Ogg file." if granule.negative?
         raise InvalidAudio, "The recording is not a valid Ogg file." if last_granule && granule < last_granule
+        if initial_granule_offset.nil?
+          initial_granule_offset = codec == :opus ? [ granule - first_page_samples, 0 ].max : 0
+        end
         last_granule = granule
       end
 
@@ -698,7 +720,7 @@ class VoiceAudioInspection
     raise InvalidAudio, "The recording is not a valid Ogg file." unless seen_eos && !expecting_continuation && header_packets.length >= required_headers && sample_rate&.positive?
     return nil unless last_granule
 
-    samples = last_granule - pre_skip
+    samples = last_granule - (initial_granule_offset || 0) - pre_skip
     return nil unless samples.positive?
 
     samples / sample_rate
@@ -708,12 +730,31 @@ class VoiceAudioInspection
     if packet.bytesize >= 19 && packet.start_with?("OpusHead".b)
       version = packet.getbyte(8)
       channels = packet.getbyte(9)
+      mapping_family = packet.getbyte(18)
       raise InvalidAudio, "The recording is not a valid Ogg file." unless version == 1 && channels&.positive?
+
+      if mapping_family.zero?
+        raise InvalidAudio, "The recording is not a valid Ogg file." unless packet.bytesize == 19 && channels.between?(1, 2)
+      else
+        raise InvalidAudio, "The recording is not a valid Ogg file." unless packet.bytesize >= 21 + channels
+        stream_count = packet.getbyte(19)
+        coupled_count = packet.getbyte(20)
+        raise InvalidAudio, "The recording is not a valid Ogg file." unless stream_count.positive? && coupled_count <= stream_count
+        max_channel = stream_count + coupled_count
+        channels.times do |index|
+          mapped = packet.getbyte(21 + index)
+          raise InvalidAudio, "The recording is not a valid Ogg file." unless mapped == 255 || mapped < max_channel
+        end
+      end
+
       pre_skip = packet.byteslice(10, 2).unpack1("v")
       [ :opus, OPUS_GRANULE_RATE, pre_skip ]
-    elsif packet.bytesize >= 30 && packet.start_with?("\x01vorbis".b)
+    elsif packet.bytesize == 30 && packet.start_with?("\x01vorbis".b)
+      version = packet.byteslice(7, 4).unpack1("V")
+      channels = packet.getbyte(11)
       rate = packet.byteslice(12, 4).unpack1("V")
-      raise InvalidAudio, "The recording is not a valid Ogg file." unless rate.positive?
+      framing = packet.getbyte(29)
+      raise InvalidAudio, "The recording is not a valid Ogg file." unless version.zero? && channels.positive? && rate.positive? && (framing & 1) == 1
       [ :vorbis, rate.to_f, 0 ]
     else
       raise InvalidAudio, "The recording is not a valid Ogg file."
@@ -721,12 +762,46 @@ class VoiceAudioInspection
   end
 
   def validate_ogg_comment_header!(codec, packet)
-    valid = case codec
-    when :opus then packet.bytesize >= 16 && packet.start_with?("OpusTags".b)
-    when :vorbis then packet.bytesize >= 15 && packet.start_with?("\x03vorbis".b)
-    else false
+    case codec
+    when :opus
+      raise InvalidAudio, "The recording is not a valid Ogg file." unless packet.bytesize >= 16 && packet.start_with?("OpusTags".b)
+      validate_vorbis_comment_payload!(packet, start_at: 8, require_framing_bit: false)
+    when :vorbis
+      raise InvalidAudio, "The recording is not a valid Ogg file." unless packet.bytesize >= 16 && packet.start_with?("\x03vorbis".b)
+      validate_vorbis_comment_payload!(packet, start_at: 7, require_framing_bit: true)
+    else
+      raise InvalidAudio, "The recording is not a valid Ogg file."
     end
-    raise InvalidAudio, "The recording is not a valid Ogg file." unless valid
+  end
+
+  def validate_vorbis_comment_payload!(packet, start_at:, require_framing_bit:)
+    limit = packet.bytesize
+    raise InvalidAudio, "The recording is not a valid Ogg file." if start_at + 4 > limit
+
+    vendor_len = packet.byteslice(start_at, 4).unpack1("V")
+    cursor = start_at + 4 + vendor_len
+    raise InvalidAudio, "The recording is not a valid Ogg file." if cursor + 4 > limit
+
+    comment_count = packet.byteslice(cursor, 4).unpack1("V")
+    raise InvalidAudio, "The recording is not a valid Ogg file." if comment_count > 4_096
+    cursor += 4
+
+    comment_count.times do
+      raise InvalidAudio, "The recording is not a valid Ogg file." if cursor + 4 > limit
+      comment_len = packet.byteslice(cursor, 4).unpack1("V")
+      cursor += 4 + comment_len
+      raise InvalidAudio, "The recording is not a valid Ogg file." if cursor > limit
+    end
+
+    if require_framing_bit
+      raise InvalidAudio, "The recording is not a valid Ogg file." if cursor >= limit || (packet.getbyte(cursor) & 1).zero?
+    end
+  end
+
+  def validate_vorbis_setup_header!(packet)
+    raise InvalidAudio, "The recording is not a valid Ogg file." unless packet.bytesize >= 11 && packet.start_with?("\x05vorbis".b)
+    # First codebook must begin with the 24-bit sync pattern 0x564342 ("BCV" little-endian).
+    raise InvalidAudio, "The recording is not a valid Ogg file." unless packet.byteslice(8, 3) == "\x42\x43\x56".b
   end
 
   def ogg_page_crc(bytes, start_at, end_at)
