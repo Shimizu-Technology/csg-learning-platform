@@ -7209,6 +7209,24 @@
           }
         ]
       }
+    },
+    "/api/v1/transcriptions": {
+      "post": {
+        "summary": "Transcribe a recorded voice draft",
+        "description": "Validates uploaded M4A, WebM, or Ogg audio and returns a reviewable raw and lightly cleaned voice draft without sending.",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VoiceTranscriptionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
