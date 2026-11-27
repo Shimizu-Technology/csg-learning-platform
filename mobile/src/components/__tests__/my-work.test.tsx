@@ -9,6 +9,10 @@ const mockCreateCohortDm = jest.fn();
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: mockPush }),
   useLocalSearchParams: () => ({ cohort_id: '4' }),
+  useFocusEffect: (cb: () => void | (() => void)) => {
+    const { useEffect } = jest.requireActual('react');
+    useEffect(() => cb(), [cb]);
+  },
 }));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => (name === '__esModule' ? false : () => null) }));
 jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: jest.requireActual('react-native').View }));
@@ -114,5 +118,27 @@ describe('MyWork screen', () => {
 
     fireEvent.press(view.getByRole('tab', { name: /Reviewed/ }));
     expect(await view.findByText('No reviewed work yet')).toBeTruthy();
+  });
+
+  it('guards against duplicate DM requests and ignores resolution after unmount', async () => {
+    let resolveDm: ((value: { direct_conversation: { id: number } }) => void) | undefined;
+    mockCreateCohortDm.mockImplementation(
+      () => new Promise((resolve) => { resolveDm = resolve; }),
+    );
+    const view = render(
+      <QueryClientProvider client={client}>
+        <MyWork />
+      </QueryClientProvider>,
+    );
+
+    const askBtn = await view.findByText('Ask about this feedback');
+    fireEvent.press(askBtn);
+    fireEvent.press(askBtn);
+    expect(mockCreateCohortDm).toHaveBeenCalledTimes(1);
+
+    view.unmount();
+    resolveDm?.({ direct_conversation: { id: 99 } });
+    await Promise.resolve();
+    expect(mockPush).not.toHaveBeenCalled();
   });
 });

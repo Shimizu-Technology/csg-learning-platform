@@ -15,6 +15,7 @@ import {
   Sparkles,
   Target,
 } from 'lucide-react-native';
+import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Avatar } from './avatar';
 import { ClosedWorkRecovery } from './closed-work-recovery';
@@ -80,10 +81,14 @@ export function StudentTodayV2({ dashboard, githubApp, refresh }: { dashboard: S
   };
 
   const paceChosen = pace?.plan_source === 'learner_pace' && pace.weeks != null;
+  const [showAllCatchUp, setShowAllCatchUp] = useState(false);
+  const [showAllQuestions, setShowAllQuestions] = useState(false);
   const needsYouItems = today.needs_you?.items ?? [];
   const waitingItems = today.waiting?.items ?? [];
   const questionItems = today.questions?.items ?? [];
   const catchUp = today.catch_up_plan;
+  const visibleCatchUpItems = catchUp ? (showAllCatchUp ? catchUp.items : catchUp.items.slice(0, 5)) : [];
+  const visibleQuestionItems = showAllQuestions ? questionItems : questionItems.slice(0, 5);
   const thisWeek = today.this_week;
   const nextSession = today.next_session;
   const instructor = today.contact || today.reviewer;
@@ -94,7 +99,7 @@ export function StudentTodayV2({ dashboard, githubApp, refresh }: { dashboard: S
         <LearningCard>
           <View style={styles.rowHeader}>
             <View style={styles.iconTile}>
-              <Sparkles color={c.action.primary} size={18} />
+              <Sparkles color={c.selection.indicator} size={18} />
             </View>
             <View style={styles.flex}>
               <SectionHeading title="Welcome to your course" />
@@ -187,7 +192,7 @@ export function StudentTodayV2({ dashboard, githubApp, refresh }: { dashboard: S
               {next.status === 'redo' ? (
                 <RotateCcw color={c.status.warning.fg} size={19} />
               ) : (
-                <BookOpen color={c.action.primary} size={19} />
+                <BookOpen color={c.selection.indicator} size={19} />
               )}
             </View>
             <View style={styles.flex}>
@@ -250,7 +255,7 @@ export function StudentTodayV2({ dashboard, githubApp, refresh }: { dashboard: S
           </Text>
           {catchUp.items.length > 0 && (
             <View style={styles.list}>
-              {catchUp.items.slice(0, 5).map((item, idx) => (
+              {visibleCatchUpItems.map((item, idx) => (
                 <PressableScale
                   key={item.lesson_id}
                   disabled={!item.available}
@@ -270,6 +275,14 @@ export function StudentTodayV2({ dashboard, githubApp, refresh }: { dashboard: S
                   {item.available && <ChevronRight color={c.text.muted} size={18} />}
                 </PressableScale>
               ))}
+              {catchUp.items.length > 5 && (
+                <Button
+                  variant="quiet"
+                  size="sm"
+                  label={showAllCatchUp ? 'Show fewer' : `Show all (${catchUp.items.length})`}
+                  onPress={() => setShowAllCatchUp((v) => !v)}
+                />
+              )}
             </View>
           )}
         </LearningCard>
@@ -364,7 +377,7 @@ export function StudentTodayV2({ dashboard, githubApp, refresh }: { dashboard: S
             <Badge label={String(today.questions.count)} tone="pending" />
           </View>
           <View style={styles.list}>
-            {questionItems.slice(0, 5).map((q, idx) => {
+            {visibleQuestionItems.map((q, idx) => {
               const lesson = /^\/lessons\/(\d+)(?:[?#]|$)/.exec(q.path);
               const block = /#block-(\d+)$/.exec(q.path);
               return (
@@ -390,6 +403,14 @@ export function StudentTodayV2({ dashboard, githubApp, refresh }: { dashboard: S
                 </PressableScale>
               );
             })}
+            {questionItems.length > 5 && (
+              <Button
+                variant="quiet"
+                size="sm"
+                label={showAllQuestions ? 'Show fewer' : `Show all (${questionItems.length})`}
+                onPress={() => setShowAllQuestions((v) => !v)}
+              />
+            )}
           </View>
         </LearningCard>
       )}
@@ -464,7 +485,7 @@ export function StudentTodayV2({ dashboard, githubApp, refresh }: { dashboard: S
                 {thisWeek.completed} of {thisWeek.total}
               </Text>
               <Text style={styles.meta}>
-                Required lessons · closes {formatCourseDate(thisWeek.ends_on, { withYear: false, weekday: true })}
+                Required lessons · week ends {formatCourseDate(thisWeek.ends_on, { withYear: false, weekday: true })}
               </Text>
             </View>
             <ChevronRight color={c.text.muted} size={18} />

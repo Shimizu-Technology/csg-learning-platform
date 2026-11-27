@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
-import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { ArrowRight, CheckCircle2, ClipboardCheck, Clock3, MessageSquare, RotateCcw } from 'lucide-react-native';
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AuthoredContent } from '@/components/authored-content';
@@ -38,6 +38,23 @@ export default function MyWork() {
   const styles = useStyles();
   const [selectedTab, setSelectedTab] = useState<WorkTab | null>(null);
   const [openingDmId, setOpeningDmId] = useState<number | null>(null);
+  const openingDmRef = useRef(false);
+  const mountedRef = useRef(true);
+  const focusedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      focusedRef.current = true;
+      return () => {
+        focusedRef.current = false;
+      };
+    }, []),
+  );
   const valid = Number.isSafeInteger(cohortId) && cohortId > 0;
   const query = useQuery({
     queryKey: ['my-work', user?.id, cohortId],
@@ -63,15 +80,20 @@ export default function MyWork() {
     });
 
   const askAboutFeedback = async (item: MyWorkItem) => {
-    if (!item.ask_to || openingDmId !== null) return;
+    if (!item.ask_to || openingDmRef.current) return;
+    openingDmRef.current = true;
     setOpeningDmId(item.submission_id);
     try {
       const result = await api.createCohortDm(item.cohort_id, [item.ask_to.id]);
+      if (!focusedRef.current || !mountedRef.current) return;
       router.push(`/conversation/dm/${result.direct_conversation.id}` as Href);
     } catch {
-      Alert.alert('Could not open conversation', 'Try again in a moment.');
+      if (focusedRef.current && mountedRef.current) {
+        Alert.alert('Could not open conversation', 'Try again in a moment.');
+      }
     } finally {
-      setOpeningDmId(null);
+      openingDmRef.current = false;
+      if (mountedRef.current) setOpeningDmId(null);
     }
   };
 
@@ -284,7 +306,7 @@ const useStyles = makeStyles(({ colors: c, radius }) => StyleSheet.create({
   segmentLabel: { color: c.text.body, fontFamily: fonts.semibold, fontSize: 13 },
   segmentLabelActive: { color: c.text.strong, fontFamily: fonts.bold },
   segmentCount: { ...tabularNums, color: c.text.muted, fontFamily: fonts.bold, fontSize: 12 },
-  segmentCountActive: { color: c.action.primary },
+  segmentCountActive: { color: c.selection.indicator },
   listCard: { padding: 0, gap: 0, overflow: 'hidden' },
   itemRow: { padding: 16, gap: 12 },
   rowDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border.subtle },

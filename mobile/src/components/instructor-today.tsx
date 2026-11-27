@@ -175,7 +175,7 @@ export function InstructorToday({ today, redoCount = 0 }: { redoCount?: number; 
                 }}
               >
                 <Text style={styles.itemActionText}>{item.action_label}</Text>
-                <ArrowRight color={c.action.primary} size={16} />
+                <ArrowRight color={c.selection.indicator} size={16} />
               </Pressable>
             </View>
           </LearningCard>
@@ -258,14 +258,14 @@ const useStyles = makeStyles(({ colors: c, radius, shadow }) => StyleSheet.creat
   attentionText: { ...tabularNums, flex: 1, color: c.status.warning.fg, fontFamily: fonts.semibold, fontSize: 14, lineHeight: 20 },
   itemHeader: { flexDirection: 'row', alignItems: 'center', gap: 11 },
   itemIcon: { width: 38, height: 38, borderRadius: radius.control, backgroundColor: c.surface.sunken, alignItems: 'center', justifyContent: 'center' },
-  nameHit: { minHeight: 26, justifyContent: 'center' },
+  nameHit: { minHeight: 44, justifyContent: 'center' },
   studentName: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 16, lineHeight: 22 },
-  cohortHit: { minHeight: 22, justifyContent: 'center' },
+  cohortHit: { minHeight: 44, justifyContent: 'center' },
   cohortName: { color: c.text.muted, fontFamily: fonts.medium, fontSize: 13 },
   itemBody: { color: c.text.body, fontFamily: fonts.regular, fontSize: 14, lineHeight: 21 },
   itemFooter: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border.subtle, paddingTop: 10, marginTop: 2 },
   itemAction: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  itemActionText: { color: c.action.primary, fontFamily: fonts.bold, fontSize: 14 },
+  itemActionText: { color: c.selection.indicator, fontFamily: fonts.bold, fontSize: 14 },
   upcomingSection: { gap: 10, marginTop: 4 },
   upcomingList: { gap: 2 },
   upcomingRow: { minHeight: 44, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 10 },
