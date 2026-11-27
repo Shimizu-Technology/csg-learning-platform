@@ -194,9 +194,9 @@ export function VoiceDraftPanel({
             </Button>
           )}
           {onRecordAgain && (
-            <Button variant="secondary" size="sm" aria-label="Record again" onClick={onRecordAgain}>
+            <Button variant="secondary" size="sm" aria-label="Dictate again" onClick={onRecordAgain}>
               <Mic className="h-4 w-4" aria-hidden="true" />
-              Record again
+              Dictate again
             </Button>
           )}
           <Button variant="quiet" size="sm" aria-label="Dismiss voice draft error" onClick={onCancel}>
@@ -226,9 +226,9 @@ export function VoiceDraftPanel({
             Use raw transcript
           </Button>
           {onRecordAgain && (
-            <Button variant="secondary" size="sm" aria-label="Record again" onClick={onRecordAgain}>
+            <Button variant="secondary" size="sm" aria-label="Dictate again" onClick={onRecordAgain}>
               <Mic className="h-4 w-4" aria-hidden="true" />
-              Record again
+              Dictate again
             </Button>
           )}
           <Button variant="quiet" size="sm" aria-label="Dismiss review" onClick={onDismiss}>

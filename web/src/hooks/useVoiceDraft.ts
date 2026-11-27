@@ -196,7 +196,7 @@ export function useVoiceDraft({
           outcome: 'over_limit',
         })
         const formattedLimit = limit?.toLocaleString() || 'configured'
-        setError(`That voice draft would exceed the ${formattedLimit}-character limit. Shorten the current draft or record a shorter addition.`)
+        setError(`That voice draft would exceed the ${formattedLimit}-character limit. Shorten the current draft or dictate a shorter addition.`)
         setState('error')
         return
       }
@@ -290,7 +290,7 @@ export function useVoiceDraft({
       }
       if (blob.size > MAX_VOICE_RECORDING_BYTES) {
         discardSavedRecording()
-        setError('That recording is too large. Record a shorter draft and try again.')
+        setError('That recording is too large. Dictate a shorter draft and try again.')
         setState('error')
         return
       }
