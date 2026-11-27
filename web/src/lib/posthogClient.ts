@@ -37,6 +37,7 @@ export const IDENTITY_WAIT_MS = 10_000
 
 let identity: AnalyticsIdentity | null = null
 let appliedIdentityKey: string | null = null
+let recordingStarted = false
 let identityWaiters: Array<() => void> = []
 
 function identityKey(next: AnalyticsIdentity) {
@@ -50,6 +51,10 @@ function applyIdentity(ph: PostHog, next: AnalyticsIdentity) {
   try {
     if (next.kind === 'user') ph.identify(next.id, next.properties)
     else ph.reset()
+    if (!import.meta.env.DEV && !recordingStarted) {
+      recordingStarted = true
+      ph.startSessionRecording?.()
+    }
   } catch {
     // Analytics must never break the app.
   }
@@ -97,11 +102,13 @@ export function loadPostHog(): Promise<PostHog | null> {
         posthog.init(POSTHOG_KEY, {
           api_host: POSTHOG_HOST,
           capture_pageview: false,
-          capture_pageleave: true,
           autocapture: false,
-          disable_session_recording: false,
+          // Keep replay disabled until applyIdentity() runs so shared browsers
+          // never attribute snapshots to a prior user's persisted distinct_id.
+          disable_session_recording: true,
           session_recording: {
             maskAllInputs: true,
+            maskTextSelector: '*',
           },
           loaded: (ph) => {
             if (import.meta.env.DEV) ph.opt_out_capturing()
@@ -165,6 +172,7 @@ export const __testing = {
     queue.length = 0
     identity = null
     appliedIdentityKey = null
+    recordingStarted = false
     identityWaiters = []
     importPostHog = importer || (() => import('posthog-js'))
   },
