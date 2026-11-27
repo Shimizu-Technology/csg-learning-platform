@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as DocumentPicker from 'expo-document-picker';
 import { useLocalSearchParams } from 'expo-router';
 import { ChevronLeft, ChevronRight, FolderLock, Search } from 'lucide-react-native';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Keyboard, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -97,6 +97,17 @@ export default function StaffCohortFilesScreen() {
   const cohortsQuery = useQuery({ queryKey: ['staff-files-cohorts', user?.id], queryFn: ({ signal }) => api.cohorts(signal), enabled: Boolean(user?.is_staff && !auth.demo) });
   const cohorts = cohortsQuery.data?.cohorts || [];
   const selectedCohortId = cohortId ?? cohorts[0]?.id ?? null;
+  const [renameCohortId, setRenameCohortId] = useState<number | null>(selectedCohortId);
+  if (renameCohortId !== selectedCohortId) {
+    setRenameCohortId(selectedCohortId);
+    if (renamingFolder !== null) setRenamingFolder(null);
+    if (renameDraft !== '') setRenameDraft('');
+    if (savingRename) setSavingRename(false);
+  }
+  const renameGenerationRef = useRef(0);
+  useEffect(() => {
+    renameGenerationRef.current += 1;
+  }, [selectedCohortId]);
   // Student folders are private: memory only, and dropped once access is revoked (loadCohortFiles returns null).
   const filesQuery = useQuery({ queryKey: ['staff-cohort-files', selectedCohortId], queryFn: ({ signal }) => loadCohortFiles(api, selectedCohortId!, signal), enabled: Boolean(user?.is_staff && selectedCohortId && !auth.demo), meta: { persist: false } });
 
@@ -291,9 +302,13 @@ export default function StaffCohortFilesScreen() {
 
   const submitRenameFolder = async () => {
     if (!activeRename || savingRename) return;
+    const targetCohortId = activeRename.cohortId;
+    const sourceFolder = activeRename.folder;
+    const generation = renameGenerationRef.current;
     const nextName = renameDraft.trim();
-    if (!nextName || nextName === activeRename.folder) {
+    if (!nextName || nextName === sourceFolder) {
       setRenamingFolder(null);
+      setRenameDraft('');
       return;
     }
     if (nextName.toLowerCase() === 'all') {
@@ -302,16 +317,21 @@ export default function StaffCohortFilesScreen() {
     }
     setSavingRename(true);
     try {
-      const result = await api.renameCohortFolder(activeRename.cohortId, { from_folder: activeRename.folder, to_folder: nextName });
-      if (selectedCohortId === activeRename.cohortId) {
+      const result = await api.renameCohortFolder(targetCohortId, { from_folder: sourceFolder, to_folder: nextName });
+      if (renameGenerationRef.current === generation) {
         setClassFolder(result.folder || nextName);
+        setRenamingFolder(null);
+        setRenameDraft('');
       }
-      setRenamingFolder(null);
-      void filesQuery.refetch();
+      void queryClient.invalidateQueries({ queryKey: ['staff-cohort-files', targetCohortId] });
     } catch (error) {
-      Alert.alert('Could not rename folder', (error as Error).message);
+      if (renameGenerationRef.current === generation) {
+        Alert.alert('Could not rename folder', (error as Error).message);
+      }
     } finally {
-      setSavingRename(false);
+      if (renameGenerationRef.current === generation) {
+        setSavingRename(false);
+      }
     }
   };
 

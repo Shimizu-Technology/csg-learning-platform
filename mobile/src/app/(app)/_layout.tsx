@@ -28,7 +28,7 @@ export default function AppLayout() {
 
   useEffect(() => {
     if (!loaded || !signedIn || demo || !user || typeof api.presence !== 'function') return;
-    let active = AppState.currentState === 'active' || AppState.currentState === 'unknown';
+    let active = AppState.currentState === 'active';
     let controller: AbortController | null = null;
     const ping = () => {
       if (!active) return;
