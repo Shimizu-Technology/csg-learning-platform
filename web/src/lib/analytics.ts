@@ -1,8 +1,8 @@
 import { isPostHogEnabled, withPostHog } from './posthogClient'
 
 type Role = 'student' | 'instructor' | 'admin'
-type Surface = 'message' | 'thread' | 'help_request' | 'grading_feedback'
-type DurationBucket = 'under_15s' | '15_to_30s' | '31_to_60s' | '61_to_90s'
+export type VoiceSurface = 'message' | 'thread' | 'help_request' | 'grading_feedback'
+type DurationBucket = 'under_15s' | '15_to_30s' | '31_to_60s' | '61_to_120s' | 'over_120s'
 type LatencyBucket = 'under_2s' | '2_to_5s' | '6_to_10s' | 'over_10s'
 type AgeBucket = 'same_day' | 'one_day' | 'two_to_three_days' | 'four_to_seven_days' | 'over_one_week'
 
@@ -21,13 +21,13 @@ export interface ProductEventMap {
   recording_engaged: { cohort_id: number; recording_id: number; progress_bucket: 'started' | 'quarter' | 'half' | 'three_quarters' | 'complete'; captions_on: boolean }
   code_block_scrolled: { surface: 'message' | 'lesson'; overflow_bucket: 'short' | 'medium' | 'long' }
   code_block_copied: { surface: 'message' | 'lesson' | 'submission'; language: string }
-  voice_draft_started: { surface: Surface; permission_state: 'unknown' | 'granted' | 'denied' }
-  voice_draft_recorded: { surface: Surface; duration_bucket: DurationBucket }
-  voice_draft_transcribed: { surface: Surface; latency_bucket: LatencyBucket; outcome: 'success' | 'empty' | 'timeout' | 'provider_error' | 'network_error' }
-  voice_draft_inserted: { surface: Surface; raw_or_cleaned: 'raw' | 'cleaned' }
-  voice_draft_restored: { surface: Surface }
-  voice_draft_sent: { surface: Surface; edit_distance_bucket: 'none' | 'light' | 'substantial' }
-  voice_draft_discarded: { surface: Surface; stage: 'recording' | 'transcribing' | 'review' }
+  voice_draft_started: { surface: VoiceSurface; permission_state: 'unknown' | 'granted' | 'denied' }
+  voice_draft_recorded: { surface: VoiceSurface; duration_bucket: DurationBucket }
+  voice_draft_transcribed: { surface: VoiceSurface; latency_bucket: LatencyBucket; outcome: 'success' | 'empty' | 'over_limit' | 'timeout' | 'provider_error' | 'network_error' }
+  voice_draft_inserted: { surface: VoiceSurface; raw_or_cleaned: 'raw' | 'cleaned' }
+  voice_draft_restored: { surface: VoiceSurface }
+  voice_draft_sent: { surface: VoiceSurface; edit_distance_bucket: 'none' | 'light' | 'substantial' }
+  voice_draft_discarded: { surface: VoiceSurface; stage: 'recording' | 'transcribing' | 'review' }
 }
 
 export type ProductEventName = keyof ProductEventMap
@@ -114,4 +114,19 @@ export function analyticsAgeBucket(timestamp: string | null | undefined, now = D
 export function analyticsLanguage(value: string | null | undefined) {
   const normalized = value?.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '')
   return normalized && normalized.length <= 24 ? normalized : 'other'
+}
+
+export function durationBucket(durationSeconds: number): DurationBucket {
+  if (durationSeconds < 15) return 'under_15s'
+  if (durationSeconds <= 30) return '15_to_30s'
+  if (durationSeconds <= 60) return '31_to_60s'
+  if (durationSeconds <= 120) return '61_to_120s'
+  return 'over_120s'
+}
+
+export function latencyBucket(durationMilliseconds: number): LatencyBucket {
+  if (durationMilliseconds < 2_000) return 'under_2s'
+  if (durationMilliseconds <= 5_000) return '2_to_5s'
+  if (durationMilliseconds <= 10_000) return '6_to_10s'
+  return 'over_10s'
 }

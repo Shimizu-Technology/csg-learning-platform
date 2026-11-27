@@ -29,10 +29,12 @@ module Api
           return
         end
 
-        inspection = VoiceAudioInspection.call(params[:audio])
+        inspection = VoiceAudioInspection.call(params[:audio], duration_seconds: params[:duration_seconds])
         result = VoiceTranscriptionService.new.call(
           upload: params[:audio],
-          duration_seconds: inspection.fetch(:duration_seconds)
+          duration_seconds: inspection.fetch(:duration_seconds),
+          content_type: inspection.fetch(:content_type),
+          extension: inspection.fetch(:extension)
         )
         render json: result
       rescue VoiceAudioInspection::InvalidAudio => error

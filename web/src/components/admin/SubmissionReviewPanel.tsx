@@ -45,6 +45,8 @@ import { LoadError } from '../shared/LoadError'
 import { LoadingSpinner } from '../shared/LoadingSpinner'
 import { AttemptReview, isPreviousAttempt } from '../shared/AttemptReview'
 import { REDO_BUTTON_CLASSES } from '../shared/SubmissionStatus'
+import { VoiceDraftButton, VoiceDraftPanel } from '../shared/VoiceDraftControls'
+import { useVoiceDraft } from '../../hooks/useVoiceDraft'
 import { SubmissionText } from './SubmissionText'
 import { RunnerChecksCard } from './RunnerChecksCard'
 import { useSubmissionReview } from './useSubmissionReview'
@@ -177,6 +179,23 @@ export function SubmissionReviewPanel({
   const panelElement = useRef<HTMLElement>(null)
   const gradeControls = useRef<HTMLDivElement>(null)
   const feedbackEditor = useRef<MarkdownEditorHandle>(null)
+  const voiceLocked = grading || conflict || !submission || isPreviousAttempt(submission)
+  const voice = useVoiceDraft({
+    surface: 'grading_feedback',
+    disabled: voiceLocked,
+    getDraft: () => feedbackEditor.current?.getMarkdown() ?? feedback,
+    getSelection: () => {
+      const textarea = gradeControls.current?.querySelector<HTMLTextAreaElement>('textarea[id]')
+      if (textarea) return { start: textarea.selectionStart, end: textarea.selectionEnd }
+      const current = feedbackEditor.current?.getMarkdown() ?? feedback
+      return { start: current.length, end: current.length }
+    },
+    onDraftChange: (nextValue) => {
+      review.setFeedback(nextValue)
+      requestAnimationFrame(() => feedbackEditor.current?.focus())
+    },
+  })
+  const cancelVoice = voice.cancel
   const unratedCount = selectedGrade && selectedGrade !== 'R' ? review.unratedCriteria.length : 0
   function focusUnratedCriterion() {
     const first = review.unratedCriteria[0]
@@ -196,6 +215,7 @@ export function SubmissionReviewPanel({
       value,
       overriding ? { suggestionOverrideReason: overrideReason } : undefined,
     )
+    if (result === 'saved') voice.markSent(feedbackEditor.current?.getMarkdown() ?? feedback)
     if (result === 'needs_rubric') requestAnimationFrame(focusUnratedCriterion)
     if (result !== 'needs_feedback') return
     requestAnimationFrame(() => {
@@ -246,7 +266,8 @@ export function SubmissionReviewPanel({
   useEffect(() => {
     setRetryDeliveryError(null)
     setCheckError(null)
-  }, [submissionId])
+    cancelVoice()
+  }, [submissionId, cancelVoice])
   useEffect(() => {
     if (submission) onLoaded?.(submission)
   }, [submission, onLoaded])
@@ -844,7 +865,7 @@ export function SubmissionReviewPanel({
       >
         {/* Feedback is always in view, phones included: no grade is saved without passing it. */}
         <fieldset disabled={locked} className="min-w-0 space-y-1.5 border-0 p-0 sm:space-y-2">
-          {(snippets.length > 0 || feedback.trim()) && (
+          {(snippets.length > 0 || feedback.trim() || voice.supported) && (
             <div className="flex items-center gap-2">
               <div role="group" aria-label="Reusable snippets" className="flex min-w-0 flex-1 gap-2 overflow-x-auto [scrollbar-width:none]">
                 {snippets.map((snippet) => (
@@ -863,18 +884,28 @@ export function SubmissionReviewPanel({
                   </Button>
                 ))}
               </div>
-              <Button
-                variant="quiet"
-                size="sm"
-                className="min-w-11 shrink-0"
-                disabled={!feedback.trim() || savingSnippet}
-                onClick={() => void saveSnippet()}
-                title="Save draft as reusable snippet"
-                aria-label="Save draft as reusable snippet"
-              >
-                <BookmarkPlus className="h-4 w-4" aria-hidden="true" />
-                <span className="hidden sm:inline">{savingSnippet ? 'Saving…' : 'Save draft as reusable snippet'}</span>
-              </Button>
+              <VoiceDraftButton
+                state={voice.state}
+                supported={voice.supported}
+                disabled={locked}
+                label="Dictate feedback"
+                showLabel
+                onClick={() => void voice.start()}
+              />
+              {(snippets.length > 0 || feedback.trim()) && (
+                <Button
+                  variant="quiet"
+                  size="sm"
+                  className="min-w-11 shrink-0"
+                  disabled={!feedback.trim() || savingSnippet}
+                  onClick={() => void saveSnippet()}
+                  title="Save draft as reusable snippet"
+                  aria-label="Save draft as reusable snippet"
+                >
+                  <BookmarkPlus className="h-4 w-4" aria-hidden="true" />
+                  <span className="hidden sm:inline">{savingSnippet ? 'Saving…' : 'Save draft as reusable snippet'}</span>
+                </Button>
+              )}
             </div>
           )}
           <label htmlFor={feedbackId} className="sr-only">
@@ -891,6 +922,21 @@ export function SubmissionReviewPanel({
             minHeight={44}
             maxHeight={160}
             compactToolbar
+          />
+          <VoiceDraftPanel
+            state={voice.state}
+            durationMillis={voice.durationMillis}
+            maxDurationSeconds={voice.maxDurationSeconds}
+            error={voice.error}
+            notice={voice.notice}
+            hasReview={Boolean(voice.review)}
+            hasRecording={voice.hasRecording}
+            onStop={() => void voice.stop()}
+            onCancel={voice.cancel}
+            onRetry={voice.retry}
+            onRecordAgain={voice.recordAgain}
+            onRestore={voice.restore}
+            onDismiss={voice.dismissReview}
           />
         </fieldset>
         <div aria-live="assertive" aria-atomic="true">

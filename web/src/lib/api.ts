@@ -319,6 +319,15 @@ async function fetchApi<T>(
 
 /** A folder ZIP needs time to build and stream; it is never retried or cached. */
 const ZIP_TIMEOUT_MS = 120_000;
+/** Five-minute voice recordings need time to upload, transcribe, and clean up. */
+const VOICE_TRANSCRIPTION_TIMEOUT_MS = 150_000;
+
+export interface VoiceTranscriptionResponse {
+  raw_text: string;
+  suggested_text: string;
+  duration_seconds: number;
+  warnings: string[];
+}
 
 /**
  * Downloads an authenticated binary response (a folder ZIP) as a Blob, with
@@ -1576,4 +1585,70 @@ export const api = {
     fetchApi<StudentWatchProgressResponse>(`/api/v1/watch_progress/student/${userId}${queryString({ cohort_id: cohortId })}`),
   getStudentLessonVideoProgress: (userId: number, cohortId?: number) =>
     fetchApi<StudentLessonVideoProgressResponse>(`/api/v1/watch_progress/student/${userId}/lesson_videos${queryString({ cohort_id: cohortId })}`),
+
+  // Voice Dictation Drafts
+  transcribeVoice: async (
+    audioBlob: Blob,
+    filename: string,
+    surface: 'message' | 'thread' | 'help_request' | 'grading_feedback',
+    durationSeconds: number,
+    signal?: AbortSignal,
+  ): Promise<ApiResponse<VoiceTranscriptionResponse>> => {
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      const headers: Record<string, string> = {};
+      if (getAuthToken) {
+        const token = await getAuthToken(attempt > 1);
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        try {
+          const cohortId = globalThis.localStorage?.getItem('csg-selected-course-id');
+          if (cohortId && /^\d+$/.test(cohortId)) headers['X-CSG-Cohort-Id'] = cohortId;
+        } catch {
+          // Storage may be unavailable in a private browser.
+        }
+      }
+
+      const form = new FormData();
+      form.append('audio', audioBlob, filename);
+      form.append('surface', surface);
+      form.append('cleanup', 'conservative');
+      if (Number.isFinite(durationSeconds) && durationSeconds > 0) {
+        form.append('duration_seconds', durationSeconds.toFixed(1));
+      }
+
+      try {
+        const response = await fetchWithTimeout(
+          `${API_BASE_URL}/api/v1/transcriptions`,
+          { method: 'POST', body: form, headers, signal, cache: 'no-store' },
+          VOICE_TRANSCRIPTION_TIMEOUT_MS,
+        );
+
+        if (response.status === 401 && attempt === 1) continue;
+        if (!response.ok) {
+          const errorBody = await response.json().catch(() => ({}));
+          return {
+            data: null,
+            error: errorMessage(errorBody, response.status),
+            errorCode: apiErrorCode(errorBody),
+            status: response.status,
+            errorKind: errorKindForStatus(response.status),
+          };
+        }
+
+        const data = (await response.json()) as VoiceTranscriptionResponse;
+        return { data, error: null, status: response.status };
+      } catch (err) {
+        if (signal?.aborted) return { data: null, error: 'Request canceled', errorKind: 'unknown' };
+        const kind = err instanceof DOMException && err.name === 'AbortError' ? 'timeout' : 'network';
+        return {
+          data: null,
+          error:
+            kind === 'timeout'
+              ? 'Transcription timed out. Your recording is still available to retry.'
+              : networkErrorMessage(err),
+          errorKind: kind,
+        };
+      }
+    }
+    return { data: null, error: 'Request failed', errorKind: 'auth', status: 401 };
+  },
 };

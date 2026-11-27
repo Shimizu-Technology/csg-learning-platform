@@ -1,9 +1,11 @@
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { CheckCircle2, Send } from 'lucide-react'
 import { formatShortDateTime } from '../../lib/format'
 import type { HelpRequest } from '../../types/api'
-import { MarkdownEditor } from '../shared/MarkdownEditor'
+import { useVoiceDraft } from '../../hooks/useVoiceDraft'
+import { MarkdownEditor, type MarkdownEditorHandle } from '../shared/MarkdownEditor'
 import { MarkdownText } from '../shared/MarkdownRenderer'
+import { VoiceDraftButton, VoiceDraftPanel } from '../shared/VoiceDraftControls'
 import { Button } from '../ui/Button'
 
 export const HELP_REPLY_LIMIT = 2000
@@ -56,18 +58,56 @@ export function HelpReplyBox({
   primary?: HelpReplyAction
   autoFocus?: boolean
 }) {
+  const editorRef = useRef<MarkdownEditorHandle | null>(null)
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const voice = useVoiceDraft({
+    surface: 'help_request',
+    disabled: sending !== null,
+    maxDraftLength: HELP_REPLY_LIMIT,
+    getDraft: () => editorRef.current?.getMarkdown() ?? value,
+    getSelection: () => {
+      const textarea = containerRef.current?.querySelector<HTMLTextAreaElement>('textarea')
+      if (textarea) return { start: textarea.selectionStart, end: textarea.selectionEnd }
+      const current = editorRef.current?.getMarkdown() ?? value
+      return { start: current.length, end: current.length }
+    },
+    onDraftChange: (nextValue) => {
+      onChange(nextValue)
+      requestAnimationFrame(() => editorRef.current?.focus())
+    },
+  })
+  const cancelVoice = voice.cancel
+  useEffect(() => {
+    cancelVoice()
+  }, [id, cancelVoice])
+
   const tooLong = value.length > HELP_REPLY_LIMIT
   const disabled = !value.trim() || tooLong || sending !== null
   const firstName = studentName?.trim().split(/\s+/)[0]
   const label = firstName ? `Reply to ${firstName}` : 'Reply to the student'
+  const handleSend = (action: HelpReplyAction) => {
+    voice.markSent(editorRef.current?.getMarkdown() ?? value)
+    onSend(action)
+  }
   const buttons: Record<HelpReplyAction, React.ReactNode> = {
-    reply: <Button key="reply" size="sm" variant={primary === 'reply' ? 'primary' : 'secondary'} disabled={disabled} onClick={() => onSend('reply')}><Send className="h-4 w-4" aria-hidden="true" />{sending === 'reply' ? 'Sending…' : 'Send reply'}</Button>,
-    resolve: <Button key="resolve" size="sm" variant={primary === 'resolve' ? 'primary' : 'secondary'} disabled={disabled} onClick={() => onSend('resolve')}><CheckCircle2 className="h-4 w-4" aria-hidden="true" />{sending === 'resolve' ? 'Sending…' : 'Reply & resolve'}</Button>,
+    reply: <Button key="reply" size="sm" variant={primary === 'reply' ? 'primary' : 'secondary'} disabled={disabled} onClick={() => handleSend('reply')}><Send className="h-4 w-4" aria-hidden="true" />{sending === 'reply' ? 'Sending…' : 'Send reply'}</Button>,
+    resolve: <Button key="resolve" size="sm" variant={primary === 'resolve' ? 'primary' : 'secondary'} disabled={disabled} onClick={() => handleSend('resolve')}><CheckCircle2 className="h-4 w-4" aria-hidden="true" />{sending === 'resolve' ? 'Sending…' : 'Reply & resolve'}</Button>,
   }
   return (
-    <div className="space-y-2">
-      <label htmlFor={id} className="text-sm font-semibold text-ink">{label}</label>
+    <div ref={containerRef} className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <label htmlFor={id} className="text-sm font-semibold text-ink">{label}</label>
+        <VoiceDraftButton
+          state={voice.state}
+          supported={voice.supported}
+          disabled={sending !== null}
+          label="Dictate reply"
+          showLabel
+          onClick={() => void voice.start()}
+        />
+      </div>
       <MarkdownEditor
+        ref={editorRef}
         id={id}
         label={label}
         value={value}
@@ -77,6 +117,21 @@ export function HelpReplyBox({
         maxHeight={420}
         autoFocus={autoFocus}
         onEscape={onCancel}
+      />
+      <VoiceDraftPanel
+        state={voice.state}
+        durationMillis={voice.durationMillis}
+        maxDurationSeconds={voice.maxDurationSeconds}
+        error={voice.error}
+        notice={voice.notice}
+        hasReview={Boolean(voice.review)}
+        hasRecording={voice.hasRecording}
+        onStop={() => void voice.stop()}
+        onCancel={voice.cancel}
+        onRetry={voice.retry}
+        onRecordAgain={voice.recordAgain}
+        onRestore={voice.restore}
+        onDismiss={voice.dismissReview}
       />
       <div className="flex flex-wrap items-center gap-2">
         {primary === 'reply' ? [buttons.reply, buttons.resolve] : [buttons.resolve, buttons.reply]}
