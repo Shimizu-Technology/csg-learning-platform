@@ -1,11 +1,16 @@
 import { Platform } from 'react-native';
-import * as Haptics from 'expo-haptics';
+
 export type HapticMoment = 'success' | 'error' | 'selection' | 'destructive';
 /** Call at the acknowledged outcome, once, alongside the visible result. */
 export function haptic(moment: HapticMoment) {
   if (Platform.OS === 'web' || process.env.NODE_ENV === 'test') return;
-  const effect = moment === 'selection' ? Haptics.selectionAsync()
-    : moment === 'destructive' ? Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-    : Haptics.notificationAsync(moment === 'success' ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Error);
-  void effect.catch(() => undefined);
+  void import('expo-haptics')
+    .then((Haptics) => {
+      if (moment === 'selection') return Haptics.selectionAsync();
+      if (moment === 'destructive') return Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      return Haptics.notificationAsync(
+        moment === 'success' ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Error,
+      );
+    })
+    .catch(() => undefined);
 }

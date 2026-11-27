@@ -7,7 +7,7 @@ import { ArrowRight, BookOpen, CalendarClock, Check, ClipboardList, Film, LockKe
 import { useEffect, useState, useRef, type ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { fontScaleLimits, fonts } from '@/constants/csg-theme';
+import { fontScaleLimits, fonts, tabularNums } from '@/constants/csg-theme';
 import { captureProductEvent } from '@/lib/analytics';
 import { formatCourseDate, formatCourseDateTime, formatCourseWeekdayTime } from '@/lib/course-time';
 import { openExternalPage } from '@/lib/external-links';
@@ -183,12 +183,45 @@ function groupLessons(items: WeeklyPlanLessonItem[]) {
   return [...groups.entries()];
 }
 
-const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
-  planStack: { gap: 16 },
-  shell: { overflow: 'hidden', borderRadius: 22, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.sunken },
-  header: { padding: 18, backgroundColor: c.surface.sunken }, eyebrow: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 1.5 }, heading: { color: c.text.strong, fontFamily: fonts.extraBold, fontSize: 23, letterSpacing: -0.5, marginTop: 3 }, headerCopy: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 18, marginTop: 4 },
-  progressCopy: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, marginTop: 16 }, progressText: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12 }, track: { height: 7, borderRadius: 4, overflow: 'hidden', backgroundColor: c.surface.sunken, marginTop: 7 }, fill: { height: 7, borderRadius: 4, backgroundColor: c.action.primary },
-  libraryButton: { alignSelf: 'flex-start', minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 16, borderRadius: 12, backgroundColor: c.selection.bg, paddingHorizontal: 14, paddingVertical: 10 }, libraryButtonText: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 13 }, libraryStats: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: c.border.subtle }, libraryStat: { flex: 1, minWidth: 0, paddingHorizontal: 12, paddingVertical: 14, borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: c.border.subtle }, libraryStatValue: { color: c.text.strong, fontFamily: fonts.extraBold, fontSize: 21 }, libraryStatLabel: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 0.6, textTransform: 'uppercase', marginTop: 2 },
-  section: { paddingHorizontal: 16, paddingVertical: 15, borderTopWidth: 1, borderTopColor: c.border.subtle }, warningSection: { backgroundColor: c.status.warning.bg }, subtleSection: { backgroundColor: c.surface.raised }, sectionHeading: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }, sectionTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 14 }, warningText: { color: c.status.warning.fg }, sectionCopy: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 17, marginBottom: 4 }, lessonGroup: { paddingTop: 9 }, groupLabel: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 0.8, textTransform: 'uppercase' },
-  row: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border.subtle }, rowIcon: { width: 36, height: 36, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: c.surface.sunken }, warningIcon: { backgroundColor: c.status.warning.bg }, flex: { flex: 1, minWidth: 0 }, rowTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 13, lineHeight: 19 }, rowMeta: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 16, marginTop: 1 }, statusIcon: { backgroundColor: c.surface.sunken }, rowExcerpt: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 17, marginTop: 3 }, rowChip: { marginTop: 6 }, awaitingLine: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 }, awaitingText: { color: c.text.body, fontFamily: fonts.semibold, fontSize: 12 }, noRequired: { marginTop: 14 }, pressed: { opacity: 0.7 }, empty: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 8 }, emptyText: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12 },
+const useStyles = makeStyles(({ colors: c, radius, shadow }) => StyleSheet.create({
+  planStack: { gap: 14 },
+  shell: { overflow: 'hidden', borderRadius: radius.card, borderWidth: StyleSheet.hairlineWidth, borderColor: c.border.subtle, backgroundColor: c.surface.raised, ...shadow.raised },
+  header: { padding: 16, backgroundColor: c.surface.raised },
+  eyebrow: { color: c.text.muted, fontFamily: fonts.semibold, fontSize: 12 },
+  heading: { color: c.text.strong, fontFamily: fonts.extraBold, fontSize: 22, letterSpacing: -0.5, marginTop: 2 },
+  headerCopy: { color: c.text.body, fontFamily: fonts.regular, fontSize: 14, lineHeight: 20, marginTop: 4 },
+  progressCopy: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, marginTop: 14 },
+  progressText: { ...tabularNums, color: c.text.body, fontFamily: fonts.bold, fontSize: 13 },
+  track: { height: 7, borderRadius: radius.chip, overflow: 'hidden', backgroundColor: c.surface.sunken, marginTop: 6 },
+  fill: { height: 7, borderRadius: radius.chip, backgroundColor: c.action.primary },
+  libraryButton: { alignSelf: 'flex-start', minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14, borderRadius: radius.control, backgroundColor: c.selection.bg, paddingHorizontal: 14, paddingVertical: 10 },
+  libraryButtonText: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 14 },
+  libraryStats: { flexDirection: 'row', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border.subtle },
+  libraryStat: { flex: 1, minWidth: 0, paddingHorizontal: 12, paddingVertical: 14, borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: c.border.subtle },
+  libraryStatValue: { ...tabularNums, color: c.text.strong, fontFamily: fonts.extraBold, fontSize: 21 },
+  libraryStatLabel: { color: c.text.muted, fontFamily: fonts.semibold, fontSize: 12, marginTop: 2 },
+  section: { paddingHorizontal: 16, paddingVertical: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border.subtle },
+  warningSection: { backgroundColor: c.status.warning.bg },
+  subtleSection: { backgroundColor: c.surface.raised },
+  sectionHeading: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
+  sectionTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 15 },
+  warningText: { color: c.status.warning.fg },
+  sectionCopy: { color: c.text.body, fontFamily: fonts.regular, fontSize: 13, lineHeight: 19, marginBottom: 4 },
+  lessonGroup: { paddingTop: 8 },
+  groupLabel: { color: c.text.muted, fontFamily: fonts.bold, fontSize: 12 },
+  row: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 9, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border.subtle },
+  rowIcon: { width: 36, height: 36, borderRadius: radius.control, alignItems: 'center', justifyContent: 'center', backgroundColor: c.surface.sunken },
+  warningIcon: { backgroundColor: c.status.warning.bg },
+  flex: { flex: 1, minWidth: 0 },
+  rowTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 15, lineHeight: 21 },
+  rowMeta: { color: c.text.body, fontFamily: fonts.regular, fontSize: 13, lineHeight: 18, marginTop: 1 },
+  statusIcon: { backgroundColor: c.surface.sunken },
+  rowExcerpt: { color: c.text.body, fontFamily: fonts.regular, fontSize: 13, lineHeight: 19, marginTop: 3 },
+  rowChip: { marginTop: 6 },
+  awaitingLine: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
+  awaitingText: { color: c.text.body, fontFamily: fonts.semibold, fontSize: 13 },
+  noRequired: { marginTop: 12 },
+  pressed: { opacity: 0.7 },
+  empty: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  emptyText: { color: c.text.body, fontFamily: fonts.regular, fontSize: 13 },
 }));

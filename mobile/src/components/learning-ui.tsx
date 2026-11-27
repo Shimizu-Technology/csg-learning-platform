@@ -5,7 +5,7 @@ import type { PropsWithChildren, ReactNode } from 'react';
 import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { Card } from './ui/card';
-import { fontScaleLimits, fonts, typography } from '@/constants/csg-theme';
+import { fontScaleLimits, fonts, tabularNums, typography } from '@/constants/csg-theme';
 import { LEARNER_STATUS, type LearnerStatus, type StatusTone } from '@/lib/learning-status';
 
 export function ProgressBar({ value, label }: { value: number; label?: string }) {
@@ -58,23 +58,23 @@ export function LearningCard({ children, onPress, label }: PropsWithChildren<{ o
   return <Card onPress={onPress} label={label}>{children}</Card>;
 }
 
-const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
-  track: { height: 8, overflow: 'hidden', borderRadius: 4, backgroundColor: c.surface.sunken },
-  fill: { height: '100%', borderRadius: 4, backgroundColor: c.action.primary },
+const useStyles = makeStyles(({ colors: c, radius }) => StyleSheet.create({
+  track: { height: 7, overflow: 'hidden', borderRadius: radius.chip, backgroundColor: c.surface.sunken },
+  fill: { height: '100%', borderRadius: radius.chip, backgroundColor: c.action.primary },
   headingRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 },
   headingRowLarge: { flexDirection: 'column', alignItems: 'flex-start' },
   headingCopy: { flex: 1 },
-  eyebrow: { ...typography.label, color: c.text.body, fontFamily: fonts.bold, letterSpacing: 1.4, textTransform: 'uppercase', marginBottom: 4 },
-  heading: { ...typography.title, color: c.text.strong, fontFamily: fonts.extraBold, letterSpacing: -0.6 },
+  eyebrow: { ...typography.label, color: c.text.muted, fontFamily: fonts.semibold, marginBottom: 2 },
+  heading: { ...typography.section, color: c.text.strong, fontFamily: fonts.extraBold, letterSpacing: -0.4 },
   headingAction: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 4 },
-  headingActionText: { ...typography.label, color: c.text.body, fontFamily: fonts.bold },
-  pill: { minHeight: 26, borderRadius: 13, paddingHorizontal: 9, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: c.surface.sunken, borderWidth: 1, borderColor: c.border.subtle },
+  headingActionText: { ...typography.support, color: c.text.strong, fontFamily: fonts.semibold },
+  pill: { minHeight: 26, borderRadius: radius.chip, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: c.surface.sunken, borderWidth: StyleSheet.hairlineWidth, borderColor: c.border.subtle },
   pillSuccess: { backgroundColor: c.status.success.bg, borderColor: c.status.success.border },
-  pillLocked: { backgroundColor: c.surface.raised },
-  pillText: { ...typography.label, color: c.text.body, fontFamily: fonts.bold, textTransform: 'uppercase', letterSpacing: 0.4 },
+  pillLocked: { backgroundColor: c.surface.sunken },
+  pillText: { ...typography.label, ...tabularNums, color: c.text.body, fontFamily: fonts.bold },
   pillSuccessText: { color: c.status.success.fg },
-  badge: { minHeight: 26, maxWidth: '100%', alignSelf: 'flex-start', borderRadius: 13, borderWidth: 1, paddingHorizontal: 9, flexDirection: 'row', alignItems: 'center', gap: 5 },
+  badge: { minHeight: 26, maxWidth: '100%', alignSelf: 'flex-start', borderRadius: radius.chip, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 5 },
   badgeText: { ...typography.label, flexShrink: 1, fontFamily: fonts.bold, fontSize: 12 },
-  card: { borderRadius: 20, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.sunken, padding: 16 },
+  card: { borderRadius: radius.card, borderWidth: StyleSheet.hairlineWidth, borderColor: c.border.subtle, backgroundColor: c.surface.raised, padding: 16 },
   pressed: { opacity: 0.84, transform: [{ scale: 0.99 }] },
 }));

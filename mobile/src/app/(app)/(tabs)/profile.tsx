@@ -1,7 +1,6 @@
 import { openWebTask } from '@/lib/external-links';
 import { OtaRestartRow } from '@/components/ota-update-notice';
-import { brand } from '../../../lib/brand'
-import { switchColors } from '@/constants/csg-theme';
+import { brand } from '../../../lib/brand';
 import { haptic } from '@/lib/haptics';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { themedAlert as Alert } from '@/lib/alerts';
@@ -15,7 +14,7 @@ import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, Linking, Modal, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/avatar';
-import { fontScaleLimits, fonts, typography } from '@/constants/csg-theme';
+import { fontScaleLimits, fonts, switchColors, typography } from '@/constants/csg-theme';
 import { useAsyncOperationGuard } from '@/hooks/use-async-operation-guard';
 import { isStudentDashboard, learningKeys } from '@/lib/learning';
 import { useCohort } from '@/providers/cohort-provider';
@@ -253,7 +252,7 @@ export default function ProfileScreen() {
   );
   return (
     <SafeAreaView edges={['top']} style={styles.safe}><ScrollView contentContainerStyle={styles.content}><OtaRestartRow />
-      <Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.eyebrow}>YOUR ACCOUNT</Text><Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.heading}>You</Text>
+      <Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.heading}>You</Text>
       <View style={styles.person}><Avatar name={user?.full_name || `${brand.schoolAbbreviation} User`} size={62} /><View style={styles.flex}><Text style={styles.name}>{user?.full_name || `${brand.schoolShortName} member`}</Text><Text style={styles.email}>{user?.email}</Text><View style={styles.role}><ShieldCheck color={c.status.success.fg} size={13} /><Text style={styles.roleText}>{humanize(user?.role, ROLE_LABELS) || 'Member'}</Text></View></View></View>
       {auth.demo && <View style={styles.demo}><Text style={styles.demoTitle}>Simulator walkthrough</Text><Text style={styles.demoCopy}>Local sample data is active. This mode is compiled out of production behavior.</Text></View>}
       {githubApp ? <View style={styles.githubCard}>
@@ -296,9 +295,9 @@ export default function ProfileScreen() {
           onPress={() => void Linking.openURL(`mailto:${brand.supportEmail}?subject=${encodeURIComponent(`${brand.productName} support`)}`).catch(() => Alert.alert('Contact support', `Email ${brand.supportEmail} for help.`))}
         />
       </View>
-      <Button variant="quiet" accessibilityRole="button" onPress={signOut} style={({ pressed }) => [styles.signOut, pressed && { opacity: 0.7 }]}><LogOut color={c.text.body} size={19} /><Text style={styles.signOutText}>Sign out</Text></Button>
+      <Button variant="secondary" accessibilityRole="button" onPress={signOut} style={styles.signOut}><LogOut color={c.text.strong} size={18} /><Text style={styles.signOutText}>Sign out</Text></Button>
       <Text style={styles.version}>{brand.productName} · Version {Application.nativeApplicationVersion || 'development'}</Text>
-      <Modal visible={showBlockedUsers} transparent animationType="fade" onRequestClose={() => setShowBlockedUsers(false)}>
+      <Modal visible={showBlockedUsers} transparent animationType="slide" onRequestClose={() => setShowBlockedUsers(false)}>
         <View style={styles.modalRoot}><Pressable accessibilityRole="button" accessibilityLabel="Close blocked users" onPress={() => setShowBlockedUsers(false)} style={StyleSheet.absoluteFill} /><View style={styles.blockedSheet}><View style={styles.sheetHandle} /><Text accessibilityRole="header" style={styles.sheetTitle}>Blocked users</Text><Text style={styles.sheetCopy}>Blocked people cannot start or continue a direct conversation with you. Their messages are hidden for you.</Text>{loadingBlockedUsers ? <ActivityIndicator color={c.text.body} style={styles.sheetLoading} /> : blockedUsers.length ? blockedUsers.map((blockedUser) => <View key={blockedUser.id} style={styles.blockedRow}><Avatar name={blockedUser.full_name} size={38} /><Text numberOfLines={2} style={styles.blockedName}>{blockedUser.full_name}</Text><Button accessibilityRole="button" accessibilityLabel={`Unblock ${blockedUser.full_name}`} onPress={() => void unblock(blockedUser.id)} style={styles.unblockButton} variant="secondary" label="Unblock" textStyle={styles.unblockText} /></View>) : <Text style={styles.emptyBlocked}>You have not blocked anyone.</Text>}<Button accessibilityRole="button" onPress={() => setShowBlockedUsers(false)} style={styles.doneButton} variant="primary" label="Done" textStyle={styles.doneText} /></View></View>
       </Modal>
     </ScrollView></SafeAreaView>
@@ -328,10 +327,60 @@ function GithubEditor({ initialValue, api, userId, afterSave }: { initialValue: 
   return <View style={styles.githubCard}><View style={styles.githubHeader}><View style={styles.settingIcon}><GitBranch color={c.text.body} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>GitHub username</Text><Text style={styles.settingCopy}>Used for repository-based class work.</Text></View></View><View style={styles.githubForm}><TextInput keyboardAppearance={scheme} accessibilityLabel="GitHub username" value={username} onChangeText={(value) => { setDraft(value); setSaved(false); setDirty(true); }} autoCapitalize="none" autoCorrect={false} placeholder="your-username" placeholderTextColor={c.text.body} style={styles.githubInput} /><Button variant="primary" accessibilityRole="button" accessibilityLabel="Save GitHub username" disabled={mutation.isPending || unchanged} onPress={() => mutation.mutate()} style={[styles.save, (mutation.isPending || unchanged) && styles.disabled]}>{mutation.isPending ? <ActivityIndicator color={c.text.onAction} /> : saved ? <Check color={c.text.onAction} size={18} /> : <Save color={c.text.onAction} size={18} />}</Button></View></View>;
 
 }
-const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
-  safe: { flex: 1, backgroundColor: c.surface.page }, content: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 40 }, eyebrow: { ...typography.label, color: c.text.body, fontFamily: fonts.bold, letterSpacing: 1.8 }, heading: { ...typography.display, color: c.text.strong, fontFamily: fonts.extraBold, letterSpacing: -1.2 }, person: { flexDirection: 'row', alignItems: 'center', gap: 16, padding: 20, borderRadius: 22, backgroundColor: c.surface.raised, borderWidth: 1, borderColor: c.border.subtle, marginTop: 22 }, name: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 18 }, email: { ...typography.support, color: c.text.body, fontFamily: fonts.regular, marginTop: 2 }, role: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 8 }, roleText: { ...typography.label, color: c.status.success.fg, fontFamily: fonts.bold, textTransform: 'uppercase', letterSpacing: 0.8 }, demo: { marginTop: 14, padding: 16, borderRadius: 16, backgroundColor: c.surface.sunken, borderWidth: 1, borderColor: c.border.strong }, demoTitle: { color: c.text.body, fontFamily: fonts.bold, fontSize: 13 }, demoCopy: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 18, marginTop: 4 }, sectionLabel: { ...typography.label, color: c.text.body, fontFamily: fonts.bold, letterSpacing: 1.5, marginTop: 30, marginBottom: 8 }, group: { borderRadius: 20, backgroundColor: c.surface.raised, borderWidth: 1, borderColor: c.border.subtle, overflow: 'hidden' }, setting: { minHeight: 82, paddingHorizontal: 16, paddingVertical: 13, flexDirection: 'row', alignItems: 'center', gap: 13 }, settingIcon: { width: 40, height: 40, borderRadius: 13, backgroundColor: c.surface.sunken, alignItems: 'center', justifyContent: 'center' }, settingTitle: { ...typography.body, color: c.text.strong, fontFamily: fonts.semibold }, settingCopy: { ...typography.meta, color: c.text.body, fontFamily: fonts.regular, marginTop: 2 }, switchSlot: { width: 54, minHeight: 44, alignItems: 'center', justifyContent: 'center' }, switch: { transform: [{ scaleX: 0.88 }, { scaleY: 0.88 }] }, signOut: { minHeight: 52, borderRadius: 16, borderWidth: 1,   flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, marginTop: 28 }, signOutText: { ...typography.body, color: c.text.body, fontFamily: fonts.bold }, version: { ...typography.meta, color: c.text.body, fontFamily: fonts.medium, textAlign: 'center', marginTop: 20 },
-  manage: { minHeight: 76, marginTop: 12, paddingHorizontal: 16, borderRadius: 20, backgroundColor: c.surface.raised, borderWidth: 1, borderColor: c.border.subtle, flexDirection: 'row', alignItems: 'center', gap: 13 }, flex: { flex: 1, minWidth: 0 }, githubCard: { marginTop: 14, borderRadius: 20, backgroundColor: c.surface.raised, borderWidth: 1, borderColor: c.border.subtle, padding: 16 }, githubHeader: { flexDirection: 'row', alignItems: 'center', gap: 13 }, githubForm: { flexDirection: 'row', gap: 9, marginTop: 14 }, githubInput: { flex: 1, minHeight: 48, borderRadius: 14, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.page, color: c.text.strong, fontFamily: fonts.regular, fontSize: 13, paddingHorizontal: 13 }, save: { width: 50, minHeight: 48, borderRadius: 14,  alignItems: 'center', justifyContent: 'center' }, disabled: { opacity: 0.42 }, enrollment: { minHeight: 76, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 13 }, groupDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border.subtle }, enrollmentStatus: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, textTransform: 'uppercase' }, enrollmentActive: { color: c.status.success.fg },
-  policyRow: { minHeight: 82, paddingHorizontal: 16, paddingVertical: 13, flexDirection: 'row', alignItems: 'center', gap: 13 }, destructiveTitle: { color: c.status.danger.fg }, modalRoot: { flex: 1, justifyContent: 'flex-end', backgroundColor: c.overlay }, blockedSheet: { maxHeight: '75%', borderTopLeftRadius: 26, borderTopRightRadius: 26, backgroundColor: c.surface.raised, borderWidth: 1, borderColor: c.border.subtle, paddingHorizontal: 20, paddingTop: 10, paddingBottom: 28 }, sheetHandle: { width: 42, height: 4, borderRadius: 2, alignSelf: 'center', backgroundColor: c.border.subtle, marginBottom: 18 }, sheetTitle: { color: c.text.strong, fontFamily: fonts.extraBold, fontSize: 20 }, sheetCopy: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 18, marginTop: 6, marginBottom: 18 }, sheetLoading: { marginVertical: 30 }, blockedRow: { minHeight: 62, flexDirection: 'row', alignItems: 'center', gap: 11, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border.subtle }, blockedName: { flex: 1, color: c.text.strong, fontFamily: fonts.semibold, fontSize: 13 }, unblockButton: { minHeight: 44, minWidth: 76, borderRadius: 12, borderWidth: 1,  alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 }, unblockText: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12 }, emptyBlocked: { color: c.text.body, fontFamily: fonts.regular, fontSize: 13, textAlign: 'center', paddingVertical: 30 }, doneButton: { minHeight: 48, borderRadius: 14,  alignItems: 'center', justifyContent: 'center', marginTop: 14 }, doneText: { color: c.text.onAction, fontFamily: fonts.bold, fontSize: 14 },
-  preferenceError: { minHeight: 82, paddingHorizontal: 16, paddingVertical: 13, flexDirection: 'row', alignItems: 'center', gap: 13 }, retryPreference: { minHeight: 44, borderRadius: 12, borderWidth: 1,  justifyContent: 'center', paddingHorizontal: 12 }, retryPreferenceText: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12 },
-  registrationWarning: { minHeight: 72, paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.status.warning.border, backgroundColor: c.status.warning.bg, flexDirection: 'row', alignItems: 'center', gap: 12 }, registrationWarningTitle: { color: c.status.warning.fg, fontFamily: fonts.bold, fontSize: 12 }, registrationWarningCopy: { color: c.status.warning.fg, fontFamily: fonts.regular, fontSize: 12, lineHeight: 16, marginTop: 2 },
+const useStyles = makeStyles(({ colors: c, radius, shadow }) => StyleSheet.create({
+  safe: { flex: 1, backgroundColor: c.surface.page },
+  content: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 40 },
+  heading: { ...typography.display, color: c.text.strong, fontFamily: fonts.extraBold, letterSpacing: -0.9 },
+  person: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderRadius: radius.card, backgroundColor: c.surface.raised, borderWidth: StyleSheet.hairlineWidth, borderColor: c.border.subtle, marginTop: 16, ...shadow.raised },
+  name: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 18 },
+  email: { ...typography.support, color: c.text.body, fontFamily: fonts.regular, marginTop: 2 },
+  role: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6 },
+  roleText: { ...typography.label, color: c.status.success.fg, fontFamily: fonts.bold },
+  demo: { marginTop: 12, padding: 14, borderRadius: radius.card, backgroundColor: c.surface.raised, borderWidth: StyleSheet.hairlineWidth, borderColor: c.border.strong },
+  demoTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 14 },
+  demoCopy: { color: c.text.body, fontFamily: fonts.regular, fontSize: 13, lineHeight: 19, marginTop: 3 },
+  sectionLabel: { ...typography.label, color: c.text.muted, fontFamily: fonts.bold, marginTop: 24, marginBottom: 8, paddingHorizontal: 2 },
+  group: { borderRadius: radius.card, backgroundColor: c.surface.raised, borderWidth: StyleSheet.hairlineWidth, borderColor: c.border.subtle, overflow: 'hidden', ...shadow.raised },
+  setting: { minHeight: 64, paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  settingIcon: { width: 38, height: 38, borderRadius: radius.control, backgroundColor: c.surface.sunken, alignItems: 'center', justifyContent: 'center' },
+  settingTitle: { color: c.text.strong, fontFamily: fonts.semibold, fontSize: 15, lineHeight: 21 },
+  settingCopy: { color: c.text.body, fontFamily: fonts.regular, fontSize: 13, lineHeight: 18, marginTop: 2 },
+  switchSlot: { minWidth: 54, minHeight: 44, alignItems: 'flex-end', justifyContent: 'center' },
+  switch: {},
+  signOut: { minHeight: 50, borderRadius: radius.control, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 24 },
+  signOutText: { ...typography.body, color: c.text.strong, fontFamily: fonts.bold },
+  version: { ...typography.meta, color: c.text.muted, fontFamily: fonts.medium, textAlign: 'center', marginTop: 18 },
+  manage: { minHeight: 64, marginTop: 12, paddingHorizontal: 16, paddingVertical: 12, borderRadius: radius.card, backgroundColor: c.surface.raised, borderWidth: StyleSheet.hairlineWidth, borderColor: c.border.subtle, flexDirection: 'row', alignItems: 'center', gap: 12, ...shadow.raised },
+  flex: { flex: 1, minWidth: 0 },
+  githubCard: { marginTop: 12, borderRadius: radius.card, backgroundColor: c.surface.raised, borderWidth: StyleSheet.hairlineWidth, borderColor: c.border.subtle, padding: 16, ...shadow.raised },
+  githubHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  githubForm: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  githubInput: { flex: 1, minHeight: 48, borderRadius: radius.control, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.page, color: c.text.strong, fontFamily: fonts.regular, fontSize: 15, paddingHorizontal: 13 },
+  save: { width: 50, minHeight: 48, borderRadius: radius.control, alignItems: 'center', justifyContent: 'center' },
+  disabled: { opacity: 0.42 },
+  enrollment: { minHeight: 64, paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  groupDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border.subtle },
+  enrollmentStatus: { color: c.text.muted, fontFamily: fonts.bold, fontSize: 12 },
+  enrollmentActive: { color: c.status.success.fg },
+  policyRow: { minHeight: 64, paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  destructiveTitle: { color: c.status.danger.fg },
+  modalRoot: { flex: 1, justifyContent: 'flex-end', backgroundColor: c.overlay },
+  blockedSheet: { maxHeight: '75%', borderTopLeftRadius: radius.sheet, borderTopRightRadius: radius.sheet, backgroundColor: c.surface.raised, borderWidth: StyleSheet.hairlineWidth, borderColor: c.border.subtle, paddingHorizontal: 20, paddingTop: 10, paddingBottom: 28 },
+  sheetHandle: { width: 38, height: 4, borderRadius: 2, alignSelf: 'center', backgroundColor: c.border.strong, marginBottom: 16 },
+  sheetTitle: { color: c.text.strong, fontFamily: fonts.extraBold, fontSize: 20 },
+  sheetCopy: { color: c.text.body, fontFamily: fonts.regular, fontSize: 14, lineHeight: 20, marginTop: 6, marginBottom: 16 },
+  sheetLoading: { marginVertical: 30 },
+  blockedRow: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 11, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border.subtle },
+  blockedName: { flex: 1, color: c.text.strong, fontFamily: fonts.semibold, fontSize: 15 },
+  unblockButton: { minHeight: 44, minWidth: 76, borderRadius: radius.control, borderWidth: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
+  unblockText: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 13 },
+  emptyBlocked: { color: c.text.body, fontFamily: fonts.regular, fontSize: 14, textAlign: 'center', paddingVertical: 28 },
+  doneButton: { minHeight: 48, borderRadius: radius.control, alignItems: 'center', justifyContent: 'center', marginTop: 14 },
+  doneText: { color: c.text.onAction, fontFamily: fonts.bold, fontSize: 15 },
+  preferenceError: { minHeight: 68, paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  retryPreference: { minHeight: 44, borderRadius: radius.control, borderWidth: 1, justifyContent: 'center', paddingHorizontal: 12 },
+  retryPreferenceText: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 13 },
+  registrationWarning: { minHeight: 64, paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.status.warning.border, backgroundColor: c.status.warning.bg, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  registrationWarningTitle: { color: c.status.warning.fg, fontFamily: fonts.bold, fontSize: 13 },
+  registrationWarningCopy: { color: c.status.warning.fg, fontFamily: fonts.regular, fontSize: 12, lineHeight: 17, marginTop: 2 },
 }));

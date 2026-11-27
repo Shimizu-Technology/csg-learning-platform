@@ -23,10 +23,7 @@ const mockDashboard: StudentDashboard = {
   continue_lesson: { id: 902, title: 'Individually assigned lesson' },
   action_items: [], recently_graded: [],
 };
-jest.mock('lucide-react-native', () => {
-  const Icon = () => null;
-  return Object.fromEntries('AlertTriangle ArrowRight BadgeCheck BookOpen CalendarCheck CalendarClock CalendarDays ClipboardCheck Clock3 ExternalLink Hourglass LifeBuoy Megaphone MessageSquare RotateCcw Users BookMarked Film FolderOpen Lock LockKeyhole Search Check CheckCircle2 Circle CircleDot ClipboardList Sparkles'.split(' ').map((name) => [name, Icon]));
-});
+jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => (name === '__esModule' ? false : () => null) }));
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
 jest.mock('@tanstack/react-query', () => ({ useMutation: () => ({ mutate: jest.fn(), isPending: false }), useQuery: ({ queryKey }: { queryKey: unknown[] }) => ({ data: queryKey[2] === 'dashboard' ? { dashboard: mockDashboard } : mockWeeklyPlan ? { weekly_plan: mockWeeklyPlan } : undefined, refetch: jest.fn(), isPending: false, isRefetching: false }) }));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ demo: false }) }));
