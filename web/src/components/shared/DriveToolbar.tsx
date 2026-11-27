@@ -67,7 +67,7 @@ export function DriveControlsBar({
               type="button"
               aria-pressed={active}
               onClick={() => onTypeFilterChange(option.value)}
-              className={`inline-flex min-h-10 items-center rounded-full border px-3 text-xs font-semibold transition-colors duration-150 lg:min-h-8 ${
+              className={`inline-flex min-h-11 items-center rounded-full border px-3 text-xs font-semibold transition-colors duration-150 lg:min-h-8 ${
                 active
                   ? 'border-primary-soft-line bg-primary-soft text-primary-ink'
                   : 'border-line bg-surface-raised text-ink-secondary hover:border-line-strong hover:text-ink'
@@ -90,7 +90,7 @@ export function DriveControlsBar({
             aria-label="Sort files"
             value={sort}
             onChange={(event) => onSortChange(event.target.value as DriveSort)}
-            className="app-control min-h-10 py-1 pr-7 text-xs font-semibold lg:min-h-8"
+            className="app-control min-h-11 py-1 pr-7 text-xs font-semibold lg:min-h-8"
           >
             {SORT_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>{option.label}</option>
@@ -104,7 +104,7 @@ export function DriveControlsBar({
             aria-label="List view"
             aria-pressed={viewMode === 'list'}
             onClick={() => onViewModeChange('list')}
-            className={`inline-flex h-9 w-9 items-center justify-center rounded-lg transition-colors lg:h-7 lg:w-7 ${
+            className={`inline-flex h-11 w-11 items-center justify-center rounded-lg transition-colors lg:h-8 lg:w-8 ${
               viewMode === 'list' ? 'bg-surface-raised text-ink shadow-raised' : 'text-ink-muted hover:text-ink'
             }`}
           >
@@ -115,7 +115,7 @@ export function DriveControlsBar({
             aria-label="Grid view"
             aria-pressed={viewMode === 'grid'}
             onClick={() => onViewModeChange('grid')}
-            className={`inline-flex h-9 w-9 items-center justify-center rounded-lg transition-colors lg:h-7 lg:w-7 ${
+            className={`inline-flex h-11 w-11 items-center justify-center rounded-lg transition-colors lg:h-8 lg:w-8 ${
               viewMode === 'grid' ? 'bg-surface-raised text-ink shadow-raised' : 'text-ink-muted hover:text-ink'
             }`}
           >
@@ -178,7 +178,7 @@ export function DriveBulkBar({
               value={target}
               disabled={busy}
               onChange={(event) => setTarget(event.target.value)}
-              className="app-control min-h-9 py-1 text-sm"
+              className="app-control min-h-11 py-1 text-sm lg:min-h-9"
             >
               {folderOptions.map((name) => (
                 <option key={name} value={name}>{name}</option>

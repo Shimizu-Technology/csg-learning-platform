@@ -10,7 +10,7 @@ interface LoadingSpinnerProps {
   fullScreen?: boolean
 }
 
-export function LoadingSpinner({ message, fullScreen = true }: LoadingSpinnerProps) {
+export function LoadingSpinner({ message, fullScreen = false }: LoadingSpinnerProps) {
   const variant = skeletonVariantFor(message)
   const [slow, setSlow] = useState(false)
   useEffect(() => {
@@ -51,7 +51,7 @@ export function LoadingSpinner({ message, fullScreen = true }: LoadingSpinnerPro
     return <div className="min-h-screen bg-surface-page px-4 py-8 lg:px-8">{content}</div>
   }
 
-  return <div className="px-4 py-8">{content}</div>
+  return <div className="py-2">{content}</div>
 }
 
 type SkeletonVariant = 'dashboard' | 'list' | 'table' | 'detail' | 'editor' | 'media' | 'profile'
@@ -68,11 +68,11 @@ function skeletonVariantFor(message = ''): SkeletonVariant {
 }
 
 function SkeletonLine({ className = '' }: { className?: string }) {
-  return <div aria-hidden="true" className={`animate-pulse rounded-full bg-line ${className}`} />
+  return <div aria-hidden="true" className={`animate-pulse rounded-full bg-line motion-reduce:animate-none ${className}`} />
 }
 
 function SkeletonBox({ className = '' }: { className?: string }) {
-  return <div aria-hidden="true" className={`animate-pulse rounded-2xl bg-surface-sunken ${className}`} />
+  return <div aria-hidden="true" className={`animate-pulse rounded-2xl bg-surface-sunken motion-reduce:animate-none ${className}`} />
 }
 
 function DashboardSkeleton() {

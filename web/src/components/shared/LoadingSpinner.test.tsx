@@ -23,4 +23,17 @@ describe('LoadingSpinner', () => {
     expect(slow?.querySelector('button')?.textContent).toContain('Reload')
     act(() => root.unmount())
   })
+
+  it('defaults to non-fullScreen for embedded layouts and supports fullScreen for boot gates', () => {
+    const container = document.createElement('div')
+    const root = createRoot(container)
+
+    act(() => root.render(<LoadingSpinner message="Loading files…" />))
+    expect(container.firstElementChild?.className).not.toContain('min-h-screen')
+
+    act(() => root.render(<LoadingSpinner message="Loading..." fullScreen />))
+    expect(container.firstElementChild?.className).toContain('min-h-screen')
+
+    act(() => root.unmount())
+  })
 })

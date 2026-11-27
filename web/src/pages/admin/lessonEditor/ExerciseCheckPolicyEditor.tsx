@@ -165,9 +165,9 @@ export function ExerciseCheckPolicyEditor({ blockId, state, setCheckPolicyEditor
           </div>
           <p id={`${id}-hint`} className="text-xs leading-5 text-ink-muted">Enter each name exactly as it appears in GitHub. You can add up to 20 checks.</p>
         </>}
-        <details className="rounded-xl border border-line px-3">
-          <summary className="group flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 text-sm font-semibold text-ink-secondary">
-            Advanced <ChevronDown className="h-4 w-4 group-open:rotate-180" aria-hidden="true" />
+        <details className="group rounded-xl border border-line px-3">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 text-sm font-semibold text-ink-secondary">
+            Advanced <ChevronDown className="h-4 w-4 transition-transform duration-150 group-open:rotate-180" aria-hidden="true" />
           </summary>
           <div className="grid min-w-0 gap-3 pb-3">
             {advancedFields.map(({ key, label, placeholder }) => (

@@ -49,3 +49,15 @@ it('names a cohort outside your list plainly instead of "Cohort N"', async () =>
   expect(container.textContent).toContain('Not one of your cohorts')
   expect(container.textContent).not.toContain('Cohort 99')
 })
+
+it('marks the active summary filter pill and toggles it off when clicked again', async () => {
+  vi.spyOn(api, 'getDashboard').mockResolvedValue({
+    data: { dashboard: { cohorts: [], today: { ...today, counts: { help: 2, review: 1 } } } },
+    error: null,
+  } as never)
+  await render('/admin?cohort_id=3&kind=help')
+  const helpPill = link('Help requests')
+  expect(helpPill.getAttribute('aria-current')).toBe('true')
+  expect(helpPill.getAttribute('data-selected')).toBe('true')
+  expect(helpPill.getAttribute('href')).toBe('/admin?cohort_id=3')
+})

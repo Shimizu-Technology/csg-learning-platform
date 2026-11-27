@@ -69,7 +69,7 @@ export function DriveFileGridCard({
       }}
       className={`group relative flex flex-col overflow-hidden rounded-2xl border bg-surface-raised transition-all duration-150 ${
         selected || inspected
-          ? 'border-primary ring-2 ring-focus'
+          ? 'border-action-primary ring-2 ring-focus'
           : 'border-line hover:border-line-strong hover:shadow-raised'
       }`}
     >
@@ -95,13 +95,17 @@ export function DriveFileGridCard({
               event.stopPropagation()
               onToggleSelect(file.id)
             }}
-            className={`absolute left-2.5 top-2.5 flex h-7 w-7 items-center justify-center rounded-lg border transition-colors ${
-              selected
-                ? 'border-primary bg-primary text-on-primary'
-                : 'border-line bg-surface-raised/90 text-transparent hover:border-line-strong group-hover:opacity-100'
-            }`}
+            className="absolute left-1 top-1 flex h-11 w-11 items-center justify-center rounded-xl lg:left-1.5 lg:top-1.5 lg:h-9 lg:w-9"
           >
-            <Check className="h-4 w-4" aria-hidden="true" />
+            <span
+              className={`flex h-6 w-6 items-center justify-center rounded-lg border transition-colors ${
+                selected
+                  ? 'border-action-primary bg-action-primary text-on-action'
+                  : 'border-line bg-surface-raised/90 text-transparent hover:border-line-strong group-hover:opacity-100'
+              }`}
+            >
+              <Check className="h-4 w-4" aria-hidden="true" />
+            </span>
           </button>
         )}
 
@@ -147,7 +151,7 @@ export function DriveFileGridCard({
               <button
                 type="button"
                 onClick={() => onOpen(file, 'review')}
-                className="inline-flex min-h-8 items-center gap-1 rounded-lg px-2 text-xs font-semibold text-ink-secondary hover:bg-surface-sunken hover:text-ink"
+                className="inline-flex min-h-11 items-center gap-1 rounded-lg px-2.5 text-xs font-semibold text-ink-secondary hover:bg-surface-sunken hover:text-ink lg:min-h-8 lg:px-2"
                 aria-label={`${file.comment_count} comments on ${file.title}`}
               >
                 <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
@@ -165,7 +169,7 @@ export function DriveFileGridCard({
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label={`Open link ${file.title} (opens in a new tab)`}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-ink-secondary hover:bg-surface-sunken hover:text-ink"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-ink-secondary hover:bg-surface-sunken hover:text-ink lg:h-9 lg:w-9"
               >
                 <ExternalLink className="h-4 w-4" aria-hidden="true" />
               </a>

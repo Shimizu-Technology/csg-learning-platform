@@ -231,3 +231,32 @@ it('renders operator footer link only when operatorUrl is configured and avoids 
   vi.unstubAllEnvs()
   vi.resetModules()
 })
+
+it('shows unread icon dots only when the desktop sidebar is collapsed, aligns More tab, and renders mobile route title when switcher is hidden', async () => {
+  fixture.user = { ...fixture.user, role: 'admin', is_staff: true }
+  fixture.notifications = Promise.resolve({ data: { unread_count: 2 } })
+  fixture.channels = Promise.resolve({ data: { channels: [{ id: 1, unread_count: 3 }] } })
+  localStorage.removeItem('sidebar-collapsed')
+
+  await act(async () => root.render(<MemoryRouter initialEntries={['/admin/students']}><Layout /></MemoryRouter>))
+
+  // Expanded desktop sidebar + mobile drawer should show count pills, not redundant icon dots.
+  expect(container.querySelectorAll('[data-unread-dot]')).toHaveLength(0)
+
+  // Mobile header shows concise route title for staff (where CohortSwitcher does not render).
+  expect(container.querySelector('header [data-mobile-route-title]')?.textContent).toBe('Students')
+
+  // Mobile bottom bar More button matches the 4 route tabs height and pill container.
+  const more = container.querySelector<HTMLButtonElement>('nav[aria-label="Primary navigation"] button[aria-label="More navigation"]')!
+  expect(more.className).toContain('h-[4.25rem]')
+  const moreIconBox = more.querySelector('span')!.className
+  expect(moreIconBox).toContain('h-7')
+  expect(moreIconBox).toContain('w-12')
+  expect(moreIconBox).toContain('rounded-full')
+
+  // Collapsing the desktop sidebar shows icon dots instead of count pills.
+  const collapseBtn = container.querySelector<HTMLButtonElement>('aside button[aria-label="Collapse sidebar"]')!
+  await act(async () => collapseBtn.click())
+  expect(container.querySelectorAll('aside [data-unread-dot]').length).toBeGreaterThanOrEqual(2)
+  localStorage.removeItem('sidebar-collapsed')
+})

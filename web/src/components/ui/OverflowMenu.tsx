@@ -86,7 +86,7 @@ export function OverflowMenu({ label, items, size = 'md', align = 'right', class
           id={menuId}
           role="menu"
           aria-label={label}
-          className={`popover-menu absolute top-full z-50 mt-1.5 w-64 max-w-[calc(100vw-1rem)] rounded-xl border border-line bg-surface-raised p-1.5 shadow-overlay ${align === 'right' ? 'right-0 origin-top-right' : 'left-0 origin-top-left'}`}
+          className={`popover-menu absolute top-full z-50 mt-1.5 w-64 max-w-[calc(100vw-1rem)] rounded-xl border border-line bg-surface-overlay p-1.5 shadow-overlay ${align === 'right' ? 'right-0 origin-top-right' : 'left-0 origin-top-left'}`}
         >
           {items.map((item) => 'to' in item ? (
             <Link key={item.key} role="menuitem" to={item.to} onClick={() => setOpen(false)} className={itemClass(item.tone)}>

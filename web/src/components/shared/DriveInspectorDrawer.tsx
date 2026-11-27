@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { BookOpen, Check, Download, ExternalLink, Eye, FolderInput, Info, Loader2, X } from 'lucide-react'
 import { api } from '../../lib/api'
 import {
@@ -12,12 +12,21 @@ import {
 } from '../../lib/cohortFiles'
 import { driveToneSurface, fileTimestampIso, fileVisualMeta } from '../../lib/driveHelpers'
 import { formatShortDateTime } from '../../lib/format'
+import { useMediaQuery } from '../../lib/useMediaQuery'
 import { Badge } from '../ui/Badge'
 import { AnchorButton, Button, IconButton } from '../ui/Button'
-import { CohortFileReviewPanel, ReviewStatusBadge, type ReviewAccess } from './CohortFileReview'
+import {
+  CohortFileReviewPanel,
+  ReviewStatusBadge,
+  type CohortFileCommentsSnapshot,
+  type ReviewAccess,
+} from './CohortFileReview'
+import { Modal } from './Modal'
 
 /**
- * Google Drive-style right-side details, quick folder move, and review/comments inspector.
+ * Google Drive-style details, quick folder move, and review/comments inspector.
+ * Renders as a sticky right-hand side panel on desktop and as a real slide-over
+ * modal drawer on phones and tablets.
  */
 export function DriveInspectorDrawer({
   cohortId,
@@ -25,6 +34,7 @@ export function DriveInspectorDrawer({
   folderOptions,
   downloadDisabled = false,
   review,
+  desktopBreakpoint = 'lg',
   onClose,
   onOpenPreview,
   onFileChange,
@@ -34,21 +44,79 @@ export function DriveInspectorDrawer({
   folderOptions: string[]
   downloadDisabled?: boolean
   review?: ReviewAccess
+  desktopBreakpoint?: 'lg' | 'xl'
   onClose: () => void
   onOpenPreview: (file: CohortFile, pane?: 'main' | 'review') => void
   onFileChange?: (file: CohortFile) => void
 }) {
+  const isDesktop = useMediaQuery(desktopBreakpoint === 'xl' ? '(min-width: 1280px)' : '(min-width: 1024px)')
   const [targetFolder, setTargetFolder] = useState(file?.folder || '')
   const [moving, setMoving] = useState(false)
   const [moveError, setMoveError] = useState('')
   const [downloading, setDownloading] = useState(false)
   const [downloadError, setDownloadError] = useState('')
+  const [reviewDraft, setReviewDraft] = useState('')
+  const [commentsSnapshot, setCommentsSnapshot] = useState<CohortFileCommentsSnapshot | null>(null)
+  const commentsSnapshotRef = useRef<CohortFileCommentsSnapshot | null>(null)
+  const updateCommentsSnapshot = (next: CohortFileCommentsSnapshot | null) => {
+    commentsSnapshotRef.current = next
+    setCommentsSnapshot(next)
+  }
+  const [pendingTokensByFile, setPendingTokensByFile] = useState<Record<number, number>>({})
+  const pendingTokensRef = useRef(new Map<number, number>())
+  const nextRequestTokenRef = useRef(0)
+  const visitGenerationRef = useRef(0)
+  const [commentPostError, setCommentPostError] = useState('')
+  const activeFileIdRef = useRef<number | null>(file?.id ?? null)
+  activeFileIdRef.current = file?.id ?? null
+  const postingComment = file ? Boolean(pendingTokensByFile[file.id]) : false
+  const asideRef = useRef<HTMLElement>(null)
+  const reviewContainerRef = useRef<HTMLDivElement>(null)
+  const prevIsDesktopRef = useRef(isDesktop)
+  const wasEditingReviewRef = useRef(false)
 
   useEffect(() => {
     setTargetFolder(file?.folder || '')
     setMoveError('')
     setDownloadError('')
   }, [file])
+
+  useEffect(() => {
+    visitGenerationRef.current += 1
+    setReviewDraft('')
+    updateCommentsSnapshot(null)
+    setCommentPostError('')
+    wasEditingReviewRef.current = false
+  }, [file?.id])
+
+  useEffect(() => {
+    const previous = prevIsDesktopRef.current
+    prevIsDesktopRef.current = isDesktop
+    if (!file || previous === isDesktop) return
+
+    const restoreReviewFocus = wasEditingReviewRef.current
+    const frame = requestAnimationFrame(() => {
+      if (isDesktop) {
+        if (document.querySelector('[data-app-modal]')) return
+        const textarea = restoreReviewFocus ? reviewContainerRef.current?.querySelector<HTMLTextAreaElement>('textarea') : null
+        if (textarea) {
+          textarea.focus()
+          textarea.setSelectionRange(textarea.value.length, textarea.value.length)
+        } else {
+          asideRef.current?.focus()
+        }
+        return
+      }
+      if (restoreReviewFocus) {
+        const textarea = reviewContainerRef.current?.querySelector<HTMLTextAreaElement>('textarea')
+        if (textarea) {
+          textarea.focus()
+          textarea.setSelectionRange(textarea.value.length, textarea.value.length)
+        }
+      }
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [file, isDesktop])
 
   if (!file) return null
 
@@ -87,28 +155,49 @@ export function DriveInspectorDrawer({
     }
   }
 
-  return (
-    <aside
-      aria-label={`Details for ${file.title}`}
-      tabIndex={-1}
-      onKeyDown={(event) => {
-        if (event.key !== 'Escape' || event.defaultPrevented) return
-        if (document.querySelector('[role="dialog"][aria-modal="true"], [data-app-modal]')) return
-        event.stopPropagation()
-        onClose()
-      }}
-      className="app-surface flex flex-col gap-4 p-4 focus:outline-none lg:sticky lg:top-6"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <Info className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />
-          <h3 className="truncate text-sm font-bold text-ink">File details</h3>
-        </div>
-        <IconButton label="Close file details" onClick={onClose}>
-          <X className="h-4 w-4" aria-hidden="true" />
-        </IconButton>
-      </div>
+  const handleSubmitComment = async (body: string) => {
+    if (pendingTokensRef.current.has(file.id)) return
+    const submittingFile = file
+    const submittedRaw = reviewDraft
+    const submittedVisit = visitGenerationRef.current
+    const token = ++nextRequestTokenRef.current
+    pendingTokensRef.current.set(submittingFile.id, token)
+    setPendingTokensByFile((prev) => ({ ...prev, [submittingFile.id]: token }))
+    setCommentPostError('')
+    try {
+      const result = await api.createCohortFileComment(cohortId, submittingFile.id, body)
+      if (pendingTokensRef.current.get(submittingFile.id) !== token) return
+      if (activeFileIdRef.current !== submittingFile.id) return
+      if (!result.data) {
+        setCommentPostError(result.error || 'Could not post your comment.')
+        return
+      }
+      const created = result.data.comment
+      const existing = commentsSnapshotRef.current?.comments ?? []
+      const merged = existing.some((item) => item.id === created.id) ? existing : [...existing, created]
+      updateCommentsSnapshot({
+        comments: merged,
+        canComment: commentsSnapshotRef.current?.canComment ?? true,
+      })
+      if (visitGenerationRef.current === submittedVisit) {
+        setReviewDraft((current) => (current === submittedRaw ? '' : current))
+      }
+      onFileChange?.({ ...submittingFile, comment_count: merged.length })
+    } finally {
+      if (pendingTokensRef.current.get(submittingFile.id) === token) {
+        pendingTokensRef.current.delete(submittingFile.id)
+        setPendingTokensByFile((prev) => {
+          if (prev[submittingFile.id] !== token) return prev
+          const next = { ...prev }
+          delete next[submittingFile.id]
+          return next
+        })
+      }
+    }
+  }
 
+  const body = (
+    <div className="flex flex-col gap-4">
       <div className={`flex flex-col items-center justify-center gap-2 rounded-2xl border px-4 py-6 text-center ${driveToneSurface(visual.tone)}`}>
         <Icon className="h-9 w-9" aria-hidden="true" />
         <span className="text-xs font-bold uppercase tracking-wider">{visual.badgeLabel}</span>
@@ -227,10 +316,75 @@ export function DriveInspectorDrawer({
       )}
 
       {reviewing && onFileChange && (
-        <div className="border-t border-line pt-3">
-          <CohortFileReviewPanel cohortId={cohortId} file={file} access={reviewing} onFileChange={onFileChange} />
+        <div
+          ref={reviewContainerRef}
+          className="border-t border-line pt-3"
+          onFocusCapture={(event) => {
+            wasEditingReviewRef.current = event.target instanceof HTMLTextAreaElement
+          }}
+          onBlurCapture={(event) => {
+            if (!(event.target instanceof HTMLTextAreaElement)) return
+            const nextTarget = event.relatedTarget
+            if (nextTarget instanceof Node) wasEditingReviewRef.current = false
+          }}
+        >
+          <CohortFileReviewPanel
+            cohortId={cohortId}
+            file={file}
+            access={reviewing}
+            draft={reviewDraft}
+            onDraftChange={setReviewDraft}
+            initialCommentsSnapshot={commentsSnapshot}
+            onCommentsSnapshotChange={updateCommentsSnapshot}
+            postingComment={postingComment}
+            commentPostError={commentPostError}
+            onSubmitComment={handleSubmitComment}
+            onFileChange={onFileChange}
+          />
         </div>
       )}
+    </div>
+  )
+
+  if (!isDesktop) {
+    return (
+      <Modal
+        open
+        onClose={onClose}
+        title="File details"
+        subtitle={file.title}
+        icon={<Info className="h-5 w-5 shrink-0 text-ink-muted" aria-hidden="true" />}
+        size="md"
+        variant="drawer"
+      >
+        {body}
+      </Modal>
+    )
+  }
+
+  return (
+    <aside
+      ref={asideRef}
+      aria-label={`Details for ${file.title}`}
+      tabIndex={-1}
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape' || event.defaultPrevented) return
+        if (document.querySelector('[role="dialog"][aria-modal="true"], [data-app-modal]')) return
+        event.stopPropagation()
+        onClose()
+      }}
+      className="app-surface flex flex-col gap-4 p-4 focus:outline-none lg:sticky lg:top-6"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <Info className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />
+          <h3 className="truncate text-sm font-bold text-ink">File details</h3>
+        </div>
+        <IconButton label="Close file details" onClick={onClose}>
+          <X className="h-4 w-4" aria-hidden="true" />
+        </IconButton>
+      </div>
+      {body}
     </aside>
   )
 }

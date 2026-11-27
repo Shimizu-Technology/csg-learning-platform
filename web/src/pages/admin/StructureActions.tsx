@@ -1,7 +1,8 @@
 import { useRef, useState, type ReactNode } from 'react'
-import { ArrowDown, ArrowUp, GripVertical, Pencil, Trash2 } from 'lucide-react'
+import { Archive, ArrowDown, ArrowUp, Eye, EyeOff, FileEdit, GripVertical, Pencil, Trash2 } from 'lucide-react'
 import { api } from '../../lib/api'
 import { Button, IconButton } from '../../components/ui/Button'
+import { OverflowMenu, type OverflowMenuItem } from '../../components/ui/OverflowMenu'
 import { Modal } from '../../components/shared/Modal'
 import { useToast } from '../../contexts/ToastContext'
 import { GradingScalePicker } from '../../components/admin/GradingScalePicker'
@@ -55,17 +56,15 @@ function EditorSurface({ inline, title, onClose, children }: { inline: boolean; 
   return inline ? <section aria-label={title} className="w-full rounded-xl border border-line bg-surface-sunken p-3"><div className="mb-3 flex items-center justify-between gap-2"><h3 className="font-semibold">{title}</h3><Button variant="quiet" onClick={onClose}>Cancel</Button></div>{children}</section> : <Modal open title={title} onClose={onClose}>{children}</Modal>
 }
 
-export function CurriculumStatusActions({ curriculum, onSaved }: { curriculum: EditableStructure & { status: string; archive_blocked?: boolean; live_checkout_offerings?: { id: number; name: string }[] }; onSaved: () => Promise<void> }) {
+type StatusCurriculum = EditableStructure & { status: string; archive_blocked?: boolean; live_checkout_offerings?: { id: number; name: string }[] }
+
+function CurriculumStatusModal({ curriculum, pending, onClose, onSaved }: { curriculum: StatusCurriculum; pending: string; onClose: () => void; onSaved: () => Promise<void> }) {
   const toast = useToast()
-  const [pending, setPending] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [salesConfirmed, setSalesConfirmed] = useState(false)
-  return <>
-    <Button variant="secondary" size="sm" onClick={() => { setSalesConfirmed(false); setError(''); setPending(curriculum.status === 'active' ? 'draft' : 'active') }}>{curriculum.status === 'active' ? 'Unpublish' : 'Publish'}</Button>
-    {curriculum.status === 'archived' && <Button variant="secondary" size="sm" onClick={() => { setError(''); setPending('draft') }}>Move to draft</Button>}
-    {curriculum.status !== 'archived' && <Button variant="secondary" size="sm" onClick={() => { setError(''); setPending('archived') }}>Archive</Button>}
-    {pending && <Modal open title={pending === 'active' ? 'Publish curriculum?' : pending === 'draft' ? 'Unpublish curriculum?' : 'Archive curriculum?'} onClose={() => { if (!busy) setPending(null) }}>
+  return (
+    <Modal open title={pending === 'active' ? 'Publish curriculum?' : pending === 'draft' ? 'Unpublish curriculum?' : 'Archive curriculum?'} onClose={() => { if (!busy) onClose() }}>
       <div className="space-y-4">
         <p>{pending === 'active' ? 'Publishing makes this curriculum available for purchases.' : pending === 'draft' ? 'This curriculum will become a draft. New purchases will be unavailable; existing learners keep their access.' : "Archived curricula can't be used for new cohorts or purchases."}</p>
         {pending === 'draft' && Boolean(curriculum.live_checkout_offerings?.length) && <div className="space-y-3">
@@ -79,10 +78,43 @@ export function CurriculumStatusActions({ curriculum, onSaved }: { curriculum: E
           const result = await api.updateCurriculum(curriculum.id, { status: pending, base_updated_at: curriculum.updated_at })
           setBusy(false)
           if (result.error) { setError(result.error); return }
-          await onSaved(); setPending(null); toast.success('Curriculum status updated')
+          await onSaved(); onClose(); toast.success('Curriculum status updated')
         }}>Confirm {pending === 'active' ? 'publish' : pending === 'draft' ? 'unpublish' : 'archive'}</Button>
       </div>
-    </Modal>}
+    </Modal>
+  )
+}
+
+export function CurriculumStatusActions({ curriculum, onSaved }: { curriculum: StatusCurriculum; onSaved: () => Promise<void> }) {
+  const [pending, setPending] = useState<string | null>(null)
+  return <>
+    <Button variant="secondary" size="sm" onClick={() => setPending(curriculum.status === 'active' ? 'draft' : 'active')}>{curriculum.status === 'active' ? 'Unpublish' : 'Publish'}</Button>
+    {curriculum.status === 'archived' && <Button variant="secondary" size="sm" onClick={() => setPending('draft')}>Move to draft</Button>}
+    {curriculum.status !== 'archived' && <Button variant="secondary" size="sm" onClick={() => setPending('archived')}>Archive</Button>}
+    {pending && <CurriculumStatusModal key={pending} curriculum={curriculum} pending={pending} onClose={() => setPending(null)} onSaved={onSaved} />}
+  </>
+}
+
+export function CurriculumActionsMenu({ curriculum, onSaved, onDelete }: { curriculum: StatusCurriculum; onSaved: () => Promise<void>; onDelete: () => void }) {
+  const [pending, setPending] = useState<string | null>(null)
+  const items: OverflowMenuItem[] = [
+    {
+      key: 'toggle-publish',
+      label: curriculum.status === 'active' ? 'Unpublish' : 'Publish',
+      icon: curriculum.status === 'active' ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />,
+      onSelect: () => setPending(curriculum.status === 'active' ? 'draft' : 'active'),
+    },
+    ...(curriculum.status === 'archived'
+      ? [{ key: 'draft', label: 'Move to draft', icon: <FileEdit aria-hidden="true" />, onSelect: () => setPending('draft') }]
+      : []),
+    ...(curriculum.status !== 'archived'
+      ? [{ key: 'archive', label: 'Archive', icon: <Archive aria-hidden="true" />, onSelect: () => setPending('archived') }]
+      : []),
+    { key: 'delete', label: 'Delete curriculum', icon: <Trash2 aria-hidden="true" />, tone: 'danger', onSelect: onDelete },
+  ]
+  return <>
+    <OverflowMenu size="sm" label="More curriculum actions" items={items} />
+    {pending && <CurriculumStatusModal key={pending} curriculum={curriculum} pending={pending} onClose={() => setPending(null)} onSaved={onSaved} />}
   </>
 }
 

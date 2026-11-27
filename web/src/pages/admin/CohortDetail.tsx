@@ -50,6 +50,27 @@ export function CohortSettings({ onSaved }: { onSaved?: () => Promise<unknown> }
     )
   const ready = { ...settings, cohort }
   const githubRelevant = cohort.features?.github_app === true || cohort.modules.some((mod) => mod.requires_github)
+  const dirty =
+    reviewResponseDraft !== undefined ||
+    featureDraft !== null ||
+    settings.nextStepChanged ||
+    Object.keys(assignedChanges).length > 0 ||
+    Object.keys(offeringDraft).length > 0 ||
+    editStartDate !== toDateInputValue(cohort.start_date) ||
+    editEndDate !== toDateInputValue(cohort.end_date) ||
+    editGithubOrganization !== (cohort.github_organization_name || '') ||
+    editStatus !== cohort.status ||
+    editCourseDelivery !== (cohort.course_delivery || 'program') ||
+    guidedTerms.guided_access_ends_on !== (cohort.guided_access_ends_on || '') ||
+    guidedTerms.guided_support_ends_on !== (cohort.guided_support_ends_on || '') ||
+    guidedTerms.guided_access_months !== (cohort.guided_access_months?.toString() || '') ||
+    guidedTerms.guided_support_weeks !== (cohort.guided_support_weeks?.toString() || '') ||
+    reviewTarget !== (cohort.review_sla_business_days?.toString() || '') ||
+    editPaceEnabled !== Boolean(cohort.learner_pace_weeks?.length) ||
+    (editPaceEnabled && editPaceWeeks !== formatPaceWeeks(cohort.learner_pace_weeks)) ||
+    JSON.stringify(classResources) !== JSON.stringify(cohort.class_resources || []) ||
+    JSON.stringify(forms) !== JSON.stringify(buildFormsFromCohort(cohort)) ||
+    JSON.stringify(submissionWindows) !== JSON.stringify(buildSubmissionWindowsFromCohort(cohort))
   return (
     <>
     {settings.user?.role === 'admin' && githubRelevant && (
@@ -74,44 +95,36 @@ export function CohortSettings({ onSaved }: { onSaved?: () => Promise<unknown> }
     >
       <fieldset
         disabled={saving}
-        className="min-w-0 space-y-6 max-lg:pb-20 max-lg:[&_input]:text-base max-lg:[&_select]:text-base max-lg:[&_textarea]:text-base"
+        className={[
+          'min-w-0 space-y-6 max-lg:[&_input]:text-base max-lg:[&_select]:text-base max-lg:[&_textarea]:text-base',
+          dirty || saving ? 'max-lg:pb-24' : '',
+        ].join(' ')}
       >
-        <UnsavedChangesGuard
-          pathnameOnly={false}
-          dirty={
-            reviewResponseDraft !== undefined ||
-            featureDraft !== null ||
-            settings.nextStepChanged ||
-            Object.keys(assignedChanges).length > 0 ||
-            Object.keys(offeringDraft).length > 0 ||
-            editStartDate !== toDateInputValue(cohort.start_date) ||
-            editEndDate !== toDateInputValue(cohort.end_date) ||
-            editGithubOrganization !== (cohort.github_organization_name || '') ||
-            editStatus !== cohort.status ||
-            editCourseDelivery !== (cohort.course_delivery || 'program') ||
-            guidedTerms.guided_access_ends_on !== (cohort.guided_access_ends_on || '') ||
-            guidedTerms.guided_support_ends_on !== (cohort.guided_support_ends_on || '') ||
-            guidedTerms.guided_access_months !== (cohort.guided_access_months?.toString() || '') ||
-            guidedTerms.guided_support_weeks !== (cohort.guided_support_weeks?.toString() || '') ||
-            reviewTarget !== (cohort.review_sla_business_days?.toString() || '') ||
-            editPaceEnabled !== Boolean(cohort.learner_pace_weeks?.length) ||
-            (editPaceEnabled && editPaceWeeks !== formatPaceWeeks(cohort.learner_pace_weeks)) ||
-            JSON.stringify(classResources) !== JSON.stringify(cohort.class_resources || []) ||
-            JSON.stringify(forms) !== JSON.stringify(buildFormsFromCohort(cohort)) ||
-            JSON.stringify(submissionWindows) !== JSON.stringify(buildSubmissionWindowsFromCohort(cohort))
-          }
-        />
+        <UnsavedChangesGuard pathnameOnly={false} dirty={dirty} />
         <SettingsFields settings={ready} />
-        <Button
-          className={
-            'hide-with-keyboard fixed inset-x-4 bottom-[calc(5.25rem+env(safe-area-inset-bottom,0px))] z-20 ' +
-            'lg:sticky lg:inset-x-auto lg:bottom-4'
-          }
-          type="submit"
-          disabled={saving}
-        >
-          {saving ? 'Saving…' : 'Save settings'}
-        </Button>
+        {dirty || saving ? (
+          <div
+            data-testid="cohort-save-bar"
+            className={[
+              'hide-with-keyboard fixed inset-x-0 bottom-[calc(4.25rem+env(safe-area-inset-bottom,0px))] z-20',
+              'flex items-center justify-between gap-3 border-t border-line bg-surface-overlay px-4 py-3 shadow-overlay',
+              'lg:sticky lg:inset-x-auto lg:bottom-4 lg:rounded-2xl lg:border',
+            ].join(' ')}
+          >
+            <span className="text-sm font-semibold text-ink-secondary">
+              {saving ? 'Saving changes…' : 'Unsaved changes'}
+            </span>
+            <Button type="submit" disabled={saving}>
+              {saving ? 'Saving…' : 'Save settings'}
+            </Button>
+          </div>
+        ) : (
+          <div className="hidden justify-end lg:flex">
+            <Button type="submit" variant="secondary" disabled={saving}>
+              Save settings
+            </Button>
+          </div>
+        )}
         {message && (
           <div
             role="status"

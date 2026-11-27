@@ -55,3 +55,15 @@ it('omits a cohort link when the message has no cohort name', () => {
   expect(container.querySelector('article span a')).toBeNull()
   act(() => root.unmount())
 })
+it('uses secondary actions for normal rows and reserves primary ruby for urgent rows', () => {
+  const container = document.createElement('div'); const root = createRoot(container)
+  act(() => root.render(<MemoryRouter><TodayInbox today={{ ...today, items: [
+    today.items[0],
+    { ...today.items[1], urgent: true },
+  ] }} /></MemoryRouter>))
+  const links = [...container.querySelectorAll<HTMLAnchorElement>('article > a')]
+  expect(links[0].dataset.variant).toBe('secondary')
+  expect(links[1].dataset.variant).toBe('primary')
+  expect(container.querySelector('[data-today-item="review"]')?.textContent).toContain('Urgent')
+  act(() => root.unmount())
+})

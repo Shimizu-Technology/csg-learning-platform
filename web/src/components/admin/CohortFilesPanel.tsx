@@ -377,7 +377,7 @@ function ClassFiles({ cohortId, files, storage, studentCount, linkedFileId, onCh
       onDrop={onCanvasDrop}
     >
       {dropActive && (
-        <div className="pointer-events-none fixed inset-4 z-40 flex items-center justify-center rounded-3xl border-2 border-dashed border-primary bg-primary-soft/85 backdrop-blur-xs">
+        <div className="pointer-events-none fixed inset-4 z-40 flex items-center justify-center rounded-3xl border-2 border-dashed border-action-primary bg-primary-soft/85 backdrop-blur-xs">
           <div className="flex flex-col items-center gap-2 rounded-2xl bg-surface-raised px-6 py-5 shadow-raised">
             <Upload className="h-7 w-7 text-primary-ink" aria-hidden="true" />
             <p className="text-base font-bold text-ink">
@@ -998,7 +998,7 @@ export function StudentFolderView({ cohortId, folder, storage, linkedFileId = nu
       onDrop={onCanvasDrop}
     >
       {dropActive && (
-        <div className="pointer-events-none fixed inset-4 z-40 flex items-center justify-center rounded-3xl border-2 border-dashed border-primary bg-primary-soft/85 backdrop-blur-xs">
+        <div className="pointer-events-none fixed inset-4 z-40 flex items-center justify-center rounded-3xl border-2 border-dashed border-action-primary bg-primary-soft/85 backdrop-blur-xs">
           <div className="flex flex-col items-center gap-2 rounded-2xl bg-surface-raised px-6 py-5 shadow-raised">
             <Upload className="h-7 w-7 text-primary-ink" aria-hidden="true" />
             <p className="text-base font-bold text-ink">Drop files to upload into {firstName}&apos;s folder</p>
@@ -1138,6 +1138,7 @@ export function StudentFolderView({ cohortId, folder, storage, linkedFileId = nu
             folderOptions={presets}
             downloadDisabled={!storage}
             review={STAFF_REVIEW}
+            desktopBreakpoint="xl"
             onClose={() => setInspectedId(null)}
             onOpenPreview={(item, pane = 'main') => setGridOpened({ fileId: item.id, pane })}
             onFileChange={(saved) => onChange((files) => files.map((item) => (item.id === saved.id ? saved : item)))}
