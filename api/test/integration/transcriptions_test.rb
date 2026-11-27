@@ -172,14 +172,19 @@ class TranscriptionsTest < ActionDispatch::IntegrationTest
     opus_head = "OpusHead".b + [ 1, 1, pre_skip, 48_000, 0, 0 ].pack("CCvVvC")
     opus_tags = "OpusTags".b + [ 3 ].pack("V") + "csg".b + [ 0 ].pack("V")
     total_samples = pre_skip + (duration_seconds.to_f * 48_000).round
-    packets = []
-    remaining = total_samples
-    while remaining > 0
-      frames = [ (remaining.to_f / 2_880).ceil, 48 ].min
-      packets << [ 0x1B, frames, 0x00 ].pack("CCC")
-      remaining -= frames * 2_880
+    # RFC 6716 code=1, config=3: two equal-sized 60 ms CBR frames (120 ms = 5,760 samples) in 3 bytes.
+    packet_120ms = "\x19\x00\x00".b
+    packets = Array.new((total_samples.to_f / 5_760).ceil, packet_120ms)
+    pages = [ ogg_page(0x02, 0, 0, [ opus_head ]), ogg_page(0x00, 0, 1, [ opus_tags ]) ]
+    seq = 2
+    produced = 0
+    packets.each_slice(50).with_index do |slice, idx|
+      last_page = (idx + 1) * 50 >= packets.length
+      produced += slice.length * 5_760
+      pages << ogg_page(last_page ? 0x04 : 0x00, last_page ? total_samples : produced, seq, slice)
+      seq += 1
     end
-    ogg_page(0x02, 0, 0, [ opus_head ]) + ogg_page(0x00, 0, 1, [ opus_tags ]) + ogg_page(0x04, total_samples, 2, packets)
+    pages.join.b
   end
 
   def ogg_page(header_type, granule, seq, packets)

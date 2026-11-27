@@ -140,6 +140,25 @@ class VoiceAudioInspectionTest < ActiveSupport::TestCase
       assert_equal "The recording is not a valid Ogg file.", error.message
     end
 
+    # Malformed OpusHead with nonzero mapping family where stream_count + coupled_count > 255 must be rejected.
+    overflow_head = "OpusHead".b + [ 1, 2, 312, 48_000, 0, 1, 255, 1, 0, 1 ].pack("CCvVvCCCCC")
+    overflow_head_ogg = ogg_page(header_type: 0x02, granule: 0, serial: 1, sequence: 0, payload: overflow_head) +
+      ogg_page(header_type: 0x00, granule: 0, serial: 1, sequence: 1, payload: opus_tags_payload) +
+      ogg_page(header_type: 0x04, granule: 312 + 960, serial: 1, sequence: 2, payload: "\xFC\x01\x02\x03".b)
+    with_upload(overflow_head_ogg, content_type: "audio/ogg", filename: "voice.ogg") do |upload|
+      error = assert_raises(VoiceAudioInspection::InvalidAudio) { VoiceAudioInspection.call(upload, duration_seconds: 5) }
+      assert_equal "The recording is not a valid Ogg file.", error.message
+    end
+
+    # Opus packets exceeding RFC 6716's 120 ms cap (e.g. 3 x 60 ms = 180 ms) must be rejected.
+    overlong_opus_packet = ogg_page(header_type: 0x02, granule: 0, serial: 1, sequence: 0, payload: opus_head_payload(312)) +
+      ogg_page(header_type: 0x00, granule: 0, serial: 1, sequence: 1, payload: opus_tags_payload) +
+      ogg_page(header_type: 0x04, granule: 312 + 8_640, serial: 1, sequence: 2, payload: "\x1B\x03\x00\x00\x00".b)
+    with_upload(overlong_opus_packet, content_type: "audio/ogg", filename: "voice.ogg") do |upload|
+      error = assert_raises(VoiceAudioInspection::InvalidAudio) { VoiceAudioInspection.call(upload, duration_seconds: 5) }
+      assert_equal "The recording is not a valid Ogg file.", error.message
+    end
+
     # Missing OpusTags comment header must be rejected.
     missing_tags = ogg_page(header_type: 0x02, granule: 0, serial: 1, sequence: 0, payload: opus_head_payload(312)) +
       ogg_page(header_type: 0x04, granule: 48_312, serial: 1, sequence: 1, payload: "\xFC\x01\x02\x03".b)
@@ -246,14 +265,10 @@ class VoiceAudioInspectionTest < ActiveSupport::TestCase
 
   def ogg_opus_bytes(duration_seconds:, pre_skip: 312, serial: 1, initial_granule_offset: 0)
     total_samples = pre_skip + (duration_seconds.to_f * 48_000).round
-    # Each packet encodes up to 48 x 60ms Opus frames (138,240 samples = 2.88s) in 3 bytes.
-    packets = []
-    remaining = total_samples
-    while remaining > 0
-      frames = [ (remaining.to_f / 2_880).ceil, 48 ].min
-      packets << [ 0x1B, frames, 0x00 ].pack("CCC")
-      remaining -= frames * 2_880
-    end
+    # RFC 6716 code=1, config=3: two equal-sized 60 ms CBR frames (120 ms = 5,760 samples) in 3 bytes.
+    packet_120ms = "\x19\x00\x00".b
+    packet_count = (total_samples.to_f / 5_760).ceil
+    packets = Array.new(packet_count, packet_120ms)
 
     pages = [
       ogg_page(header_type: 0x02, granule: 0, serial: serial, sequence: 0, payload: opus_head_payload(pre_skip)),
@@ -262,9 +277,10 @@ class VoiceAudioInspectionTest < ActiveSupport::TestCase
 
     seq = 2
     produced = 0
-    packets.each_slice(2).with_index do |slice, idx|
-      last_page = (idx + 1) * 2 >= packets.length
-      produced += slice.sum { |pkt| pkt.getbyte(1) * 2_880 }
+    slice_size = [ (packet_count / 2.0).ceil, 50 ].min.clamp(1, 50)
+    packets.each_slice(slice_size).with_index do |slice, idx|
+      last_page = (idx + 1) * slice_size >= packets.length
+      produced += slice.length * 5_760
       page_granule = initial_granule_offset + (last_page ? total_samples : produced)
       pages << ogg_page_packets(header_type: last_page ? 0x04 : 0x00, granule: page_granule, serial: serial, sequence: seq, packets: slice)
       seq += 1

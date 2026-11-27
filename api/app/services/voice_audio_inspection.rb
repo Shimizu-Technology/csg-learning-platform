@@ -604,7 +604,11 @@ class VoiceAudioInspection
       return nil unless count.between?(1, 48)
       count
     end
-    frame_us * 1_000 * frames
+    total_us = frame_us * frames
+    # RFC 6716 section 3.2.5 caps any single Opus packet at 120 ms.
+    return nil if total_us > 120_000
+
+    total_us * 1_000
   end
 
   def ogg_duration!(bytes)
@@ -739,8 +743,8 @@ class VoiceAudioInspection
         raise InvalidAudio, "The recording is not a valid Ogg file." unless packet.bytesize >= 21 + channels
         stream_count = packet.getbyte(19)
         coupled_count = packet.getbyte(20)
-        raise InvalidAudio, "The recording is not a valid Ogg file." unless stream_count.positive? && coupled_count <= stream_count
         max_channel = stream_count + coupled_count
+        raise InvalidAudio, "The recording is not a valid Ogg file." unless stream_count.positive? && coupled_count <= stream_count && max_channel <= 255
         channels.times do |index|
           mapped = packet.getbyte(21 + index)
           raise InvalidAudio, "The recording is not a valid Ogg file." unless mapped == 255 || mapped < max_channel
