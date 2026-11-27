@@ -40,7 +40,7 @@ export function VoiceDraftButton({
         showLabel
           ? 'min-h-11 border border-line-strong bg-surface-raised px-3 text-sm text-ink-secondary hover:bg-surface-sunken hover:text-ink lg:min-h-9'
           : compact
-            ? 'h-11 w-11 text-ink-secondary hover:bg-surface-sunken hover:text-ink sm:h-9 sm:w-9'
+            ? 'h-11 w-11 text-ink-secondary hover:bg-surface-sunken hover:text-ink'
             : 'h-11 w-11 border border-line-strong bg-surface-raised text-ink-secondary hover:bg-surface-sunken hover:text-ink'
       } ${state === 'recording' ? 'text-danger-ink' : ''} ${className}`}
     >

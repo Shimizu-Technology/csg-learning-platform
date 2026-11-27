@@ -14369,6 +14369,12 @@ export interface components {
             /** @description Required to change a doc's content or title: the `doc_version` the editor loaded (409 when missing or stale). */
             base_doc_version?: number;
         };
+        VoiceTranscriptionResponse: {
+            raw_text: string;
+            suggested_text: string;
+            duration_seconds: number;
+            warnings: string[];
+        };
     };
     responses: {
         /** @description ApiError */

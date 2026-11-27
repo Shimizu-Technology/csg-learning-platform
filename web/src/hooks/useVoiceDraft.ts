@@ -228,6 +228,15 @@ export function useVoiceDraft({
         raw_or_cleaned: suggestedText === rawText ? 'raw' : 'cleaned',
       })
       discardSavedRecording()
+    } catch (err) {
+      if (!mountedRef.current || controller.signal.aborted) return
+      captureProductEvent('voice_draft_transcribed', {
+        surface,
+        latency_bucket: latencyBucket(Date.now() - startedAt),
+        outcome: 'network_error',
+      })
+      setError((err as Error)?.message || 'Could not transcribe the recording. Your recording is still available to retry.')
+      setState('error')
     } finally {
       if (abortRef.current === controller) abortRef.current = null
     }
@@ -364,8 +373,8 @@ export function useVoiceDraft({
       }, 200)
     } catch (recordingError) {
       stopMediaStream(acquiredStream)
-      releaseRecorderAndStream()
       if (!mountedRef.current || attemptRef.current !== attempt) return
+      releaseRecorderAndStream()
 
       const err = recordingError as DOMException | Error
       if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
@@ -446,6 +455,10 @@ export function useVoiceDraft({
   }, [])
 
   const markSent = useCallback((sentDraft?: string) => {
+    attemptRef.current += 1
+    abortRef.current?.abort()
+    abortRef.current = null
+    releaseRecorderAndStream()
     if (review) {
       captureProductEvent('voice_draft_sent', {
         surface,
@@ -458,7 +471,7 @@ export function useVoiceDraft({
     setError(null)
     setDurationMillis(0)
     setState('idle')
-  }, [discardSavedRecording, review, surface])
+  }, [discardSavedRecording, releaseRecorderAndStream, review, surface])
 
   useEffect(() => {
     mountedRef.current = true

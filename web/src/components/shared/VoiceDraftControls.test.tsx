@@ -263,4 +263,90 @@ describe('useVoiceDraft browser workflow', () => {
     act(() => root.unmount())
     expect(trackStop).toHaveBeenCalledTimes(1)
   })
+
+  it('stops active recording and aborts in-flight transcription when markSent is called', async () => {
+    const { trackStop } = stubBrowserRecording()
+    let now = 20_000
+    vi.spyOn(Date, 'now').mockImplementation(() => now)
+
+    let resolveTranscribe: ((value: Awaited<ReturnType<typeof api.transcribeVoice>>) => void) | null = null
+    let capturedSignal: AbortSignal | undefined
+    vi.spyOn(api, 'transcribeVoice').mockImplementation((_blob, _filename, _surface, _duration, signal) => {
+      capturedSignal = signal
+      return new Promise((resolve) => {
+        resolveTranscribe = resolve
+      })
+    })
+
+    await act(async () => {
+      root.render(<Harness onSend={vi.fn()} />)
+    })
+
+    const micButton = container.querySelector<HTMLButtonElement>('button[aria-label="Dictate a draft"]')!
+    const sendButton = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Send')!
+
+    // Case 1: sending while actively recording stops recorder & releases mic tracks.
+    await act(async () => micButton.click())
+    expect(container.querySelector('[data-voice-panel="recording"]')).not.toBeNull()
+
+    await act(async () => sendButton.click())
+    expect(trackStop).toHaveBeenCalledTimes(1)
+    expect(container.querySelector('[data-voice-panel]')).toBeNull()
+
+    // Case 2: sending while transcription is in flight aborts request and ignores late response.
+    await act(async () => micButton.click())
+    now += 4_000
+    const stopButton = container.querySelector<HTMLButtonElement>('button[aria-label="Stop and transcribe recording"]')!
+    await act(async () => stopButton.click())
+    expect(container.querySelector('[data-voice-panel="transcribing"]')).not.toBeNull()
+
+    await act(async () => sendButton.click())
+    expect(capturedSignal?.aborted).toBe(true)
+    expect(container.querySelector('[data-voice-panel]')).toBeNull()
+
+    await act(async () => {
+      resolveTranscribe?.({
+        data: { raw_text: 'late result', suggested_text: 'Late result.', duration_seconds: 4, warnings: [] },
+        error: null,
+        status: 200,
+      })
+    })
+    expect(container.querySelector<HTMLTextAreaElement>('textarea')!.value).toBe('Existing note.')
+    expect(container.querySelector('[data-voice-panel]')).toBeNull()
+  })
+
+  it('ignores a stale getUserMedia rejection from a canceled attempt without stopping a newer recording', async () => {
+    const firstRejectHolder: { reject?: (error: Error) => void } = {}
+    const secondTrackStop = vi.fn()
+    const secondStream = { getTracks: () => [{ stop: secondTrackStop }] } as unknown as MediaStream
+    const getUserMedia = vi.fn()
+      .mockImplementationOnce(() => new Promise<MediaStream>((_resolve, reject) => { firstRejectHolder.reject = reject }))
+      .mockResolvedValueOnce(secondStream)
+
+    Object.defineProperty(window, 'isSecureContext', { value: true, configurable: true })
+    Object.defineProperty(navigator, 'mediaDevices', { value: { getUserMedia }, configurable: true })
+    vi.stubGlobal('MediaRecorder', FakeMediaRecorder)
+
+    await act(async () => {
+      root.render(<Harness onSend={vi.fn()} />)
+    })
+
+    const micButton = container.querySelector<HTMLButtonElement>('button[aria-label="Dictate a draft"]')!
+    await act(async () => micButton.click())
+    const cancelButton = container.querySelector<HTMLButtonElement>('button[aria-label="Cancel voice draft"]')!
+    await act(async () => cancelButton.click())
+
+    // Start a second recording that succeeds before the first getUserMedia rejects.
+    await act(async () => micButton.click())
+    expect(container.querySelector('[data-voice-panel="recording"]')).not.toBeNull()
+
+    await act(async () => {
+      firstRejectHolder.reject?.(new DOMException('Permission denied', 'NotAllowedError'))
+      await Promise.resolve()
+    })
+
+    // Second recording stays active and its tracks are NOT stopped.
+    expect(container.querySelector('[data-voice-panel="recording"]')).not.toBeNull()
+    expect(secondTrackStop).not.toHaveBeenCalled()
+  })
 })
