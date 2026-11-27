@@ -1,5 +1,6 @@
-import { ArrowDownUp, ChevronLeft, Folder, FolderOpen, LayoutGrid, List } from 'lucide-react-native';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ArrowDownUp, ChevronLeft, Folder, FolderOpen, LayoutGrid, List, Pencil } from 'lucide-react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 
 import { fonts } from '@/constants/csg-theme';
 import {
@@ -24,11 +25,13 @@ export function DriveFolderStrip({
   activeFolder,
   rootLabel,
   onSelectFolder,
+  onRenameFolder,
 }: {
   folders: DriveFolderSummary[];
   activeFolder: string;
   rootLabel: string;
   onSelectFolder: (folder: string) => void;
+  onRenameFolder?: (folder: string) => void;
 }) {
   const styles = useStyles();
   const { colors: c } = useTheme();
@@ -39,6 +42,7 @@ export function DriveFolderStrip({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`Back to ${rootLabel}`}
+          haptic="selection"
           onPress={() => onSelectFolder('All')}
           style={styles.breadcrumbBack}
         >
@@ -47,6 +51,16 @@ export function DriveFolderStrip({
         </Pressable>
         <Text style={styles.breadcrumbSep}>/</Text>
         <Text numberOfLines={1} style={styles.breadcrumbCurrent}>{activeFolder}</Text>
+        {onRenameFolder && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Rename folder ${activeFolder}`}
+            onPress={() => onRenameFolder(activeFolder)}
+            style={styles.renameButton}
+          >
+            <Pencil color={c.text.body} size={16} />
+          </Pressable>
+        )}
       </View>
     );
   }
@@ -130,6 +144,7 @@ export function DriveFilterBar({
               key={option.value}
               accessibilityRole="button"
               accessibilityState={{ selected: active }}
+              haptic="selection"
               onPress={() => onTypeFilterChange(option.value)}
               style={[styles.pill, active && styles.pillActive]}
             >
@@ -142,6 +157,7 @@ export function DriveFilterBar({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`Sort files, currently ${DRIVE_SORT_LABELS[sort]}`}
+          haptic="selection"
           onPress={() => onSortChange(nextDriveSort(sort))}
           style={styles.utilityButton}
         >
@@ -151,6 +167,7 @@ export function DriveFilterBar({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={viewMode === 'list' ? 'Switch to grid view' : 'Switch to list view'}
+          haptic="selection"
           onPress={() => onViewModeChange(viewMode === 'list' ? 'grid' : 'list')}
           style={styles.viewToggle}
         >
@@ -205,6 +222,7 @@ const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   breadcrumbBackText: { color: c.text.body, fontFamily: fonts.semibold, fontSize: 13 },
   breadcrumbSep: { color: c.text.muted, fontFamily: fonts.semibold, fontSize: 13 },
   breadcrumbCurrent: { flex: 1, color: c.text.strong, fontFamily: fonts.bold, fontSize: 13 },
+  renameButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   filterWrap: { gap: 8 },
   pillRow: { gap: 8, paddingRight: 16, alignItems: 'center' },
   pill: {

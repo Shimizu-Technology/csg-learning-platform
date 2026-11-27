@@ -210,7 +210,7 @@ export function ContextualHelp({ cohortId, contextType, contextSource = 'primary
       {active ? <Clock3 color={c.status.warning.fg} size={17} /> : <CircleHelp color={c.text.body} size={17} />}
       <Text style={[styles.launcherText, active && styles.launcherTextActive]}>{!canAsk ? 'View previous help' : active ? status : 'Ask for help'}</Text>
     </Pressable>}
-    <Modal visible={visible} animationType="fade" presentationStyle="pageSheet" onRequestClose={() => void close()}>
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => void close()}>
       <SafeAreaView style={styles.safe}>
         <View style={styles.header}><View style={styles.headerIcon}><CircleHelp color={c.text.body} size={20} /></View><View style={styles.flex}><Text style={styles.kicker}>Lesson help</Text><Text numberOfLines={1} style={styles.headerTitle}>{contextLabel}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Close help" onPress={() => void close()} style={styles.close}><X color={c.text.body} size={21} /></Pressable></View>
         <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>

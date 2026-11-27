@@ -5,11 +5,11 @@ import { haptic } from '@/lib/haptics';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { themedAlert as Alert } from '@/lib/alerts';
 import { Button } from '@/components/ui/button';
-import { makeStyles, useTheme } from '@/providers/theme-provider';
+import { makeStyles, useTheme, useThemePreference, type ThemePreference } from '@/providers/theme-provider';
 import * as Application from 'expo-application';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect, useRouter, type Href } from 'expo-router';
-import { Activity, Bell, CalendarCheck, CalendarClock, Check, ChevronRight, FileText, GitBranch, GraduationCap, LogOut, Mail, RefreshCw, Save, Settings2, ShieldCheck, Trash2, UserX } from 'lucide-react-native';
+import { Activity, Bell, CalendarCheck, CalendarClock, Check, ChevronRight, FileText, GitBranch, GraduationCap, LogOut, Mail, Monitor, Moon, RefreshCw, Save, Settings2, ShieldCheck, Sun, Trash2, UserX } from 'lucide-react-native';
 import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, Linking, Modal, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -27,6 +27,7 @@ import { ENROLLMENT_STATUS_LABELS, ROLE_LABELS, humanize } from '@/lib/display-l
 export default function ProfileScreen() {
   const styles = useStyles();
   const { colors: c } = useTheme();
+  const { preference: themePreference, setPreference: setThemePreference } = useThemePreference();
   const router = useRouter();
   const auth = useCsgAuth();
   const { api, user, enrollments, refresh, signOut: endSession } = useSession();
@@ -269,6 +270,30 @@ export default function ProfileScreen() {
       {studentDashboard?.capabilities?.features?.private_meetings !== false && studentDashboard?.private_meetings_enabled && <Pressable accessibilityRole="button" accessibilityLabel="Book your weekly private hour" accessibilityHint="Choose or change your weekly meeting in the app" onPress={() => router.push('/meetings' as Href)} style={styles.manage} testID="profile-book-private-hour"><View style={styles.settingIcon}><CalendarCheck color={c.text.body} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>Book your weekly private hour</Text><Text style={styles.settingCopy}>Choose or change your 60-minute Zoom hour.</Text></View><ChevronRight color={c.text.body} size={18} /></Pressable>}
       {!!profileQuery.data?.enrollments.length && <><Text style={styles.sectionLabel}>ENROLLMENTS</Text><View style={styles.group}>{profileQuery.data.enrollments.map((enrollment, index) => <View key={enrollment.id} style={[styles.enrollment, index > 0 && styles.groupDivider]}><View style={styles.settingIcon}><GraduationCap color={c.text.body} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>{enrollment.cohort_name}</Text><Text style={styles.settingCopy}>{enrollment.curriculum_name}</Text></View><Text style={[styles.enrollmentStatus, enrollment.status === 'active' && styles.enrollmentActive]}>{humanize(enrollment.status, ENROLLMENT_STATUS_LABELS)}</Text></View>)}</View></>}
       <Pressable accessibilityRole="button" accessibilityLabel="Open your activity history" onPress={() => router.push('/activity' as Href)} style={styles.manage}><View style={styles.settingIcon}><Activity color={c.text.body} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>Your activity history</Text><Text style={styles.settingCopy}>Review your sign-ins, learning progress, and saved work.</Text></View><ChevronRight color={c.text.muted} size={18} /></Pressable>
+      <Text style={styles.sectionLabel}>APPEARANCE</Text>
+      <View style={styles.appearanceGroup} accessibilityRole="radiogroup" accessibilityLabel="App appearance">
+        {([
+          { key: 'system', label: 'System', Icon: Monitor },
+          { key: 'light', label: 'Light', Icon: Sun },
+          { key: 'dark', label: 'Dark', Icon: Moon },
+        ] as const satisfies readonly { key: ThemePreference; label: string; Icon: typeof Sun }[]).map(({ key, label, Icon }) => {
+          const active = themePreference === key;
+          return (
+            <Pressable
+              key={key}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: active, checked: active }}
+              accessibilityLabel={`${label} appearance`}
+              haptic="selection"
+              onPress={() => setThemePreference(key)}
+              style={[styles.appearanceOption, active && styles.appearanceOptionActive]}
+            >
+              <Icon color={active ? c.selection.indicator : c.text.body} size={16} />
+              <Text style={[styles.appearanceLabel, active && styles.appearanceLabelActive]}>{label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
       <Text style={styles.sectionLabel}>PREFERENCES</Text>
       <View style={styles.group}>
         {preferenceLoadError ? <View style={styles.preferenceError}><View style={styles.settingIcon}><Bell color={c.text.body} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>Notifications unavailable</Text><Text style={styles.settingCopy}>{preferenceLoadError}</Text></View><Button accessibilityRole="button" accessibilityLabel="Retry notification preferences" onPress={() => void loadNotificationPreferences()} style={styles.retryPreference} variant="secondary" label="Try again" textStyle={styles.retryPreferenceText} /></View> : <>
@@ -335,6 +360,33 @@ const useStyles = makeStyles(({ colors: c, radius, shadow }) => StyleSheet.creat
   name: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 18 },
   email: { ...typography.support, color: c.text.body, fontFamily: fonts.regular, marginTop: 2 },
   role: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6 },
+  appearanceGroup: {
+    flexDirection: 'row',
+    gap: 6,
+    padding: 4,
+    borderRadius: radius.card,
+    backgroundColor: c.surface.sunken,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: c.border.subtle,
+  },
+  appearanceOption: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: radius.control,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 8,
+  },
+  appearanceOptionActive: {
+    backgroundColor: c.surface.raised,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: c.border.subtle,
+    ...shadow.raised,
+  },
+  appearanceLabel: { color: c.text.body, fontFamily: fonts.semibold, fontSize: 13 },
+  appearanceLabelActive: { color: c.text.strong, fontFamily: fonts.bold },
   roleText: { ...typography.label, color: c.status.success.fg, fontFamily: fonts.bold },
   demo: { marginTop: 12, padding: 14, borderRadius: radius.card, backgroundColor: c.surface.raised, borderWidth: StyleSheet.hairlineWidth, borderColor: c.border.strong },
   demoTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 14 },

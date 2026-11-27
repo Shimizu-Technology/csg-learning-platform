@@ -4,6 +4,7 @@ import type { HelpRequest, Intervention, LessonContentBlock, StaffDashboard, Stu
 export const learningKeys = {
   dashboards: (userId: number) => ['learning', userId, 'dashboard'] as const,
   dashboard: (userId: number, cohortId?: number | null) => ['learning', userId, 'dashboard', cohortId || 'all'] as const,
+  courseOutline: (userId: number, cohortId?: number | null) => ['learning', userId, 'course-outline', cohortId || 'all'] as const,
   weeklyPlan: (userId: number, cohortId?: number | null) => ['learning', userId, 'weekly-plan', cohortId || 'all'] as const,
   lesson: (userId: number, lessonId: number, cohortId?: number | null) => ['learning', userId, 'lesson', lessonId, cohortId ?? 'all'] as const,
   movedModule: (userId: number, moduleId: number, cohortId?: number | null) => ['learning', userId, 'moved-module', moduleId, cohortId ?? 'all'] as const,
@@ -29,7 +30,7 @@ export const learningKeys = {
 /** Learner writes affect every selected/all-cohort overview, including persisted inactive queries. */
 export function isLearnerOverviewQuery(key: readonly unknown[], userId: number) {
   return (key[0] === 'cohort-home' && key[1] === userId)
-    || (key[0] === 'learning' && key[1] === userId && (key[2] === 'dashboard' || key[2] === 'weekly-plan'));
+    || (key[0] === 'learning' && key[1] === userId && (key[2] === 'dashboard' || key[2] === 'weekly-plan' || key[2] === 'course-outline'));
 }
 
 /** Current work only; explicit API metadata also handles partial histories. */

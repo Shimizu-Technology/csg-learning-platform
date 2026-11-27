@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { Redirect, Stack, useRouter, usePathname, type Href } from 'expo-router';
 import { X } from 'lucide-react-native';
-import { Linking, StyleSheet, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { AppState, Linking, StyleSheet, View } from 'react-native';
 import { themedAlert as Alert } from '@/lib/alerts';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
@@ -19,10 +20,38 @@ export const unstable_settings = { initialRouteName: '(tabs)' };
 export default function AppLayout() {
   const styles = useStyles();
   const { colors: c, dark } = useTheme();
-  const { loaded, signedIn } = useCsgAuth();
+  const { loaded, signedIn, demo } = useCsgAuth();
   const { api, user, loading, error, accessDenied, refresh, signOut } = useSession();
   const router = useRouter();
   const pathname = usePathname();
+  const lastPresenceAtRef = useRef(0);
+
+  useEffect(() => {
+    if (!loaded || !signedIn || demo || !user || typeof api.presence !== 'function') return;
+    let active = AppState.currentState === 'active';
+    let controller: AbortController | null = null;
+    const ping = () => {
+      if (!active) return;
+      const now = Date.now();
+      if (now - lastPresenceAtRef.current < 30_000) return;
+      lastPresenceAtRef.current = now;
+      controller?.abort();
+      controller = new AbortController();
+      void api.presence(controller.signal).catch(() => undefined);
+    };
+    ping();
+    const interval = setInterval(ping, 60_000);
+    const sub = AppState.addEventListener('change', (state) => {
+      active = state === 'active';
+      if (active) ping();
+    });
+    return () => {
+      active = false;
+      controller?.abort();
+      clearInterval(interval);
+      sub.remove();
+    };
+  }, [api, demo, loaded, signedIn, user]);
   if (!loaded) return null;
   if (!signedIn) return <Redirect href="/(auth)/sign-in" />;
   if (loading) return <View style={styles.gate}><LoadingState label={`Opening your ${brand.schoolAbbreviation} account`} /></View>;

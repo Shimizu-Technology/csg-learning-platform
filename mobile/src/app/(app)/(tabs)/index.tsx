@@ -58,7 +58,7 @@ export default function TodayScreen() {
 
   const refresh = () => void Promise.all([refreshCohorts(), query.refetch(), user?.is_staff ? Promise.resolve() : weeklyQuery.refetch()]);
 
-  if (query.isPending && !dashboard) return <SafeAreaView style={styles.safe}><LoadingState label="Loading today" /></SafeAreaView>;
+  if (query.isPending && !dashboard) return <SafeAreaView style={styles.safe}><LoadingState variant="skeleton" label="Loading today" /></SafeAreaView>;
   if (query.error && !dashboard) return <SafeAreaView style={styles.safe}><ErrorState message={(query.error as Error).message} retry={() => void query.refetch()} /></SafeAreaView>;
 
   if (!dashboard || !isStudentDashboard(dashboard)) {

@@ -1,9 +1,12 @@
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
+import { Button } from '@/components/ui/button';
+import { themedAlert as Alert } from '@/lib/alerts';
+import { haptic } from '@/lib/haptics';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Search, Users } from 'lucide-react-native';
-import { useState } from 'react';
+import { Mail, Search, Users } from 'lucide-react-native';
+import { useRef, useState } from 'react';
 import { Keyboard, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -29,6 +32,8 @@ export default function StaffAccessScreen() {
   const [cohortId, setCohortId] = useState<number | null>(cohort_id ? Number(cohort_id) : null);
   const [filter, setFilter] = useState<Filter>('all');
   const [search, setSearch] = useState('');
+  const [resendingUserId, setResendingUserId] = useState<number | null>(null);
+  const resendingRef = useRef(false);
   const cohortsQuery = useQuery({ queryKey: ['staff-access-cohorts', user?.id], queryFn: ({ signal }) => api.cohorts(signal), enabled: Boolean(user?.is_staff && !auth.demo) });
   const cohorts = cohortsQuery.data?.cohorts || [];
   const selectedCohortId = cohortId ?? cohorts[0]?.id ?? null;
@@ -66,6 +71,24 @@ export default function StaffAccessScreen() {
     }
   };
 
+  const handleResendInvite = async (userId: number, name: string) => {
+    if (!user?.is_admin || resendingRef.current) return;
+    resendingRef.current = true;
+    setResendingUserId(userId);
+    try {
+      const result = await api.resendInvite(userId);
+      haptic('success');
+      Alert.alert('Invite queued', result.message || `Queued a fresh invite for ${name}.`);
+      void accessQuery.refetch();
+    } catch (error) {
+      haptic('error');
+      Alert.alert('Could not resend invite', (error as Error).message);
+    } finally {
+      resendingRef.current = false;
+      setResendingUserId(null);
+    }
+  };
+
   return <SafeAreaView edges={['bottom']} style={styles.safe}>
     <ScrollView style={styles.scroll} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={accessQuery.isRefetching || githubQuery.isRefetching} onRefresh={() => { void accessQuery.refetch(); if (accessQuery.data?.cohort.github_organization_name) void githubQuery.refetch(); }} tintColor={c.text.body} />} contentContainerStyle={styles.content}>
       <Text style={styles.eyebrow}>PEOPLE & ACCESS</Text><Text style={styles.title}>Who has joined?</Text><Text style={styles.copy}>App sign-in and GitHub organization access are tracked separately. Enrollment does not mean an invite was accepted.</Text>
@@ -78,7 +101,41 @@ export default function StaffAccessScreen() {
         {statuses && githubQuery.data && <Text style={styles.checked}>GitHub checked {new Date(githubQuery.data.checked_at).toLocaleString()}</Text>}
         <View style={styles.summary}><View style={styles.summaryCard}><Text style={styles.summaryNumber}>{students.filter((student) => student.last_sign_in_at).length}</Text><Text style={styles.summaryLabel}>App sign-ins</Text></View><View style={styles.summaryCard}><Text style={styles.summaryNumber}>{statuses ? students.filter((student) => statuses[String(student.user_id)] === 'member').length : '—'}</Text><Text style={styles.summaryLabel}>GitHub joined</Text></View><View style={styles.summaryCard}><Text style={styles.summaryNumber}>{statuses ? students.filter((student) => statuses[String(student.user_id)] === 'invited').length : '—'}</Text><Text style={styles.summaryLabel}>Invites pending</Text></View></View>
         <Text style={styles.count}>{visible.length} of {students.length} enrolled</Text>
-        {visible.map((student) => { const github = githubLabel(student.user_id); const membershipLabel = student.joined_at ? 'Joined cohort' : 'Added, not yet opened'; const appLabel = student.last_sign_in_at ? 'Signed in to app' : student.invite_pending ? `App invite ${student.invite_delivery_status === 'failed' ? 'failed' : student.invite_delivery_status === 'not_sent' ? 'not sent' : student.invite_delivery_status === 'queued' ? 'queued' : 'sent'}` : 'App account ready · no sign-in'; return <Pressable key={student.user_id} accessibilityRole="button" accessibilityLabel={`Open ${student.full_name}. ${membershipLabel}. ${appLabel}${github ? `. ${github[0]}` : ''}`} onPress={() => router.push({ pathname: '/staff/student/[id]', params: { id: String(student.user_id), cohort_id: String(selectedCohortId) } })} style={styles.person}><View style={styles.avatar}><Users color={c.text.body} size={18} /></View><View style={styles.personCopy}><Text style={styles.name}>{student.full_name || student.email}</Text><Text style={styles.email}>{student.email}</Text><Text style={[styles.status, { color: student.joined_at ? c.status.success.fg : c.status.warning.fg }]}>{membershipLabel}</Text><Text style={[styles.status, { color: student.last_sign_in_at ? c.status.success.fg : c.status.warning.fg }]}>{appLabel}</Text>{github && <Text style={[styles.status, { color: github[1] }]}>{github[0]}</Text>}</View></Pressable>; })}
+        {visible.map((student) => {
+          const github = githubLabel(student.user_id);
+          const membershipLabel = student.joined_at ? 'Joined cohort' : 'Added, not yet opened';
+          const appLabel = student.last_sign_in_at ? 'Signed in to app' : student.invite_pending ? `App invite ${student.invite_delivery_status === 'failed' ? 'failed' : student.invite_delivery_status === 'not_sent' ? 'not sent' : student.invite_delivery_status === 'queued' ? 'queued' : 'sent'}` : 'App account ready · no sign-in';
+          const canResend = Boolean(user?.is_admin) && !student.last_sign_in_at && (student.invite_pending || student.invite_delivery_status === 'failed' || student.invite_delivery_status === 'not_sent');
+          return (
+            <View key={student.user_id} style={styles.personCard}>
+              <Pressable accessibilityRole="button" accessibilityLabel={`Open ${student.full_name}. ${membershipLabel}. ${appLabel}${github ? `. ${github[0]}` : ''}`} onPress={() => router.push({ pathname: '/staff/student/[id]', params: { id: String(student.user_id), cohort_id: String(selectedCohortId) } })} style={styles.person}>
+                <View style={styles.avatar}><Users color={c.text.body} size={18} /></View>
+                <View style={styles.personCopy}>
+                  <Text style={styles.name}>{student.full_name || student.email}</Text>
+                  <Text style={styles.email}>{student.email}</Text>
+                  <Text style={[styles.status, { color: student.joined_at ? c.status.success.fg : c.status.warning.fg }]}>{membershipLabel}</Text>
+                  <Text style={[styles.status, { color: student.last_sign_in_at ? c.status.success.fg : c.status.warning.fg }]}>{appLabel}</Text>
+                  {github && <Text style={[styles.status, { color: github[1] }]}>{github[0]}</Text>}
+                </View>
+              </Pressable>
+              {canResend && (
+                <View style={styles.resendRow}>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    loading={resendingUserId === student.user_id}
+                    disabled={resendingUserId !== null}
+                    accessibilityLabel={`Resend invite to ${student.full_name || student.email}`}
+                    onPress={() => void handleResendInvite(student.user_id, student.full_name || student.email)}
+                  >
+                    <Mail color={c.text.strong} size={15} />
+                    <Text>Resend invite</Text>
+                  </Button>
+                </View>
+              )}
+            </View>
+          );
+        })}
         {!visible.length && <EmptyState title="No matching students" copy="Try another name or access filter." />}
       </>}
     </ScrollView>
@@ -95,5 +152,7 @@ const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   disabledFilter: { opacity: 0.45 },
   notice: { color: c.status.warning.fg, fontFamily: fonts.regular, fontSize: 12 }, checked: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12 }, count: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12 },
   summary: { flexDirection: 'row', gap: 8 }, summaryCard: { flex: 1, minHeight: 76, borderRadius: 14, backgroundColor: c.surface.raised, borderWidth: 1, borderColor: c.border.subtle, padding: 10, justifyContent: 'space-between' }, summaryNumber: { color: c.text.strong, fontFamily: fonts.extraBold, fontSize: 22 }, summaryLabel: { color: c.text.body, fontFamily: fonts.semibold, fontSize: 12 },
-  person: { flexDirection: 'row', gap: 12, minHeight: 96, borderRadius: 16, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, padding: 14 }, avatar: { width: 40, height: 40, borderRadius: 13, backgroundColor: c.surface.sunken, alignItems: 'center', justifyContent: 'center' }, personCopy: { flex: 1 }, name: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 15 }, email: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, marginTop: 2 }, status: { fontFamily: fonts.semibold, fontSize: 12, marginTop: 5 },
+  personCard: { borderRadius: 16, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, overflow: 'hidden' },
+  person: { flexDirection: 'row', gap: 12, minHeight: 96, padding: 14 }, avatar: { width: 40, height: 40, borderRadius: 13, backgroundColor: c.surface.sunken, alignItems: 'center', justifyContent: 'center' }, personCopy: { flex: 1 }, name: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 15 }, email: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, marginTop: 2 }, status: { fontFamily: fonts.semibold, fontSize: 12, marginTop: 5 },
+  resendRow: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border.subtle, paddingHorizontal: 14, paddingVertical: 10, alignItems: 'flex-start' },
 }));

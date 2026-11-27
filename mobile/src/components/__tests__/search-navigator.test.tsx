@@ -10,6 +10,7 @@ jest.mock('@/components/ui/pressable-scale', () => ({ PressableScale: jest.requi
 jest.mock('standard-navigation', () => ({}));
 jest.mock('@/providers/auth-provider', () => ({ useCsgAuth: () => ({ loaded: true, signedIn: true, demo: false }) }));
 const mockApi = {
+  presence: jest.fn(async () => ({ last_seen_at: '2026-11-28T00:00:00Z' })),
   search: jest.fn(async () => ({ results: [] })),
   searchEverything: jest.fn(async () => ({ groups: [{ type: 'dm', results: [] }], partial: true })),
 };

@@ -55,7 +55,7 @@ jest.mock('@/components/staff-lesson-editor', () => ({
     return <Pressable onPress={onOpenWeb}><Text>Open full editor on web</Text></Pressable>;
   },
 }));
-jest.mock('@/hooks/use-voice-draft', () => ({ useVoiceDraft: () => ({ state: 'idle', cancel: jest.fn() }) }));
+jest.mock('@/hooks/use-voice-draft', () => ({ useVoiceDraft: () => ({ state: 'idle', cancel: jest.fn(), markSent: jest.fn() }) }));
 jest.mock('@/components/voice-draft-controls', () => ({ VoiceDraftButton: () => null, VoiceDraftPanel: () => null }));
 jest.mock('@/components/rubric-panel', () => ({ RubricPanel: () => null }));
 jest.mock('@/components/staff-curriculum-management', () => ({ LessonSettingsModal: () => null }));

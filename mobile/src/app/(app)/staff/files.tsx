@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as DocumentPicker from 'expo-document-picker';
 import { useLocalSearchParams } from 'expo-router';
 import { ChevronLeft, ChevronRight, FolderLock, Search } from 'lucide-react-native';
-import { useState, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Keyboard, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -16,6 +16,7 @@ import { CohortLinkForm } from '@/components/cohort-link-form';
 import { DriveFilterBar, DriveFolderStrip } from '@/components/drive-controls';
 import { EmptyState, ErrorState, LoadingState } from '@/components/screen-states';
 import { StaffOnlyScreen } from '@/components/staff-only-screen';
+import { BottomSheet } from '@/components/ui/bottom-sheet';
 import { Button } from '@/components/ui/button';
 import { fonts } from '@/constants/csg-theme';
 import { themedAlert as Alert } from '@/lib/alerts';
@@ -72,6 +73,9 @@ export default function StaffCohortFilesScreen() {
   const [needsReviewOnly, setNeedsReviewOnly] = useState(false);
   const [openFileId, setOpenFileId] = useState<number | null>(Number(fileParam) || null);
   const [activeDocFileId, setActiveDocFileId] = useState<number | null>(null);
+  const [renamingFolder, setRenamingFolder] = useState<{ cohortId: number; folder: string } | null>(null);
+  const [renameDraft, setRenameDraft] = useState('');
+  const [savingRename, setSavingRename] = useState(false);
   const queryClient = useQueryClient();
   // A new notification link while this screen is open opens its item too.
   const [linked, setLinked] = useState(`${cohort_id}:${student}:${fileParam}`);
@@ -93,6 +97,17 @@ export default function StaffCohortFilesScreen() {
   const cohortsQuery = useQuery({ queryKey: ['staff-files-cohorts', user?.id], queryFn: ({ signal }) => api.cohorts(signal), enabled: Boolean(user?.is_staff && !auth.demo) });
   const cohorts = cohortsQuery.data?.cohorts || [];
   const selectedCohortId = cohortId ?? cohorts[0]?.id ?? null;
+  const [renameCohortId, setRenameCohortId] = useState<number | null>(selectedCohortId);
+  if (renameCohortId !== selectedCohortId) {
+    setRenameCohortId(selectedCohortId);
+    if (renamingFolder !== null) setRenamingFolder(null);
+    if (renameDraft !== '') setRenameDraft('');
+    if (savingRename) setSavingRename(false);
+  }
+  const renameGenerationRef = useRef(0);
+  useLayoutEffect(() => {
+    renameGenerationRef.current += 1;
+  }, [selectedCohortId]);
   // Student folders are private: memory only, and dropped once access is revoked (loadCohortFiles returns null).
   const filesQuery = useQuery({ queryKey: ['staff-cohort-files', selectedCohortId], queryFn: ({ signal }) => loadCohortFiles(api, selectedCohortId!, signal), enabled: Boolean(user?.is_staff && selectedCohortId && !auth.demo), meta: { persist: false } });
 
@@ -277,7 +292,51 @@ export default function StaffCohortFilesScreen() {
     ]);
   };
 
+  const openRenameFolder = (folderName: string) => {
+    if (!selectedCohortId) return;
+    setRenamingFolder({ cohortId: selectedCohortId, folder: folderName });
+    setRenameDraft(folderName);
+  };
+
+  const activeRename = renamingFolder && renamingFolder.cohortId === selectedCohortId ? renamingFolder : null;
+
+  const submitRenameFolder = async () => {
+    if (!activeRename || savingRename) return;
+    const targetCohortId = activeRename.cohortId;
+    const sourceFolder = activeRename.folder;
+    const generation = renameGenerationRef.current;
+    const nextName = renameDraft.trim();
+    if (!nextName || nextName === sourceFolder) {
+      setRenamingFolder(null);
+      setRenameDraft('');
+      return;
+    }
+    if (nextName.toLowerCase() === 'all') {
+      Alert.alert('Choose another name', '“All” is reserved for viewing every folder.');
+      return;
+    }
+    setSavingRename(true);
+    try {
+      const result = await api.renameCohortFolder(targetCohortId, { from_folder: sourceFolder, to_folder: nextName });
+      if (renameGenerationRef.current === generation) {
+        setClassFolder(result.folder || nextName);
+        setRenamingFolder(null);
+        setRenameDraft('');
+      }
+      void queryClient.invalidateQueries({ queryKey: ['staff-cohort-files', targetCohortId] });
+    } catch (error) {
+      if (renameGenerationRef.current === generation) {
+        Alert.alert('Could not rename folder', (error as Error).message);
+      }
+    } finally {
+      if (renameGenerationRef.current === generation) {
+        setSavingRename(false);
+      }
+    }
+  };
+
   return shell(
+    <>
     <ScrollView
       keyboardDismissMode="on-drag"
       keyboardShouldPersistTaps="handled"
@@ -326,7 +385,13 @@ export default function StaffCohortFilesScreen() {
                 </View>
               </View>
             )}
-        <DriveFolderStrip folders={classFolderSummaries} activeFolder={validClassFolder} rootLabel="Class files" onSelectFolder={setClassFolder} />
+        <DriveFolderStrip
+          folders={classFolderSummaries}
+          activeFolder={validClassFolder}
+          rootLabel="Class files"
+          onSelectFolder={setClassFolder}
+          onRenameFolder={openRenameFolder}
+        />
         {(classFiles.length > 0) && (
           <DriveFilterBar
             typeFilter={typeFilter}
@@ -463,7 +528,34 @@ export default function StaffCohortFilesScreen() {
         {needsReviewOnly && !waiting && <Text style={styles.copy}>Nothing is waiting for review.</Text>}
         {!folders.length && <EmptyState title="No student folders yet" copy="Every enrolled student gets a private folder automatically." />}
       </>}
-    </ScrollView>,
+    </ScrollView>
+    <BottomSheet
+      visible={Boolean(activeRename)}
+      onClose={() => { if (!savingRename) setRenamingFolder(null); }}
+      closeDisabled={savingRename}
+      title="Rename folder"
+      subtitle={activeRename ? `Move all files in “${activeRename.folder}” to a new folder name.` : undefined}
+      scrollable={false}
+    >
+      <TextInput
+        keyboardAppearance={scheme}
+        accessibilityLabel="New folder name"
+        value={renameDraft}
+        onChangeText={setRenameDraft}
+        placeholder="Folder name"
+        placeholderTextColor={c.text.muted}
+        editable={!savingRename}
+        autoFocus
+        returnKeyType="done"
+        onSubmitEditing={() => void submitRenameFolder()}
+        style={styles.renameInput}
+      />
+      <View style={styles.buttonRow}>
+        <Button style={styles.grow} variant="secondary" label="Cancel" disabled={savingRename} onPress={() => setRenamingFolder(null)} />
+        <Button style={styles.grow} variant="primary" label={savingRename ? 'Renaming…' : 'Rename'} loading={savingRename} disabled={savingRename || !renameDraft.trim()} onPress={() => void submitRenameFolder()} />
+      </View>
+    </BottomSheet>
+    </>,
   );
 }
 
@@ -478,5 +570,6 @@ const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   folderTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 13, marginTop: 4 }, title: { color: c.text.strong, fontFamily: fonts.extraBold, fontSize: 22 }, copy: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 17, marginTop: 2 },
   backRow: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start' },
   search: { minHeight: 48, borderRadius: 14, backgroundColor: c.surface.raised, borderWidth: 1, borderColor: c.border.subtle, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10 }, input: { flex: 1, color: c.text.strong, fontFamily: fonts.regular, fontSize: 14 },
+  renameInput: { minHeight: 48, borderRadius: 14, backgroundColor: c.surface.sunken, borderWidth: 1, borderColor: c.border.subtle, paddingHorizontal: 14, color: c.text.strong, fontFamily: fonts.regular, fontSize: 15 },
   person: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 64, borderRadius: 16, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, padding: 14 }, flex: { flex: 1, minWidth: 0 }, name: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 15 },
 }));

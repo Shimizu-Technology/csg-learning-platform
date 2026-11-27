@@ -1,7 +1,8 @@
-import { useRef, useState } from 'react';
-import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Linking, StyleSheet, Text, View } from 'react-native';
 import {
   CopyPlus,
+  Download,
   Eye,
   EyeOff,
   FileArchive,
@@ -12,20 +13,23 @@ import {
   FileUp,
   FileVideo,
   FolderInput,
+  History,
   Link2,
   MoreHorizontal,
   NotebookPen,
   Presentation,
   Trash2,
-  X,
 } from 'lucide-react-native';
 
 import { CohortDocModal, CohortFileReviewModal, CohortFileReviewSection, ReviewBadge, type ReviewAccess } from '@/components/cohort-doc-modal';
 import { CohortFilePreviewModal } from '@/components/cohort-file-preview';
 import { LearningCard } from '@/components/learning-ui';
 import { Badge } from '@/components/ui/badge';
+import { BottomSheet } from '@/components/ui/bottom-sheet';
 import { Button } from '@/components/ui/button';
+import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { fonts } from '@/constants/csg-theme';
+import type { components } from '@/lib/api.generated';
 import { LINK_PROVIDER_LABELS, cohortFileMeta, isStudentFolderItem, safeExternalFileUrl, safeHttpsUrl, type CohortFile, type CohortFilePreview } from '@/lib/cohort-files';
 import { fileVisualMeta, type DriveViewMode } from '@/lib/drive-helpers';
 import { openExternalPage } from '@/lib/external-links';
@@ -99,7 +103,25 @@ export function CohortFileCard({
   const [docOpen, setDocOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [movingFolder, setMovingFolder] = useState(false);
+  const [sheetMode, setSheetMode] = useState<'actions' | 'move' | 'versions'>('actions');
+  const [versions, setVersions] = useState<components['schemas']['CohortFileVersion'][]>([]);
+  const [loadingVersions, setLoadingVersions] = useState(false);
+  const [versionsError, setVersionsError] = useState<string | null>(null);
+  const versionsGenerationRef = useRef(0);
+  const versionsAbortRef = useRef<AbortController | null>(null);
+
+  const cancelVersionLoad = () => {
+    versionsGenerationRef.current += 1;
+    versionsAbortRef.current?.abort();
+    versionsAbortRef.current = null;
+    setLoadingVersions(false);
+  };
+
+  useEffect(() => () => {
+    versionsGenerationRef.current += 1;
+    versionsAbortRef.current?.abort();
+    versionsAbortRef.current = null;
+  }, [file.id]);
   const link = file.kind === 'link';
   const doc = file.kind === 'doc';
   const href = link ? safeExternalFileUrl(file.external_url) : null;
@@ -133,19 +155,45 @@ export function CohortFileCard({
       setPreparing(null);
     }
   }
-  const download = () => run('download', async () => {
-    const result = await api.downloadCohortFile(cohortId, file.id);
+  const download = (versionId?: number) => run('download', async () => {
+    const result = versionId != null
+      ? await api.downloadCohortFile(cohortId, file.id, versionId)
+      : await api.downloadCohortFile(cohortId, file.id);
     const url = safeExternalUrl(result.url);
     if (!url) throw new Error('The download link is unavailable. Try again.');
     await Linking.openURL(url);
   });
-  const openPreview = () => run('preview', async () => {
-    const result = await api.previewCohortFile(cohortId, file.id);
+  const openPreview = (versionId?: number) => run('preview', async () => {
+    const result = versionId != null
+      ? await api.previewCohortFile(cohortId, file.id, versionId)
+      : await api.previewCohortFile(cohortId, file.id);
     if (IN_APP_MODES.has(result.preview_mode)) return setPreview(result);
     const url = safeHttpsUrl(result.url);
     if (!url) throw new Error('This file can only be downloaded.');
     await openExternalPage(url);
   });
+  const loadVersions = async () => {
+    cancelVersionLoad();
+    const generation = versionsGenerationRef.current;
+    const controller = new AbortController();
+    versionsAbortRef.current = controller;
+    setSheetMode('versions');
+    setLoadingVersions(true);
+    setVersionsError(null);
+    try {
+      const response = await api.cohortFileVersions(cohortId, file.id, controller.signal);
+      if (versionsGenerationRef.current !== generation || controller.signal.aborted) return;
+      setVersions(response.versions || []);
+    } catch (failure) {
+      if (versionsGenerationRef.current !== generation || controller.signal.aborted) return;
+      setVersionsError((failure as Error).message || 'Could not load version history.');
+    } finally {
+      if (versionsGenerationRef.current === generation) {
+        versionsAbortRef.current = null;
+        setLoadingVersions(false);
+      }
+    }
+  };
   const openLink = async () => {
     setError(null);
     try {
@@ -184,7 +232,8 @@ export function CohortFileCard({
           : c.text.body;
 
   const hasSheetActions = Boolean(
-    (onMoveFolder && folderOptions && folderOptions.length > 0)
+    (!link && !doc && !downloadDisabled)
+    || (onMoveFolder && folderOptions && folderOptions.length > 0)
     || (onUploadVersion && !link && !doc && !downloadDisabled)
     || onToggleVisibility
     || (onCopyToStudents && !staged),
@@ -228,7 +277,7 @@ export function CohortFileCard({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`More actions for ${file.title}`}
-            onPress={() => { setMovingFolder(false); setSheetOpen(true); }}
+            onPress={() => { setSheetMode('actions'); setSheetOpen(true); }}
             style={styles.moreButton}
           >
             <MoreHorizontal color={c.text.body} size={20} />
@@ -253,121 +302,170 @@ export function CohortFileCard({
 
       <View style={styles.actions}>
         {doc ? (
-          <Button style={styles.action} variant="secondary" accessibilityLabel={`Open ${file.title}`} label={file.can_edit_doc ? 'Open and edit' : 'Open'} onPress={() => setDocModalOpen(true)} />
+          <Button size="sm" style={styles.action} variant="secondary" accessibilityLabel={`Open ${file.title}`} label={file.can_edit_doc ? 'Open and edit' : 'Open'} onPress={() => setDocModalOpen(true)} />
         ) : link ? (
-          <Button style={styles.action} variant="secondary" accessibilityRole="link" accessibilityLabel={`Open ${file.title}`} label="Open" disabled={!href} onPress={() => void openLink()} />
+          <Button size="sm" style={styles.action} variant="secondary" accessibilityRole="link" accessibilityLabel={`Open ${file.title}`} label="Open" disabled={!href} onPress={() => void openLink()} />
         ) : (
           <>
             {file.previewable && (
-              <Button style={styles.action} variant="secondary" accessibilityLabel={`Preview ${file.title}`} label={preparing === 'preview' ? 'Opening…' : 'Preview'} loading={preparing === 'preview'} disabled={Boolean(preparing) || downloadDisabled} onPress={() => void openPreview()} />
+              <Button size="sm" style={styles.action} variant="secondary" accessibilityLabel={`Preview ${file.title}`} label={preparing === 'preview' ? 'Opening…' : 'Preview'} loading={preparing === 'preview'} disabled={Boolean(preparing) || downloadDisabled} onPress={() => void openPreview()} />
             )}
-            <Button style={styles.action} variant="secondary" accessibilityLabel={`Download ${file.title}`} label={preparing === 'download' ? 'Preparing download…' : failed === 'download' ? 'Retry download' : 'Download'} loading={preparing === 'download'} disabled={Boolean(preparing) || downloadDisabled} onPress={() => void download()} />
+            <Button size="sm" style={styles.action} variant="secondary" accessibilityLabel={`Download ${file.title}`} label={preparing === 'download' ? 'Preparing download…' : failed === 'download' ? 'Retry download' : 'Download'} loading={preparing === 'download'} disabled={Boolean(preparing) || downloadDisabled} onPress={() => void download()} />
           </>
         )}
         {reviewing && !doc && (
-          <Button style={styles.action} variant="secondary" accessibilityLabel={`Review and comments on ${file.title}`} label={file.comment_count ? `Comments · ${file.comment_count}` : 'Review and comments'} onPress={() => setReviewOpen(true)} />
+          <Button size="sm" style={styles.action} variant="secondary" accessibilityLabel={`Review and comments on ${file.title}`} label={file.comment_count ? `Comments · ${file.comment_count}` : 'Review and comments'} onPress={() => setReviewOpen(true)} />
         )}
         {onDelete && (
-          <Button style={styles.action} variant="danger" accessibilityLabel={`Delete ${file.title}`} label="Delete" onPress={onDelete} />
+          <Button size="sm" style={styles.action} variant="danger" accessibilityLabel={`Delete ${file.title}`} label="Delete" onPress={onDelete} />
         )}
       </View>
 
-      {sheetOpen && (
-        <Modal visible transparent animationType="fade" onRequestClose={() => setSheetOpen(false)}>
-        <View style={styles.sheetBackdrop}>
-          <View style={styles.sheetCard}>
-            <View style={styles.sheetHeader}>
-              <Text numberOfLines={1} style={styles.sheetTitle}>{file.title}</Text>
-              <Pressable accessibilityRole="button" accessibilityLabel="Close actions" onPress={() => setSheetOpen(false)} style={styles.sheetClose}>
-                <X color={c.text.body} size={20} />
-              </Pressable>
-            </View>
-            {movingFolder && onMoveFolder ? (
-              <ScrollView style={styles.sheetScroll} contentContainerStyle={styles.sheetList}>
-                <Text style={styles.sheetSubtitle}>Choose destination folder</Text>
-                {allFolders.map((folderName) => {
-                  const current = folderName === file.folder;
-                  return (
-                    <Pressable
-                      key={folderName}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Move to ${folderName}`}
-                      disabled={current}
-                      onPress={() => {
-                        setSheetOpen(false);
-                        setMovingFolder(false);
-                        void onMoveFolder(file, folderName);
-                      }}
-                      style={[styles.sheetRow, current && styles.sheetRowDisabled]}
-                    >
-                      <FolderInput color={c.text.body} size={18} />
-                      <Text style={styles.sheetRowText}>{folderName}{current ? ' (current)' : ''}</Text>
-                    </Pressable>
-                  );
-                })}
-                <Button variant="secondary" label="Back" onPress={() => setMovingFolder(false)} />
-              </ScrollView>
-            ) : (
-              <View style={styles.sheetList}>
-                {onMoveFolder && folderOptions && folderOptions.length > 0 && (
-                  <Pressable accessibilityRole="button" onPress={() => setMovingFolder(true)} style={styles.sheetRow}>
-                    <FolderInput color={c.text.body} size={18} />
-                    <Text style={styles.sheetRowText}>Move to folder</Text>
-                  </Pressable>
-                )}
-                {onUploadVersion && !link && !doc && !downloadDisabled && (
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => { setSheetOpen(false); void onUploadVersion(file); }}
-                    style={styles.sheetRow}
-                  >
-                    <FileUp color={c.text.body} size={18} />
-                    <Text style={styles.sheetRowText}>Upload new version</Text>
-                  </Pressable>
-                )}
-                {onToggleVisibility && (
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => { setSheetOpen(false); void onToggleVisibility(file); }}
-                    style={styles.sheetRow}
-                  >
-                    {staged ? <Eye color={c.text.body} size={18} /> : <EyeOff color={c.text.body} size={18} />}
-                    <Text style={styles.sheetRowText}>{staged ? 'Share with students' : 'Move to staff only'}</Text>
-                  </Pressable>
-                )}
-                {onCopyToStudents && !staged && (
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => { setSheetOpen(false); void onCopyToStudents(file); }}
-                    style={styles.sheetRow}
-                  >
-                    <CopyPlus color={c.text.body} size={18} />
-                    <Text style={styles.sheetRowText}>Copy to all students</Text>
-                  </Pressable>
-                )}
-                {onDelete && (
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => { setSheetOpen(false); onDelete(); }}
-                    style={styles.sheetRow}
-                  >
-                    <Trash2 color={c.status.danger.fg} size={18} />
-                    <Text style={[styles.sheetRowText, styles.sheetDanger]}>Delete</Text>
-                  </Pressable>
-                )}
+      <BottomSheet
+        visible={sheetOpen}
+        onClose={() => { cancelVersionLoad(); setSheetOpen(false); }}
+        title={sheetMode === 'versions' ? 'Version history' : sheetMode === 'move' ? 'Move to folder' : file.title}
+        subtitle={sheetMode === 'versions' || sheetMode === 'move' ? file.title : undefined}
+      >
+        {sheetMode === 'move' && onMoveFolder ? (
+          <View style={styles.sheetList}>
+            {allFolders.map((folderName) => {
+              const current = folderName === file.folder;
+              return (
+                <Pressable
+                  key={folderName}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Move to ${folderName}`}
+                  disabled={current}
+                  onPress={() => {
+                    setSheetOpen(false);
+                    setSheetMode('actions');
+                    void onMoveFolder(file, folderName);
+                  }}
+                  style={[styles.sheetRow, current && styles.sheetRowDisabled]}
+                >
+                  <FolderInput color={c.text.body} size={18} />
+                  <Text style={styles.sheetRowText}>{folderName}{current ? ' (current)' : ''}</Text>
+                </Pressable>
+              );
+            })}
+            <Button size="sm" variant="secondary" label="Back" onPress={() => setSheetMode('actions')} />
+          </View>
+        ) : sheetMode === 'versions' ? (
+          <View style={styles.sheetList}>
+            {loadingVersions ? (
+              <View style={styles.versionLoading}>
+                <ActivityIndicator color={c.text.body} />
+                <Text style={styles.sheetSubtitle}>Loading versions…</Text>
               </View>
+            ) : versionsError ? (
+              <View style={styles.sheetList}>
+                <Text accessibilityRole="alert" style={styles.error}>{versionsError}</Text>
+                <Button size="sm" variant="secondary" label="Retry" onPress={() => void loadVersions()} />
+              </View>
+            ) : versions.length === 0 ? (
+              <Text style={styles.sheetSubtitle}>No earlier versions saved yet.</Text>
+            ) : (
+              versions.map((ver) => (
+                <View key={ver.id} style={styles.versionRow}>
+                  <View style={styles.titleWrap}>
+                    <Text style={styles.sheetRowText}>
+                      {`v${ver.version_number}${ver.current ? ' · Current' : ''}`}
+                    </Text>
+                    <Text numberOfLines={2} style={styles.sheetSubtitle}>
+                      {ver.filename}
+                      {ver.uploaded_by_name ? ` · ${ver.uploaded_by_name}` : ''}
+                      {ver.note ? ` · ${ver.note}` : ''}
+                    </Text>
+                  </View>
+                  <View style={styles.versionActions}>
+                    {ver.previewable && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        accessibilityLabel={`Preview version ${ver.version_number}`}
+                        label="View"
+                        onPress={() => { setSheetOpen(false); void openPreview(ver.id); }}
+                      />
+                    )}
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      accessibilityLabel={`Download version ${ver.version_number}`}
+                      onPress={() => { setSheetOpen(false); void download(ver.id); }}
+                    >
+                      <Download color={c.text.strong} size={15} />
+                    </Button>
+                  </View>
+                </View>
+              ))
+            )}
+            <Button size="sm" variant="secondary" label="Back" onPress={() => { cancelVersionLoad(); setSheetMode('actions'); }} />
+          </View>
+        ) : (
+          <View style={styles.sheetList}>
+            {!link && !doc && !downloadDisabled && (
+              <Pressable accessibilityRole="button" onPress={() => void loadVersions()} style={styles.sheetRow}>
+                <History color={c.text.body} size={18} />
+                <Text style={styles.sheetRowText}>Version history{file.version_number > 1 ? ` (v${file.version_number})` : ''}</Text>
+              </Pressable>
+            )}
+            {onMoveFolder && folderOptions && folderOptions.length > 0 && (
+              <Pressable accessibilityRole="button" onPress={() => setSheetMode('move')} style={styles.sheetRow}>
+                <FolderInput color={c.text.body} size={18} />
+                <Text style={styles.sheetRowText}>Move to folder</Text>
+              </Pressable>
+            )}
+            {onUploadVersion && !link && !doc && !downloadDisabled && (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => { setSheetOpen(false); void onUploadVersion(file); }}
+                style={styles.sheetRow}
+              >
+                <FileUp color={c.text.body} size={18} />
+                <Text style={styles.sheetRowText}>Upload new version</Text>
+              </Pressable>
+            )}
+            {onToggleVisibility && (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => { setSheetOpen(false); void onToggleVisibility(file); }}
+                style={styles.sheetRow}
+              >
+                {staged ? <Eye color={c.text.body} size={18} /> : <EyeOff color={c.text.body} size={18} />}
+                <Text style={styles.sheetRowText}>{staged ? 'Share with students' : 'Move to staff only'}</Text>
+              </Pressable>
+            )}
+            {onCopyToStudents && !staged && (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => { setSheetOpen(false); void onCopyToStudents(file); }}
+                style={styles.sheetRow}
+              >
+                <CopyPlus color={c.text.body} size={18} />
+                <Text style={styles.sheetRowText}>Copy to all students</Text>
+              </Pressable>
+            )}
+            {onDelete && (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => { setSheetOpen(false); onDelete(); }}
+                style={styles.sheetRow}
+              >
+                <Trash2 color={c.status.danger.fg} size={18} />
+                <Text style={[styles.sheetRowText, styles.sheetDanger]}>Delete</Text>
+              </Pressable>
             )}
           </View>
-        </View>
-      </Modal>
-      )}
+        )}
+      </BottomSheet>
 
       {!link && !doc && (
         <CohortFilePreviewModal
           title={file.title}
           preview={preview}
           onClose={() => setPreview(null)}
-          onDownload={() => { setPreview(null); void download(); }}
+          onDownload={() => { const versionId = preview?.version_id ?? undefined; setPreview(null); void download(versionId); }}
           review={reviewing && preview ? <CohortFileReviewSection cohortId={cohortId} file={file} access={reviewing} onChanged={onChanged} /> : undefined}
         />
       )}
@@ -414,28 +512,9 @@ const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   description: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 17, marginTop: 8 },
   error: { color: c.status.danger.fg, fontFamily: fonts.medium, fontSize: 13, marginTop: 10 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
-  action: { flexGrow: 1, minWidth: 112 },
-  sheetBackdrop: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: c.overlay,
-    padding: 12,
-  },
-  sheetCard: {
-    borderRadius: 20,
-    backgroundColor: c.surface.raised,
-    borderWidth: 1,
-    borderColor: c.border.subtle,
-    padding: 16,
-    gap: 10,
-    maxHeight: '70%',
-  },
-  sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  sheetTitle: { flex: 1, color: c.text.strong, fontFamily: fonts.bold, fontSize: 16 },
-  sheetClose: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  sheetSubtitle: { color: c.text.muted, fontFamily: fonts.semibold, fontSize: 12 },
-  sheetScroll: { maxHeight: 320 },
-  sheetList: { gap: 4 },
+  action: { flexGrow: 1, minWidth: 96 },
+  sheetSubtitle: { color: c.text.muted, fontFamily: fonts.regular, fontSize: 12, marginTop: 2 },
+  sheetList: { gap: 6 },
   sheetRow: {
     minHeight: 48,
     borderRadius: 12,
@@ -447,4 +526,17 @@ const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   sheetRowDisabled: { opacity: 0.45 },
   sheetRowText: { color: c.text.strong, fontFamily: fonts.semibold, fontSize: 14 },
   sheetDanger: { color: c.status.danger.fg },
+  versionLoading: { paddingVertical: 20, alignItems: 'center', gap: 8 },
+  versionRow: {
+    minHeight: 54,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: c.border.subtle,
+    backgroundColor: c.surface.sunken,
+    padding: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  versionActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
 }));
