@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { BadgeCheck, Check, CircleDot, Loader2, MessageSquare, RefreshCw, Send, Trash2, Undo2 } from 'lucide-react'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import { api } from '../../lib/api'
@@ -98,21 +98,42 @@ export function CohortFileReviewBar({ cohortId, file, access, onFileChange }: {
   )
 }
 
+export interface CohortFileCommentsSnapshot {
+  comments: CohortFileComment[]
+  canComment: boolean
+}
+
 /** The comment thread between a student and staff on one student-folder item. */
-export function CohortFileComments({ cohortId, file, onCountChange }: {
+export function CohortFileComments({
+  cohortId,
+  file,
+  onCountChange,
+  draft: controlledDraft,
+  onDraftChange,
+  initialSnapshot,
+  onSnapshotChange,
+}: {
   cohortId: number
   file: CohortFile
   onCountChange?: (count: number) => void
+  draft?: string
+  onDraftChange?: (value: string) => void
+  initialSnapshot?: CohortFileCommentsSnapshot | null
+  onSnapshotChange?: (snapshot: CohortFileCommentsSnapshot) => void
 }) {
   const id = useId()
   const confirm = useConfirm()
-  const [comments, setComments] = useState<CohortFileComment[] | null>(null)
-  const [canComment, setCanComment] = useState(false)
+  const [comments, setComments] = useState<CohortFileComment[] | null>(() => initialSnapshot?.comments ?? null)
+  const [canComment, setCanComment] = useState(() => initialSnapshot?.canComment ?? false)
   const [loadError, setLoadError] = useState('')
   const [attempt, setAttempt] = useState(0)
-  const [draft, setDraft] = useState('')
+  const [localDraft, setLocalDraft] = useState('')
+  const draft = controlledDraft ?? localDraft
+  const setDraft = onDraftChange ?? setLocalDraft
   const [posting, setPosting] = useState(false)
   const [error, setError] = useState('')
+  const onSnapshotChangeRef = useRef(onSnapshotChange)
+  onSnapshotChangeRef.current = onSnapshotChange
 
   useEffect(() => {
     let live = true
@@ -122,6 +143,7 @@ export function CohortFileComments({ cohortId, file, onCountChange }: {
       if (result.data) {
         setComments(result.data.comments)
         setCanComment(result.data.can_comment)
+        onSnapshotChangeRef.current?.({ comments: result.data.comments, canComment: result.data.can_comment })
       } else setLoadError(result.error || 'Could not load comments.')
     })
     return () => { live = false }
@@ -137,6 +159,7 @@ export function CohortFileComments({ cohortId, file, onCountChange }: {
     if (!result.data) return setError(result.error || 'Could not post your comment.')
     const next = [...(comments || []), result.data.comment]
     setComments(next)
+    onSnapshotChangeRef.current?.({ comments: next, canComment })
     setDraft('')
     onCountChange?.(next.length)
   }
@@ -147,6 +170,7 @@ export function CohortFileComments({ cohortId, file, onCountChange }: {
     if (result.error) return setError(result.error)
     const next = (comments || []).filter((item) => item.id !== comment.id)
     setComments(next)
+    onSnapshotChangeRef.current?.({ comments: next, canComment })
     onCountChange?.(next.length)
   }
 
@@ -207,16 +231,37 @@ export function CohortFileComments({ cohortId, file, onCountChange }: {
 }
 
 /** Review status and comments together, beside a doc or preview. */
-export function CohortFileReviewPanel({ cohortId, file, access, onFileChange }: {
+export function CohortFileReviewPanel({
+  cohortId,
+  file,
+  access,
+  onFileChange,
+  draft,
+  onDraftChange,
+  initialCommentsSnapshot,
+  onCommentsSnapshotChange,
+}: {
   cohortId: number
   file: CohortFile
   access: ReviewAccess
   onFileChange: (file: CohortFile) => void
+  draft?: string
+  onDraftChange?: (value: string) => void
+  initialCommentsSnapshot?: CohortFileCommentsSnapshot | null
+  onCommentsSnapshotChange?: (snapshot: CohortFileCommentsSnapshot) => void
 }) {
   return (
     <div className="space-y-5">
       <CohortFileReviewBar cohortId={cohortId} file={file} access={access} onFileChange={onFileChange} />
-      <CohortFileComments cohortId={cohortId} file={file} onCountChange={(count) => onFileChange({ ...file, comment_count: count })} />
+      <CohortFileComments
+        cohortId={cohortId}
+        file={file}
+        draft={draft}
+        onDraftChange={onDraftChange}
+        initialSnapshot={initialCommentsSnapshot}
+        onSnapshotChange={onCommentsSnapshotChange}
+        onCountChange={(count) => onFileChange({ ...file, comment_count: count })}
+      />
     </div>
   )
 }

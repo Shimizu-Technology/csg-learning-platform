@@ -38,8 +38,9 @@ const HEX = /['"`]#[0-9a-fA-F]{3,8}['"`]/g
 const PROSE_THEME = new RegExp(`(?<![\\w-])prose-(?:${PALETTE})(?![\\w-])`, 'g')
 // Undefined semantic utilities that Tailwind v4 silently drops because index.css defines
 // `--color-action-primary`, `--color-on-action`, `--color-primary-soft`, `--color-primary-ink`, etc.
+const NON_CLASS_ATTR = /\b(?:data-[\w-]+|id|htmlFor|aria-[\w-]+|href|to|src|alt|name|placeholder|title|type|role)\s*=\s*(?:"[^"]*"|'[^']*')/g
 const UNDEFINED_SEMANTIC_CLASS = new RegExp(
-  `(?<![\\w-])(?:(?:${UTILITIES})-(?:primary|accent)|(?:bg|text|border(?:-[trblxyse])?)-on-primary)(?:\\/\\d+)?(?![\\w-])`,
+  `(?<![\\w-])(?:${UTILITIES})-(?:primary|accent|on-primary)(?:\\/\\d+)?(?![\\w-])`,
   'g',
 )
 
@@ -71,7 +72,8 @@ export function findUndefinedSemanticClasses(source: string) {
   const hits: string[] = []
   lines.forEach((line, index) => {
     if (/^\s*(\/\/|\/?\*)/.test(line)) return
-    for (const match of line.matchAll(UNDEFINED_SEMANTIC_CLASS)) hits.push(`${index + 1}: ${match[0]}`)
+    const stripped = line.replace(NON_CLASS_ATTR, '')
+    for (const match of stripped.matchAll(UNDEFINED_SEMANTIC_CLASS)) hits.push(`${index + 1}: ${match[0]}`)
   })
   return hits
 }
@@ -101,13 +103,16 @@ describe('raw colours lint', () => {
     expect(failures, 'Use a colour role from index.css (bg-surface-raised, text-ink-secondary, text-danger-ink …)').toEqual([])
   })
 
-  it('catches undefined semantic utilities (bg-primary, border-primary, text-on-primary, accent-primary, bg-accent) while allowing defined roles', () => {
+  it('catches undefined semantic utilities (bg-primary, border-primary, text-on-primary, focus:ring-on-primary, accent-primary, bg-accent) while ignoring non-class attributes and allowing defined roles', () => {
     expect(
-      findUndefinedSemanticClasses('className="bg-primary border-primary text-on-primary accent-primary bg-accent text-primary hover:bg-primary/90"')
+      findUndefinedSemanticClasses('className="bg-primary border-primary text-on-primary focus:ring-on-primary accent-primary bg-accent text-primary hover:bg-primary/90"')
         .map((hit) => hit.split(': ')[1]),
-    ).toEqual(['bg-primary', 'border-primary', 'text-on-primary', 'accent-primary', 'bg-accent', 'text-primary', 'bg-primary/90'])
+    ).toEqual(['bg-primary', 'border-primary', 'text-on-primary', 'ring-on-primary', 'accent-primary', 'bg-accent', 'text-primary', 'bg-primary/90'])
     expect(
-      findUndefinedSemanticClasses('className="bg-action-primary border-action-primary text-on-action accent-action-primary bg-primary-soft text-primary-ink border-primary-soft-line text-primary-soft-ink"'),
+      findUndefinedSemanticClasses('data-testid="bg-primary" id="border-primary" aria-label="text-on-primary"'),
+    ).toEqual([])
+    expect(
+      findUndefinedSemanticClasses('className="bg-action-primary border-action-primary text-on-action focus:ring-on-action accent-action-primary bg-primary-soft text-primary-ink border-primary-soft-line text-primary-soft-ink"'),
     ).toEqual([])
   })
 

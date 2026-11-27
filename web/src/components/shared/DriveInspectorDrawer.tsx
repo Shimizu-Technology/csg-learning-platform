@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { BookOpen, Check, Download, ExternalLink, Eye, FolderInput, Info, Loader2, X } from 'lucide-react'
 import { api } from '../../lib/api'
 import {
@@ -15,7 +15,12 @@ import { formatShortDateTime } from '../../lib/format'
 import { useMediaQuery } from '../../lib/useMediaQuery'
 import { Badge } from '../ui/Badge'
 import { AnchorButton, Button, IconButton } from '../ui/Button'
-import { CohortFileReviewPanel, ReviewStatusBadge, type ReviewAccess } from './CohortFileReview'
+import {
+  CohortFileReviewPanel,
+  ReviewStatusBadge,
+  type CohortFileCommentsSnapshot,
+  type ReviewAccess,
+} from './CohortFileReview'
 import { Modal } from './Modal'
 
 /**
@@ -50,12 +55,53 @@ export function DriveInspectorDrawer({
   const [moveError, setMoveError] = useState('')
   const [downloading, setDownloading] = useState(false)
   const [downloadError, setDownloadError] = useState('')
+  const [reviewDraft, setReviewDraft] = useState('')
+  const [commentsSnapshot, setCommentsSnapshot] = useState<CohortFileCommentsSnapshot | null>(null)
+  const asideRef = useRef<HTMLElement>(null)
+  const reviewContainerRef = useRef<HTMLDivElement>(null)
+  const prevIsDesktopRef = useRef(isDesktop)
+  const wasEditingReviewRef = useRef(false)
 
   useEffect(() => {
     setTargetFolder(file?.folder || '')
     setMoveError('')
     setDownloadError('')
   }, [file])
+
+  useEffect(() => {
+    setReviewDraft('')
+    setCommentsSnapshot(null)
+    wasEditingReviewRef.current = false
+  }, [file?.id])
+
+  useEffect(() => {
+    const previous = prevIsDesktopRef.current
+    prevIsDesktopRef.current = isDesktop
+    if (!file || previous === isDesktop) return
+
+    const restoreReviewFocus = wasEditingReviewRef.current
+    const frame = requestAnimationFrame(() => {
+      if (isDesktop) {
+        if (document.querySelector('[data-app-modal]')) return
+        const textarea = restoreReviewFocus ? reviewContainerRef.current?.querySelector<HTMLTextAreaElement>('textarea') : null
+        if (textarea) {
+          textarea.focus()
+          textarea.setSelectionRange(textarea.value.length, textarea.value.length)
+        } else {
+          asideRef.current?.focus()
+        }
+        return
+      }
+      if (restoreReviewFocus) {
+        const textarea = reviewContainerRef.current?.querySelector<HTMLTextAreaElement>('textarea')
+        if (textarea) {
+          textarea.focus()
+          textarea.setSelectionRange(textarea.value.length, textarea.value.length)
+        }
+      }
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [file, isDesktop])
 
   if (!file) return null
 
@@ -214,8 +260,28 @@ export function DriveInspectorDrawer({
       )}
 
       {reviewing && onFileChange && (
-        <div className="border-t border-line pt-3">
-          <CohortFileReviewPanel cohortId={cohortId} file={file} access={reviewing} onFileChange={onFileChange} />
+        <div
+          ref={reviewContainerRef}
+          className="border-t border-line pt-3"
+          onFocusCapture={(event) => {
+            wasEditingReviewRef.current = event.target instanceof HTMLTextAreaElement
+          }}
+          onBlurCapture={(event) => {
+            if (!(event.target instanceof HTMLTextAreaElement)) return
+            const nextTarget = event.relatedTarget
+            if (nextTarget instanceof Node) wasEditingReviewRef.current = false
+          }}
+        >
+          <CohortFileReviewPanel
+            cohortId={cohortId}
+            file={file}
+            access={reviewing}
+            draft={reviewDraft}
+            onDraftChange={setReviewDraft}
+            initialCommentsSnapshot={commentsSnapshot}
+            onCommentsSnapshotChange={setCommentsSnapshot}
+            onFileChange={onFileChange}
+          />
         </div>
       )}
     </div>
@@ -239,6 +305,7 @@ export function DriveInspectorDrawer({
 
   return (
     <aside
+      ref={asideRef}
       aria-label={`Details for ${file.title}`}
       tabIndex={-1}
       onKeyDown={(event) => {

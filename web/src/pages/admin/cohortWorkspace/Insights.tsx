@@ -43,7 +43,12 @@ export function Insights({
   if (!insights.objectives.length && !insights.revision_patterns.length)
     return (
       <details className="group app-surface overflow-hidden">
-        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-sm font-semibold text-ink transition-colors duration-150 hover:bg-surface-sunken">
+        <summary
+          className={[
+            'flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-5 py-4',
+            'text-sm font-semibold text-ink transition-colors duration-150 hover:bg-surface-sunken',
+          ].join(' ')}
+        >
           <span>No learning evidence yet</span>
           <ChevronDown className="h-4 w-4 shrink-0 text-ink-muted transition-transform duration-150 group-open:rotate-180" aria-hidden="true" />
         </summary>

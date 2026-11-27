@@ -10,6 +10,7 @@ import { useAuthContext } from '../../contexts/AuthContext'
 import { brand, LOGO_SRC, PRODUCT_NAME } from '../../lib/brand'
 import { useCohortContext } from '../../contexts/CohortContext'
 import { api } from '../../lib/api'
+import { lockBodyScroll } from '../../lib/bodyScrollLock'
 import { refreshExistingPushSubscription, pushSupported, webPushPreferenceEnabled } from '../../lib/pushNotifications'
 import { subscribeToUserMessages } from '../../lib/realtime'
 import { isVisiblePage } from '../../lib/backgroundActivity'
@@ -92,18 +93,18 @@ export function Layout({ children }: LayoutProps) {
   useEffect(() => {
     if (!sidebarOpen) return
 
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    const releaseScrollLock = lockBodyScroll()
     closeButtonRef.current?.focus()
 
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
+      if (document.querySelector('[data-app-modal]')) return
       closeMobileSidebar()
     }
 
     document.addEventListener('keydown', handleEscape)
     return () => {
-      document.body.style.overflow = previousOverflow
+      releaseScrollLock()
       document.removeEventListener('keydown', handleEscape)
     }
   }, [closeMobileSidebar, sidebarOpen])

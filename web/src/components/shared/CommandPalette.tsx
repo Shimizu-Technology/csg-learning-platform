@@ -17,6 +17,7 @@ import {
   X,
 } from 'lucide-react'
 import { api } from '../../lib/api'
+import { lockBodyScroll } from '../../lib/bodyScrollLock'
 import { searchDestinationPath } from '../../lib/searchDestination'
 import { shellNavigation } from '../../lib/shellNavigation'
 import { cohortPath } from '../../lib/routes'
@@ -127,6 +128,9 @@ export function CommandPalette({ open, isStaff, onClose }: CommandPaletteProps) 
   const [error, setError] = useState('')
   const [partial, setPartial] = useState(false)
   const [selected, setSelected] = useState(0)
+  const dialogRef = useRef<HTMLElement>(null)
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
   const input = useRef<HTMLInputElement>(null)
   const list = useRef<HTMLDivElement>(null)
   const storageKey = `csg-search-recent:${user?.id}`
@@ -157,10 +161,26 @@ export function CommandPalette({ open, isStaff, onClose }: CommandPaletteProps) 
   useEffect(() => {
     if (!open) return
     let active = true
-    const previousFocus = document.activeElement as HTMLElement | null
-    const overflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    const dialog = dialogRef.current
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const releaseScrollLock = lockBodyScroll()
     setQuery(''); setCategory('all'); setRecords([]); setRecents([]); setPartial(false); setError(''); setSelected(0)
+    const handleFocusIn = (event: FocusEvent) => {
+      const currentDialog = dialogRef.current
+      if (!currentDialog || !(event.target instanceof Node) || currentDialog.contains(event.target)) return
+      const openDialogs = Array.from(document.querySelectorAll<HTMLElement>('[data-app-modal]'))
+      if (openDialogs.at(-1) !== currentDialog) return
+      input.current?.focus()
+    }
+    const handleDocEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return
+      const openDialogs = Array.from(document.querySelectorAll<HTMLElement>('[data-app-modal]'))
+      if (openDialogs.at(-1) !== dialogRef.current) return
+      event.preventDefault()
+      onCloseRef.current()
+    }
+    document.addEventListener('focusin', handleFocusIn)
+    document.addEventListener('keydown', handleDocEscape)
     const frame = requestAnimationFrame(() => input.current?.focus())
     let saved: Recent[] = []
     try { saved = JSON.parse(localStorage.getItem(storageKey) || '[]') as Recent[] } catch { /* Storage may be unavailable. */ }
@@ -177,7 +197,17 @@ export function CommandPalette({ open, isStaff, onClose }: CommandPaletteProps) 
         kind: group.type,
       }))).find(item => item.id === r.id && item.path)
     })).then(items => { if (active) setRecents(items.flatMap(item => item.status === 'fulfilled' && item.value ? [item.value] : [])) })
-    return () => { active = false; cancelAnimationFrame(frame); document.body.style.overflow = overflow; previousFocus?.focus() }
+    return () => {
+      active = false
+      cancelAnimationFrame(frame)
+      document.removeEventListener('focusin', handleFocusIn)
+      document.removeEventListener('keydown', handleDocEscape)
+      releaseScrollLock()
+      const remainingModals = Array.from(document.querySelectorAll<HTMLElement>('[data-app-modal]')).filter((el) => el !== dialog)
+      if (previousFocus && previousFocus.isConnected && (remainingModals.length === 0 || remainingModals.at(-1)?.contains(previousFocus))) {
+        previousFocus.focus()
+      }
+    }
   }, [open, storageKey, isStaff, user?.is_admin])
 
   useEffect(() => {
@@ -230,8 +260,8 @@ export function CommandPalette({ open, isStaff, onClose }: CommandPaletteProps) 
   }
   if (!open) return null
   return createPortal(<div className="fixed inset-0 z-[100] flex items-start justify-center bg-scrim p-2 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-3 sm:pt-[8vh]" onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
-    <section role="dialog" aria-modal="true" aria-label="Search and go" className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-line bg-surface-overlay shadow-overlay sm:max-h-[82dvh]" onKeyDown={event => {
-      if (event.key === 'Escape') { event.preventDefault(); onClose() }
+    <section ref={dialogRef} data-app-modal role="dialog" aria-modal="true" aria-label="Search and go" className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-line bg-surface-overlay shadow-overlay sm:max-h-[82dvh]" onKeyDown={event => {
+      if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onClose() }
       if (event.key === 'Tab') {
         const focusable = [...event.currentTarget.querySelectorAll<HTMLElement>('input, button')]
         const next = focusable[(focusable.indexOf(document.activeElement as HTMLElement) + (event.shiftKey ? -1 : 1) + focusable.length) % focusable.length]
@@ -254,7 +284,7 @@ export function CommandPalette({ open, isStaff, onClose }: CommandPaletteProps) 
               type="button"
               aria-pressed={active}
               onClick={() => setCategory(option.value)}
-              className={`inline-flex min-h-11 items-center rounded-full border px-3 text-xs font-semibold transition-colors sm:min-h-8 ${active ? 'border-primary-soft-line bg-primary-soft text-primary-ink' : 'border-line bg-surface-raised text-ink-secondary hover:border-line-strong hover:text-ink'}`}
+              className={`inline-flex min-h-11 min-w-11 items-center justify-center rounded-full border px-3.5 text-xs font-semibold transition-colors ${active ? 'border-primary-soft-line bg-primary-soft text-primary-ink' : 'border-line bg-surface-raised text-ink-secondary hover:border-line-strong hover:text-ink'}`}
             >
               {option.label}
             </button>

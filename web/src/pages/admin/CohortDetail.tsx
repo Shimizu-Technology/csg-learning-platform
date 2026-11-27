@@ -95,14 +95,21 @@ export function CohortSettings({ onSaved }: { onSaved?: () => Promise<unknown> }
     >
       <fieldset
         disabled={saving}
-        className={`min-w-0 space-y-6 max-lg:[&_input]:text-base max-lg:[&_select]:text-base max-lg:[&_textarea]:text-base ${dirty || saving ? 'max-lg:pb-24' : ''}`}
+        className={[
+          'min-w-0 space-y-6 max-lg:[&_input]:text-base max-lg:[&_select]:text-base max-lg:[&_textarea]:text-base',
+          dirty || saving ? 'max-lg:pb-24' : '',
+        ].join(' ')}
       >
         <UnsavedChangesGuard pathnameOnly={false} dirty={dirty} />
         <SettingsFields settings={ready} />
         {dirty || saving ? (
           <div
             data-testid="cohort-save-bar"
-            className="hide-with-keyboard fixed inset-x-0 bottom-[calc(4.25rem+env(safe-area-inset-bottom,0px))] z-20 flex items-center justify-between gap-3 border-t border-line bg-surface-overlay px-4 py-3 shadow-overlay lg:sticky lg:inset-x-auto lg:bottom-4 lg:rounded-2xl lg:border"
+            className={[
+              'hide-with-keyboard fixed inset-x-0 bottom-[calc(4.25rem+env(safe-area-inset-bottom,0px))] z-20',
+              'flex items-center justify-between gap-3 border-t border-line bg-surface-overlay px-4 py-3 shadow-overlay',
+              'lg:sticky lg:inset-x-auto lg:bottom-4 lg:rounded-2xl lg:border',
+            ].join(' ')}
           >
             <span className="text-sm font-semibold text-ink-secondary">
               {saving ? 'Saving changes…' : 'Unsaved changes'}

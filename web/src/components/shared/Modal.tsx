@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useRef } from 'react'
 import { X } from 'lucide-react'
+import { lockBodyScroll } from '../../lib/bodyScrollLock'
 import { IconButton } from '../ui/Button'
 
 interface ModalProps {
@@ -94,10 +95,11 @@ export function Modal({ open, onClose, title, subtitle, icon, children, footer, 
   useEffect(() => {
     if (!open) return
 
+    const dialog = dialogRef.current
     const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null
     const focusableSelector = 'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
-    const previousOverflow = document.body.style.overflow
+    const releaseScrollLock = lockBodyScroll()
     const handleEsc = (e: KeyboardEvent) => {
       const openDialogs = Array.from(document.querySelectorAll<HTMLElement>('[data-app-modal]'))
       if (openDialogs.at(-1) !== dialogRef.current) return
@@ -127,30 +129,37 @@ export function Modal({ open, onClose, title, subtitle, icon, children, footer, 
     }
 
     const handleFocusIn = (e: FocusEvent) => {
-      const dialog = dialogRef.current
-      if (!dialog || !(e.target instanceof Node) || dialog.contains(e.target)) return
+      const currentDialog = dialogRef.current
+      if (!currentDialog || !(e.target instanceof Node) || currentDialog.contains(e.target)) return
 
       const openDialogs = Array.from(document.querySelectorAll<HTMLElement>('[data-app-modal]'))
-      if (openDialogs.at(-1) !== dialog) return
+      if (openDialogs.at(-1) !== currentDialog) return
 
-      const firstFocusable = dialog.querySelector<HTMLElement>(focusableSelector)
-      ;(firstFocusable || dialog).focus()
+      const firstFocusable = currentDialog.querySelector<HTMLElement>(focusableSelector)
+      ;(firstFocusable || currentDialog).focus()
     }
     document.addEventListener('keydown', handleEsc)
     document.addEventListener('focusin', handleFocusIn)
-    document.body.style.overflow = 'hidden'
 
     const focusFrame = requestAnimationFrame(() => {
-      const firstFocusable = dialogRef.current?.querySelector<HTMLElement>(focusableSelector)
-      ;(firstFocusable || dialogRef.current)?.focus()
+      const currentDialog = dialogRef.current
+      if (!currentDialog) return
+      const openDialogs = Array.from(document.querySelectorAll<HTMLElement>('[data-app-modal]'))
+      if (openDialogs.at(-1) !== currentDialog) return
+      if (currentDialog.contains(document.activeElement)) return
+      const firstFocusable = currentDialog.querySelector<HTMLElement>(focusableSelector)
+      ;(firstFocusable || currentDialog).focus()
     })
 
     return () => {
       cancelAnimationFrame(focusFrame)
       document.removeEventListener('keydown', handleEsc)
       document.removeEventListener('focusin', handleFocusIn)
-      document.body.style.overflow = previousOverflow
-      previouslyFocused?.focus()
+      releaseScrollLock()
+      const remainingModals = Array.from(document.querySelectorAll<HTMLElement>('[data-app-modal]')).filter((el) => el !== dialog)
+      if (previouslyFocused && previouslyFocused.isConnected && (remainingModals.length === 0 || remainingModals.at(-1)?.contains(previouslyFocused))) {
+        previouslyFocused.focus()
+      }
     }
   }, [open])
 
