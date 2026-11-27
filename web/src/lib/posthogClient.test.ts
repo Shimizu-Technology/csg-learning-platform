@@ -36,7 +36,14 @@ describe('lazy PostHog client', () => {
     module.setPostHogIdentity({ kind: 'anonymous' })
     await module.loadPostHog()
     expect(importer).toHaveBeenCalledTimes(1)
-    expect(fake.init).toHaveBeenCalledWith('phc_test', expect.objectContaining({ autocapture: false, disable_session_recording: true }))
+    expect(fake.init).toHaveBeenCalledWith(
+      'phc_test',
+      expect.objectContaining({
+        autocapture: false,
+        disable_session_recording: false,
+        session_recording: { maskAllInputs: true },
+      }),
+    )
     expect(fake.capture.mock.calls.map((call) => call[0])).toEqual(['$pageview', 'second'])
     expect(module.isPostHogLoaded()).toBe(true)
 

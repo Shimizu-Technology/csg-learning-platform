@@ -97,9 +97,12 @@ export function loadPostHog(): Promise<PostHog | null> {
         posthog.init(POSTHOG_KEY, {
           api_host: POSTHOG_HOST,
           capture_pageview: false,
-          capture_pageleave: false,
+          capture_pageleave: true,
           autocapture: false,
-          disable_session_recording: true,
+          disable_session_recording: false,
+          session_recording: {
+            maskAllInputs: true,
+          },
           loaded: (ph) => {
             if (import.meta.env.DEV) ph.opt_out_capturing()
           },
