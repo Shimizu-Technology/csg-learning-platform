@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { BadgeCheck, Check, ChevronDown, ChevronUp, Circle, Clock3, Code2, ExternalLink, FileText, Film, GitBranch, Lightbulb, Lock, Play, RotateCcw, Save, Send } from 'lucide-react-native';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, InputAccessoryView, Keyboard, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { fonts, monoFont } from '@/constants/csg-theme';
@@ -346,6 +346,62 @@ export function LessonContentBlockCard({ block, lesson, lessonWritesPaused = fal
 
 function LessonVideo({ block, lesson, writesPaused }: { block: LessonContentBlock; lesson: LessonDetail; writesPaused: boolean }) {
   const styles = useStyles();
+  const versions = useMemo(() => (block.has_s3_video ? videoVersions(block.metadata) : []), [block.has_s3_video, block.metadata]);
+  const [selectedVersionId, setSelectedVersionId] = useState<string | null>(() => versions[0]?.id ?? null);
+  const activeVersionId = versions.some((version) => version.id === selectedVersionId) ? selectedVersionId : (versions[0]?.id ?? null);
+  const versionSources = (block.video_progress_sources as { default?: string; versions?: Record<string, string> } | undefined)?.versions;
+  const activeSource = (activeVersionId && versionSources?.[activeVersionId]) || block.video_progress_sources?.default;
+
+  const versionSwitcher = versions.length > 1 ? (
+    <View style={styles.versionRow} accessibilityRole="tablist" accessibilityLabel="Video versions">
+      {versions.map((version) => {
+        const active = version.id === activeVersionId;
+        return (
+          <Pressable
+            key={version.id}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: active }}
+            accessibilityLabel={`Video version ${version.label}`}
+            haptic="selection"
+            onPress={() => setSelectedVersionId(version.id)}
+            style={[styles.versionPill, active && styles.versionPillActive]}
+          >
+            <Text style={[styles.versionPillText, active && styles.versionPillTextActive]}>{version.label}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  ) : null;
+
+  return (
+    <LessonVideoPlayer
+      key={activeSource ?? activeVersionId ?? block.video_url ?? block.id}
+      block={block}
+      lesson={lesson}
+      writesPaused={writesPaused}
+      source={activeSource}
+      versionId={versions.length > 1 ? activeVersionId : null}
+      header={versionSwitcher}
+    />
+  );
+}
+
+function LessonVideoPlayer({
+  block,
+  lesson,
+  writesPaused,
+  source,
+  versionId,
+  header,
+}: {
+  block: LessonContentBlock;
+  lesson: LessonDetail;
+  writesPaused: boolean;
+  source: string | undefined;
+  versionId: string | null;
+  header: ReactNode;
+}) {
+  const styles = useStyles();
   const { colors: c } = useTheme();
   const { api, user } = useSession();
   const trackProgress = !writesPaused && !user?.is_staff && lesson.capabilities?.read_only !== true && lesson.capabilities?.can_submit === true;
@@ -358,11 +414,6 @@ function LessonVideo({ block, lesson, writesPaused }: { block: LessonContentBloc
   const savedVideoStateRef = useRef({ status: block.progress?.status || 'not_started', completed: block.progress?.status === 'completed' });
   const hostedPlayerRef = useRef<NativeVideoPlayerHandle>(null);
   const linkedPlayerRef = useRef<InAppMediaPlayerHandle>(null);
-  const versions = useMemo(() => (block.has_s3_video ? videoVersions(block.metadata) : []), [block.has_s3_video, block.metadata]);
-  const [selectedVersionId, setSelectedVersionId] = useState<string | null>(() => versions[0]?.id ?? null);
-  const activeVersionId = versions.some((version) => version.id === selectedVersionId) ? selectedVersionId : (versions[0]?.id ?? null);
-  const versionSources = (block.video_progress_sources as { default?: string; versions?: Record<string, string> } | undefined)?.versions;
-  const source = (activeVersionId && versionSources?.[activeVersionId]) || block.video_progress_sources?.default;
   const [selection, setSelection] = useState<{ segment: VideoSegment; source?: string } | null>(null);
   const activeVideoSegment = selection && selection.source === source ? selection.segment : null;
   const pendingRangesRef = useRef(new Set<string>());
@@ -388,12 +439,12 @@ function LessonVideo({ block, lesson, writesPaused }: { block: LessonContentBloc
   useLayoutEffect(() => { coverage.updateSegments(videoSegments); }, [coverage, videoSegments]);
   const initialPosition = segmentPlaybackStart(videoSegments, block.progress?.video_last_position || 0);
   const fetchStream = useCallback(async () => {
-    const response = versions.length > 1 && activeVersionId
-      ? await api.contentVideoStream(block.id, undefined, cohortId, activeVersionId)
+    const response = versionId
+      ? await api.contentVideoStream(block.id, undefined, cohortId, versionId)
       : await api.contentVideoStream(block.id, undefined, cohortId);
     if (source && response.video_source && response.video_source !== source) throw new Error('The recording changed. Reopen the lesson to load it.');
     return { stream_url: response.stream_url, expires_at: response.expires_at };
-  }, [activeVersionId, api, block.id, cohortId, source, versions.length]);
+  }, [api, block.id, cohortId, source, versionId]);
   const saveProgress = useCallback(function save(progress: VideoProgressInput, retry = false) {
     if (!trackProgressRef.current || stale.current) return Promise.resolve();
     const previous = lastProgressRef.current;
@@ -512,30 +563,7 @@ function LessonVideo({ block, lesson, writesPaused }: { block: LessonContentBloc
     stopAtSeconds: activeVideoSegment?.end_seconds ?? null, onStopAtReached: finishSegment, onPlaybackSample,
     title: block.title || lesson.title, trackProgress, completionSaved: block.progress?.status === 'completed',
   };
-  const versionSwitcher = versions.length > 1 ? (
-    <View style={styles.versionRow} accessibilityRole="tablist" accessibilityLabel="Video versions">
-      {versions.map((version) => {
-        const active = version.id === activeVersionId;
-        return (
-          <Pressable
-            key={version.id}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: active }}
-            accessibilityLabel={`Video version ${version.label}`}
-            haptic="selection"
-            onPress={() => {
-              setSelectedVersionId(version.id);
-              setSelection(null);
-            }}
-            style={[styles.versionPill, active && styles.versionPillActive]}
-          >
-            <Text style={[styles.versionPillText, active && styles.versionPillTextActive]}>{version.label}</Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  ) : null;
-  if (block.has_s3_video) return <View style={styles.nativeVideo}>{versionSwitcher}<NativeVideoPlayer key={source ?? activeVersionId ?? block.id} ref={hostedPlayerRef} fetchStream={fetchStream} {...tracking} />{sectionControls}</View>;
+  if (block.has_s3_video) return <View style={styles.nativeVideo}>{header}<NativeVideoPlayer key={source ?? versionId ?? block.id} ref={hostedPlayerRef} fetchStream={fetchStream} {...tracking} />{sectionControls}</View>;
   if (!block.video_url) return user?.is_staff ? <View style={styles.stagedVideo}><Film color={c.text.muted} size={18} /><View style={styles.flex}><Text style={styles.stagedVideoTitle}>No video source attached</Text><Text style={styles.stagedVideoCopy}>Add a link or hosted file in the editor.</Text></View></View> : null;
   return <View style={styles.nativeVideo}><InAppMediaPlayer key={source ?? block.video_url} ref={linkedPlayerRef} url={block.video_url} {...tracking} />{sectionControls}</View>;
 

@@ -190,10 +190,14 @@ export default function RecordingDetailScreen() {
         <Button variant="secondary" label="Cancel" disabled={updateMutation.isPending || deleteMutation.isPending} onPress={() => setEditOpen(false)} style={styles.sheetButton} />
         <Button variant="primary" label={updateMutation.isPending ? 'Saving…' : 'Save changes'} disabled={!titleDraft.trim() || updateMutation.isPending || deleteMutation.isPending} onPress={() => updateMutation.mutate()} style={styles.sheetButton} />
       </View>
-      <Pressable accessibilityRole="button" accessibilityLabel="Delete recording" disabled={updateMutation.isPending || deleteMutation.isPending} onPress={confirmDelete} style={styles.deleteButton}>
-        <Trash2 color={c.status.danger.fg} size={16} />
-        <Text style={styles.deleteButtonText}>{deleteMutation.isPending ? 'Deleting…' : 'Delete recording'}</Text>
-      </Pressable>
+      {item.legacy_item_key ? (
+        <Text style={styles.securityCopy}>Imported legacy recordings are deleted on web so their legacy link is also removed.</Text>
+      ) : (
+        <Pressable accessibilityRole="button" accessibilityLabel="Delete recording" disabled={updateMutation.isPending || deleteMutation.isPending} onPress={confirmDelete} style={styles.deleteButton}>
+          <Trash2 color={c.status.danger.fg} size={16} />
+          <Text style={styles.deleteButtonText}>{deleteMutation.isPending ? 'Deleting…' : 'Delete recording'}</Text>
+        </Pressable>
+      )}
     </View>
   </BottomSheet>
   </SafeAreaView>;

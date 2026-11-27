@@ -394,16 +394,20 @@ function HandleEditor({ initialValue, api, userId, afterSave }: { initialValue: 
   const [draft, setDraft] = useState(initialValue);
   const [saved, setSaved] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const editRevisionRef = useRef(0);
   const handle = dirty ? draft : initialValue;
   const normalized = handle.trim().replace(/^@+/, '');
   const queryClient = useQueryClient();
   const mutation = useMutation({
-    mutationFn: () => api.updateProfile({ handle: normalized || null }),
-    onSuccess: async () => {
+    mutationFn: async (submittedRevision: number) => {
+      await api.updateProfile({ handle: normalized || null });
+      return submittedRevision;
+    },
+    onSuccess: async (submittedRevision) => {
       haptic('success');
-      setSaved(true);
+      if (editRevisionRef.current === submittedRevision) setSaved(true);
       await Promise.all([queryClient.invalidateQueries({ queryKey: learningKeys.profile(userId) }), afterSave()]);
-      setDirty(false);
+      if (editRevisionRef.current === submittedRevision) setDirty(false);
     },
     onError: (error) => Alert.alert('Could not update handle', (error as Error).message),
   });
@@ -421,8 +425,9 @@ function HandleEditor({ initialValue, api, userId, afterSave }: { initialValue: 
         <TextInput
           keyboardAppearance={scheme}
           accessibilityLabel="Mention handle"
+          editable={!mutation.isPending}
           value={handle}
-          onChangeText={(value) => { setDraft(value); setSaved(false); setDirty(true); }}
+          onChangeText={(value) => { editRevisionRef.current += 1; setDraft(value); setSaved(false); setDirty(true); }}
           autoCapitalize="none"
           autoCorrect={false}
           placeholder="your-handle"
@@ -434,7 +439,7 @@ function HandleEditor({ initialValue, api, userId, afterSave }: { initialValue: 
           accessibilityRole="button"
           accessibilityLabel="Save mention handle"
           disabled={mutation.isPending || unchanged}
-          onPress={() => mutation.mutate()}
+          onPress={() => mutation.mutate(editRevisionRef.current)}
           style={[styles.save, (mutation.isPending || unchanged) && styles.disabled]}
         >
           {mutation.isPending ? <ActivityIndicator color={c.text.onAction} /> : saved ? <Check color={c.text.onAction} size={18} /> : <Save color={c.text.onAction} size={18} />}

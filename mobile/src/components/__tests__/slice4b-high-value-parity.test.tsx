@@ -8,6 +8,7 @@ import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
 
 const mockPush = jest.fn();
+jest.mock('expo-network', () => ({ getNetworkStateAsync: jest.fn().mockResolvedValue({ isConnected: true, isInternetReachable: true }) }));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => (name === '__esModule' ? false : () => null) }));
 jest.mock('expo-router', () => ({
   usePathname: () => '/staff/intervention/42',

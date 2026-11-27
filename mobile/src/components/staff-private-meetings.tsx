@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { getNetworkStateAsync } from 'expo-network';
 import { useRouter, type Href } from 'expo-router';
 import { Calendar, ExternalLink, Link2, MessageSquare, Video, XCircle } from 'lucide-react-native';
 import { useState } from 'react';
@@ -81,22 +82,44 @@ export function StaffPrivateMeetings({
     },
   });
 
+  const ensureOnline = async (): Promise<boolean> => {
+    if (!connected) {
+      Alert.alert('You are offline', 'Reconnect before updating or messaging about a meeting.');
+      return false;
+    }
+    try {
+      if (typeof getNetworkStateAsync === 'function') {
+        const state = await getNetworkStateAsync();
+        if (!state.isConnected || state.isInternetReachable === false) {
+          Alert.alert('You are offline', 'Reconnect before updating or messaging about a meeting.');
+          return false;
+        }
+      }
+    } catch {
+      // Proceed if native network probe is unavailable; server request handles failure.
+    }
+    return true;
+  };
+
   const openZoomEditor = (booking: StaffMeetingBooking) => {
+    if (!connected) return;
     setEditingBooking(booking);
     setZoomDraft(booking.zoom_url || '');
   };
 
-  const saveZoom = () => {
+  const saveZoom = async () => {
     if (!editingBooking || updateMutation.isPending) return;
     const trimmed = zoomDraft.trim();
     if (trimmed && !safeExternalUrl(trimmed)) {
       Alert.alert('Invalid link', 'Enter an https:// meeting URL, or leave it blank to clear the link.');
       return;
     }
+    if (!(await ensureOnline())) return;
     updateMutation.mutate({ bookingId: editingBooking.id, input: { zoom_url: trimmed || null } });
   };
 
   const confirmCancel = (booking: StaffMeetingBooking) => {
+    if (!connected) return;
     Alert.alert(
       `Cancel meeting with ${booking.student_name}?`,
       'The learner will be notified and their slot will be released.',
@@ -106,8 +129,11 @@ export function StaffPrivateMeetings({
           text: 'Cancel meeting',
           style: 'destructive',
           onPress: () => {
-            haptic('destructive');
-            updateMutation.mutate({ bookingId: booking.id, input: { status: 'canceled' } });
+            void (async () => {
+              if (!(await ensureOnline())) return;
+              haptic('destructive');
+              updateMutation.mutate({ bookingId: booking.id, input: { status: 'canceled' } });
+            })();
           },
         },
       ],
@@ -116,6 +142,7 @@ export function StaffPrivateMeetings({
 
   const messageStudent = async (booking: StaffMeetingBooking) => {
     if (messagingId !== null) return;
+    if (!(await ensureOnline())) return;
     setMessagingId(booking.id);
     try {
       const response = await api.createCohortDm(booking.cohort_id, [booking.student_id]);
@@ -164,7 +191,8 @@ export function StaffPrivateMeetings({
           key={cohort.id}
           cohort={cohort}
           targetBookingId={targetBookingId}
-          busy={updateMutation.isPending}
+          connected={connected}
+          busy={updateMutation.isPending || !connected}
           messagingId={messagingId}
           onEditZoom={openZoomEditor}
           onCancel={confirmCancel}
@@ -239,8 +267,8 @@ export function StaffPrivateMeetings({
             <Button
               variant="primary"
               label={updateMutation.isPending ? 'Saving…' : 'Save link'}
-              disabled={updateMutation.isPending}
-              onPress={saveZoom}
+              disabled={!connected || updateMutation.isPending}
+              onPress={() => void saveZoom()}
               style={styles.sheetButton}
             />
           </View>
@@ -253,6 +281,7 @@ export function StaffPrivateMeetings({
 function StaffCohortSection({
   cohort,
   targetBookingId,
+  connected,
   busy,
   messagingId,
   onEditZoom,
@@ -261,6 +290,7 @@ function StaffCohortSection({
 }: {
   cohort: StaffMeetingCohort;
   targetBookingId: number | null;
+  connected: boolean;
   busy: boolean;
   messagingId: number | null;
   onEditZoom: (booking: StaffMeetingBooking) => void;
@@ -342,7 +372,7 @@ function StaffCohortSection({
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={`Message ${booking.student_name}`}
-                  disabled={messagingId === booking.id}
+                  disabled={!connected || messagingId === booking.id}
                   onPress={() => onMessage(booking)}
                   style={styles.actionChip}
                 >

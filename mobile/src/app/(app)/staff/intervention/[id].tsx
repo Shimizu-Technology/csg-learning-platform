@@ -6,7 +6,7 @@ import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { CalendarClock, CheckCircle2, ExternalLink, History, MessageSquareText, Plus, ShieldAlert, StickyNote, UserRound, UserRoundCheck, X } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -39,6 +39,7 @@ export default function StaffInterventionScreen() {
   const [outcome, setOutcome] = useState<InterventionOutcome>('re_engaged');
   const [resolution, setResolution] = useState('');
   const [noteDraft, setNoteDraft] = useState('');
+  const noteRevisionRef = useRef(0);
   const queryKey = learningKeys.intervention(user?.id || 0, interventionId);
   const query = useQuery({
     queryKey,
@@ -65,9 +66,9 @@ export default function StaffInterventionScreen() {
   });
 
   const noteMutation = useMutation({
-    mutationFn: (body: string) =>
-      auth.demo
-        ? Promise.resolve({
+    mutationFn: async ({ body, submittedRevision }: { body: string; submittedRevision: number }) => {
+      const result = auth.demo
+        ? {
             note: {
               id: Date.now(),
               body,
@@ -75,10 +76,12 @@ export default function StaffInterventionScreen() {
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
             },
-          })
-        : api.createInterventionNote(interventionId, body),
+          }
+        : await api.createInterventionNote(interventionId, body);
+      return { ...result, submittedRevision };
+    },
     onSuccess: (result) => {
-      setNoteDraft('');
+      if (noteRevisionRef.current === result.submittedRevision) setNoteDraft('');
       queryClient.setQueryData<{ intervention: Intervention }>(queryKey, (current) => {
         if (!current) return current;
         const existing = current.intervention.notes ?? [];
@@ -152,8 +155,9 @@ export default function StaffInterventionScreen() {
         <TextInput
           keyboardAppearance={scheme}
           accessibilityLabel="Add private staff note"
+          editable={!noteMutation.isPending}
           value={noteDraft}
-          onChangeText={setNoteDraft}
+          onChangeText={(value) => { noteRevisionRef.current += 1; setNoteDraft(value); }}
           multiline
           maxLength={2000}
           placeholder="Add an internal note (students never see this)…"
@@ -166,7 +170,7 @@ export default function StaffInterventionScreen() {
           disabled={!noteDraft.trim() || noteMutation.isPending}
           onPress={() => {
             const trimmed = noteDraft.trim();
-            if (trimmed) noteMutation.mutate(trimmed);
+            if (trimmed) noteMutation.mutate({ body: trimmed, submittedRevision: noteRevisionRef.current });
           }}
           style={styles.noteButton}
         >

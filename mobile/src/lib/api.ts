@@ -1,5 +1,6 @@
 import type {
   components,
+  operations,
 } from './api.generated';
 import {
   brand,
@@ -358,7 +359,7 @@ export class CsgApi {
   weeklyPlan = (signal?: AbortSignal, cohortId?: number | null) => this.request<{ weekly_plan: WeeklyPlan }>(`/api/v1/weekly_plan${queryString({ cohort_id: cohortId })}`, { signal });
   profile = (signal?: AbortSignal) => this.request<ProfilePayload>('/api/v1/profile', { signal });
   updateProfile = (data: { github_username?: string | null; handle?: string | null }) => this.request<components['schemas']['ProfileUpdateResponse']>('/api/v1/profile', { method: 'PATCH', body: JSON.stringify(data) });
-  checkoutReceipt = (purchaseId: number) => this.request<{ url: string }>(`/api/v1/course_checkouts/${purchaseId}/receipt`);
+  checkoutReceipt = (purchaseId: number) => this.request<operations['getCourseReceipt']['responses']['200']['content']['application/json']>(`/api/v1/course_checkouts/${purchaseId}/receipt`);
   gradingQueue = (filter: 'ungraded' | 'redo', cohortId?: number | null, page = 1, signal?: AbortSignal, moduleId?: number) => this.request<components['schemas']['GradingQueueResponse']>(`/api/v1/grading_queue?filter=${filter}&page=${page}${cohortId ? `&cohort_id=${cohortId}` : ''}${moduleId ? `&module_id=${moduleId}` : ''}`, { signal });
   syncCohortModuleGithub = (cohortId: number, moduleId: number) => this.request<{ synced: number; errors: string[] }>(`/api/v1/cohorts/${cohortId}/modules/${moduleId}/sync_github`, { method: 'POST' });
   retryGithubIssue = (id: number) => this.request<components['schemas']['RetryGithubIssueResponse']>(`/api/v1/submissions/${id}/retry_github_issue`, { method: 'POST' });
@@ -454,7 +455,7 @@ export class CsgApi {
   createRecording = (cohortId: number, input: { title: string; description?: string; recorded_date?: string; s3_key: string; content_type: string; file_size: number; publish_immediately?: boolean }) => this.request<{ recording: RecordingItem }>(`/api/v1/cohorts/${cohortId}/recordings`, { method: 'POST', body: JSON.stringify(input) });
   createExternalRecording = (cohortId: number, input: { title: string; source_url: string; description?: string; recorded_date?: string; publish_immediately?: boolean }) => this.request<{ recording: RecordingItem }>(`/api/v1/cohorts/${cohortId}/recordings`, { method: 'POST', body: JSON.stringify(input) });
   publishRecording = (cohortId: number, recordingId: number) => this.request<{ recording: RecordingItem }>(`/api/v1/cohorts/${cohortId}/recordings/${recordingId}`, { method: 'PATCH', body: JSON.stringify({ status: 'published' }) });
-  updateRecording = (cohortId: number, recordingId: number, input: { title?: string; description?: string | null; recorded_date?: string | null; status?: 'draft' | 'published' }) => this.request<{ recording: RecordingItem }>(`/api/v1/cohorts/${cohortId}/recordings/${recordingId}`, { method: 'PATCH', body: JSON.stringify(input) });
+  updateRecording = (cohortId: number, recordingId: number, input: components['schemas']['UpdateRecordingInput']) => this.request<{ recording: RecordingItem }>(`/api/v1/cohorts/${cohortId}/recordings/${recordingId}`, { method: 'PATCH', body: JSON.stringify(input) });
   deleteRecording = (cohortId: number, recordingId: number) => this.request<void>(`/api/v1/cohorts/${cohortId}/recordings/${recordingId}`, { method: 'DELETE' });
   recordingStream = (cohortId: number, recordingId: number, signal?: AbortSignal) => this.request<{ stream_url: string; expires_at: string }>(`/api/v1/cohorts/${cohortId}/recordings/${recordingId}/stream_url`, { signal });
   updateWatchProgress = (recordingId: number, input: VideoProgressInput) => this.request<{ watch_progress: WatchProgress }>('/api/v1/watch_progress', { method: 'PATCH', body: JSON.stringify({ recording_id: recordingId, ...input, watch_credit_version: 2 }) });
