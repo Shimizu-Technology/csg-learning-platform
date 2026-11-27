@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as DocumentPicker from 'expo-document-picker';
 import { useLocalSearchParams } from 'expo-router';
 import { ChevronLeft, ChevronRight, FolderLock, Search } from 'lucide-react-native';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Keyboard, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -105,7 +105,7 @@ export default function StaffCohortFilesScreen() {
     if (savingRename) setSavingRename(false);
   }
   const renameGenerationRef = useRef(0);
-  useEffect(() => {
+  useLayoutEffect(() => {
     renameGenerationRef.current += 1;
   }, [selectedCohortId]);
   // Student folders are private: memory only, and dropped once access is revoked (loadCohortFiles returns null).
