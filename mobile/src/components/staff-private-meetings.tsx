@@ -78,7 +78,6 @@ export function StaffPrivateMeetings({
     mutationFn: ({ bookingId, input }: { bookingId: number; input: { zoom_url?: string | null; status?: 'canceled' } }) =>
       api.updateStaffPrivateMeeting(bookingId, input),
     onSuccess: (result) => {
-      haptic('success');
       queryClient.setQueryData<components['schemas']['StaffPrivateMeetingsResponse']>(queryKey, (current) => {
         if (!current) return current;
         return {
@@ -89,10 +88,13 @@ export function StaffPrivateMeetings({
           })),
         };
       });
+      void queryClient.invalidateQueries({ queryKey });
+      if (!mountedRef.current) return;
+      haptic('success');
       setEditingBooking(null);
-      void query.refetch();
     },
     onError: (error) => {
+      if (!mountedRef.current) return;
       haptic('error');
       Alert.alert('Could not update meeting', (error as Error).message || 'Try again.');
     },
@@ -100,21 +102,25 @@ export function StaffPrivateMeetings({
 
   const ensureOnline = async (): Promise<boolean> => {
     if (!connected) {
-      Alert.alert('You are offline', 'Reconnect before updating or messaging about a meeting.');
+      if (mountedRef.current) {
+        Alert.alert('You are offline', 'Reconnect before updating or messaging about a meeting.');
+      }
       return false;
     }
     try {
       if (typeof getNetworkStateAsync === 'function') {
         const state = await getNetworkStateAsync();
+        if (!mountedRef.current) return false;
         if (!state.isConnected || state.isInternetReachable === false) {
           Alert.alert('You are offline', 'Reconnect before updating or messaging about a meeting.');
           return false;
         }
       }
     } catch {
+      if (!mountedRef.current) return false;
       // Proceed if native network probe is unavailable; server request handles failure.
     }
-    return true;
+    return mountedRef.current;
   };
 
   const sheetBusy = savingZoom || updateMutation.isPending;
@@ -290,8 +296,9 @@ export function StaffPrivateMeetings({
         visible={Boolean(editingBooking)}
         title="Meeting link"
         subtitle={editingBooking ? `${editingBooking.student_name} · Week ${editingBooking.week_number}` : undefined}
+        closeDisabled={sheetBusy}
         onClose={() => {
-          if (!sheetBusy) setEditingBooking(null);
+          if (!savingZoomRef.current && !updateMutation.isPending) setEditingBooking(null);
         }}
       >
         <View style={styles.sheetBody}>
@@ -314,7 +321,9 @@ export function StaffPrivateMeetings({
               variant="secondary"
               label="Cancel"
               disabled={sheetBusy}
-              onPress={() => setEditingBooking(null)}
+              onPress={() => {
+                if (!savingZoomRef.current && !updateMutation.isPending) setEditingBooking(null);
+              }}
               style={styles.sheetButton}
             />
             <Button
