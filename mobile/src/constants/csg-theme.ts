@@ -23,33 +23,37 @@ export const lightColors = {
 type ColorShape<T> = { [K in keyof T]: T[K] extends string ? string : ColorShape<T[K]> };
 export type ThemeColors = ColorShape<typeof lightColors>;
 export const darkColors: ThemeColors = {
-  surface: { page: '#0f172a', raised: '#111827', sunken: '#020617', inverse: '#f8fafc', brandPublic: '#0f172a' },
+  surface: { page: '#0d0f14', raised: '#161922', sunken: '#202532', inverse: '#f8fafc', brandPublic: '#0d0f14' },
   text: { strong: '#f8fafc', body: '#cbd5e1', muted: '#94a3b8', placeholder: '#64748b', onAction: '#ffffff' },
-  border: { subtle: '#334155', strong: '#475569' },
+  border: { subtle: '#262b38', strong: '#3b4254' },
   action: { primary: '#b8393b', primaryPressed: '#9c292b', primaryHover: '#a83235' },
   brand: lightColors.brand,
   status: {
     danger: { fg: '#fca5a5', bg: '#2a1215', border: '#7f1d1d' },
     warning: { fg: '#fcd34d', bg: '#292013', border: '#854d0e' },
     success: { fg: '#86efac', bg: '#10271f', border: '#166534' },
-    pending: { fg: '#cbd5e1', bg: '#1e293b', border: '#475569' },
-    info: { fg: '#7dd3fc', bg: '#082536', border: '#075985' },
+    pending: { fg: '#cbd5e1', bg: '#1e2433', border: '#3b4254' },
+    info: { fg: '#7dd3fc', bg: '#0b2436', border: '#0c4a6e' },
   },
-  focus: '#bfdbfe', selection: { bg: '#1e293b', indicator: '#e88485' },
-  code: { bg: '#020617', fg: '#f8fafc', muted: '#cbd5e1', border: '#475569', success: '#86efac' },
+  focus: '#bfdbfe', selection: { bg: '#232938', indicator: '#e88485' },
+  code: { bg: '#090b10', fg: '#f8fafc', muted: '#cbd5e1', border: '#3b4254', success: '#86efac' },
   media: lightColors.media, overlay: 'rgba(0,0,0,0.72)',
 };
 
 export const monoFont = Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' });
 export const fonts = { regular: 'Manrope_400Regular', medium: 'Manrope_500Medium', semibold: 'Manrope_600SemiBold', bold: 'Manrope_700Bold', extraBold: 'Manrope_800ExtraBold' } as const;
+export const tabularNums = { fontVariant: ['tabular-nums'] as ('tabular-nums')[] };
 export const typography = {
   display: { fontSize: 30, lineHeight: 36 }, title: { fontSize: 22, lineHeight: 28 }, section: { fontSize: 18, lineHeight: 24 },
   body: { fontSize: 16, lineHeight: 24 }, prose: { fontSize: 17, lineHeight: 27 }, support: { fontSize: 14, lineHeight: 20 },
   label: { fontSize: 12, lineHeight: 16 }, meta: { fontSize: 12, lineHeight: 16 }, code: { fontSize: 14, lineHeight: 21, fontFamily: monoFont },
 } as const;
 export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32, section: 48 } as const;
-export const radius = { control: 12, card: 16, chip: 999, sheet: 24 } as const;
-export const shadow = { raised: { shadowColor: lightColors.surface.inverse, shadowOpacity: 0.04, shadowRadius: 2, shadowOffset: { width: 0, height: 1 } }, overlay: { shadowColor: lightColors.surface.inverse, shadowOpacity: 0.16, shadowRadius: 24, shadowOffset: { width: 0, height: 8 } } } as const;
+export const radius = { sm: 8, control: 12, card: 16, chip: 999, sheet: 24 } as const;
+export const shadow = {
+  raised: { shadowColor: lightColors.surface.inverse, shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
+  overlay: { shadowColor: lightColors.surface.inverse, shadowOpacity: 0.16, shadowRadius: 24, shadowOffset: { width: 0, height: 8 }, elevation: 6 },
+} as const;
 export const minTarget = 44;
 export const fontScaleLimits = { display: 1.6, title: 1.8, content: 2.2, utility: 2 } as const;
 export function createTheme(scheme: 'light' | 'dark') {

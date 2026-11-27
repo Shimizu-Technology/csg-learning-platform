@@ -20,7 +20,7 @@ import { LearningCard, ProgressBar, SectionHeading } from '@/components/learning
 import { ErrorState, LoadingState } from '@/components/screen-states';
 import { WeeklyPlanCard } from '@/components/weekly-plan';
 import { CohortSwitcher } from '@/components/cohort-switcher';
-import { fontScaleLimits, fonts, typography } from '@/constants/csg-theme';
+import { fontScaleLimits, fonts, tabularNums, typography } from '@/constants/csg-theme';
 import { formatCourseDateTime } from '@/lib/course-time';
 import { markdownExcerpt } from '@/lib/plain-text';
 import { demoDashboard, demoWeeklyPlan } from '@/lib/demo-learning';
@@ -69,8 +69,8 @@ export default function TodayScreen() {
     const redos = attention?.summary.redo_count || 0;
     return <SafeAreaView edges={['top']} style={styles.safe}><ScrollView refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={refresh} tintColor={c.text.body} />} contentContainerStyle={styles.content}>
       {query.isError && <View style={styles.offline}><Text style={styles.offlineText}>Showing saved staff data. Pull to reconnect.</Text></View>}
-      <SearchHeaderButton /><CohortSwitcher />
-      {dashboard && 'today' in dashboard && dashboard.today ? <InstructorToday today={dashboard.today} redoCount={redos} /> : <>      <Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.eyebrow}>TEACHING TODAY</Text><Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.heroTitle}>Good {dayPart()}, {firstName(dashboard?.user.full_name || user?.full_name || '')}</Text><Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.heroCopy}>See who needs a response, review work, and move the class forward from your phone.</Text>
+      <View style={styles.topRow}><CohortSwitcher compact /><SearchHeaderButton inline /></View>
+      {dashboard && 'today' in dashboard && dashboard.today ? <InstructorToday today={dashboard.today} redoCount={redos} /> : <>      <View style={styles.heroBlock}><Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.heroTitle}>Good {dayPart()}, {firstName(dashboard?.user.full_name || user?.full_name || '')}</Text><Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.heroCopy}>See who needs a response, review work, and move the class forward from your phone.</Text></View>
       <View style={[styles.metricGrid, largeText && styles.singleColumn]}><MetricCard icon={Clock3} value={ungraded} label="waiting for review" onPress={() => router.push('/(app)/(tabs)/grading?filter=ungraded')} tone="pending" large={largeText} /><MetricCard icon={RotateCcw} value={redos} label="redo requests" onPress={() => router.push('/(app)/(tabs)/grading?filter=redo')} tone="warning" large={largeText} /><MetricCard icon={Users} value={students.length} label="active students" tone="success" large={largeText} /></View>
       {attention ? <StaffAttention students={attention.students} limit={8} cohortId={selectedCohortId} /> : <ErrorState message="Attention data unavailable. Pull to refresh." retry={() => void query.refetch()} />}
 </>}
@@ -99,7 +99,7 @@ export default function TodayScreen() {
     return (
       <SafeAreaView edges={['top']} style={styles.safe}>
         <ScrollView refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={refresh} tintColor={c.text.body} />} contentContainerStyle={styles.content}>
-          <SearchHeaderButton /><CohortSwitcher />
+          <View style={styles.topRow}><CohortSwitcher compact /><SearchHeaderButton inline /></View>
           {pendingPurchases.length > 0 ? (
             <View style={styles.stack}>
               {pendingPurchases.map((purchase) => {
@@ -181,8 +181,8 @@ export default function TodayScreen() {
     <SafeAreaView edges={['top']} style={styles.safe}>
       <ScrollView refreshControl={<RefreshControl refreshing={query.isRefetching || weeklyQuery.isRefetching} onRefresh={refresh} tintColor={c.text.body} />} contentContainerStyle={styles.content}>
         {(query.isError || weeklyQuery.isError) && <View style={styles.offline}><Text style={styles.offlineText}>Showing saved learning data. Pull to reconnect.</Text></View>}
-        <SearchHeaderButton /><CohortSwitcher />
-        <Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.eyebrow}>YOUR LEARNING DAY</Text><Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.heroTitle}>Good {dayPart()}, {firstName(dashboard.user.full_name)}</Text><Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.heroCopy}>{dashboard.cohort?.name || `${brand.schoolName}`} · focus on the next useful step.</Text>
+        <View style={styles.topRow}><CohortSwitcher compact /><SearchHeaderButton inline /></View>
+        <View style={styles.heroBlock}><Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.heroTitle}>Good {dayPart()}, {firstName(dashboard.user.full_name)}</Text><Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.heroCopy}>{dashboard.cohort?.name || `${brand.schoolName}`} · focus on the next useful step.</Text></View>
         {dashboard.student_today && dashboard.cohort && !paused && !library && !courseNotOpen ? <StudentTodayV2 dashboard={dashboard} githubApp={Boolean(selectedCohort?.features?.github_app)} refresh={refresh} /> : paused ? <View style={styles.notOpen}><Text style={styles.cardTitle}>Your enrollment is paused{dashboard.paused_since ? ` since ${dashboard.paused_since}` : ''}. Your work is saved.</Text><Text style={styles.notOpenCopy}>You can read lessons, submissions and feedback, but you can’t hand in work while paused.</Text>{dashboard.continue_lesson && <Pressable accessibilityRole="button" accessibilityLabel={`Read ${dashboard.continue_lesson.title}`} onPress={() => router.push(`/lesson/${dashboard.continue_lesson!.id}`)} style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]} testID="paused-next-lesson"><BookOpen color={c.text.strong} size={17} /><Text numberOfLines={1} style={[styles.secondaryButtonText, styles.flexShrink]}>Read next: {dashboard.continue_lesson.title}</Text></Pressable>}{dashboard.cohort && <Pressable accessibilityRole="button" onPress={() => router.push(`/my-work?cohort_id=${dashboard.cohort!.id}` as Href)} style={styles.secondaryButton}><Text style={styles.secondaryButtonText}>View past work</Text></Pressable>}<Pressable accessibilityRole="button" onPress={async () => {
             try {
               if (dashboard.support_instructor_id && dashboard.cohort) {
@@ -240,14 +240,62 @@ function firstName(value: string) { return value.trim().split(/\s+/)[0] || 'ther
 function dayPart() { const hour = new Date().getHours(); return hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'; }
 function formatOfficeHours(value: { starts_at?: string; start_time?: string; location?: string | null }) { const raw = value.starts_at || value.start_time; if (!raw) return value.location || 'Schedule available in your cohort'; return `${formatCourseDateTime(raw, { weekday: true, fallback: raw })}${value.location ? ` · ${value.location}` : ''}`; }
 
-const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
-  safe: { flex: 1, backgroundColor: c.surface.page }, content: { padding: 20, paddingBottom: 120, gap: 16 },
-  offline: { minHeight: 36, borderRadius: 12, backgroundColor: c.status.warning.bg, justifyContent: 'center', paddingHorizontal: 12, marginBottom: 2 }, offlineText: { color: c.status.warning.fg, fontFamily: fonts.semibold, fontSize: 12 },
-  eyebrow: { ...typography.label, color: c.text.body, fontFamily: fonts.bold, letterSpacing: 1.8, marginTop: 8 }, heroTitle: { ...typography.display, color: c.text.strong, fontFamily: fonts.extraBold, letterSpacing: -1.1, marginTop: -8 }, heroCopy: { ...typography.support, color: c.text.body, fontFamily: fonts.regular, marginTop: -9, marginBottom: 4 },
-  cardTop: { flexDirection: 'row', alignItems: 'center', gap: 12 }, continueIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: c.surface.sunken, alignItems: 'center', justifyContent: 'center' }, flex: { flex: 1, minWidth: 0 }, cardKicker: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 1 }, cardTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 15, lineHeight: 21 }, cardMeta: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 16, marginTop: 2 }, progressCopy: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 18, marginBottom: 7 }, progressLabel: { color: c.text.body, fontFamily: fonts.semibold, fontSize: 12 }, progressValue: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 12 },
-  section: { gap: 12, marginTop: 10 }, stack: { gap: 9 }, row: { flexDirection: 'row', alignItems: 'center', gap: 12 }, redoIcon: { width: 38, height: 38, borderRadius: 12, backgroundColor: c.status.warning.bg, alignItems: 'center', justifyContent: 'center' }, gradeIcon: { width: 38, height: 38, borderRadius: 12, backgroundColor: c.status.success.bg, alignItems: 'center', justifyContent: 'center' }, gradeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }, grade: { color: c.status.success.fg, fontFamily: fonts.extraBold, fontSize: 12 }, feedback: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 17, marginTop: 8 }, announcementIcon: { width: 38, height: 38, borderRadius: 12, backgroundColor: c.status.info.bg, alignItems: 'center', justifyContent: 'center' }, announcementBody: { color: c.status.info.fg, fontFamily: fonts.regular, fontSize: 12, lineHeight: 16, marginTop: 4 }, unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: c.text.body },
-  quickGrid: { flexDirection: 'row', gap: 10 }, singleColumn: { flexDirection: 'column' }, quickItem: { flex: 1 }, quickItemLarge: { flex: 0 }, quickLabel: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 12, marginTop: 10 },
-  metricGrid: { flexDirection: 'row', gap: 8 }, metricCard: { flex: 1, minHeight: 112, borderRadius: 18, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.sunken, padding: 14, justifyContent: 'space-between' }, metricCardLarge: { flex: 0, minHeight: 154 }, metricNumber: { color: c.text.strong, fontFamily: fonts.extraBold, fontSize: 24, marginTop: 9 }, metricCardLabel: { color: c.text.body, fontFamily: fonts.semibold, fontSize: 12, lineHeight: 16 }, studentAvatar: { width: 44, height: 44, borderRadius: 15, backgroundColor: c.surface.sunken, alignItems: 'center', justifyContent: 'center' }, studentInitials: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 13 }, studentTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }, studentPercent: { color: c.text.strong, fontFamily: fonts.extraBold, fontSize: 12 }, signalRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 }, signal: { minHeight: 24, borderRadius: 12, backgroundColor: c.surface.raised, borderWidth: 1, borderColor: c.border.subtle, paddingHorizontal: 7, flexDirection: 'row', alignItems: 'center', gap: 4 }, signalText: { fontFamily: fonts.bold, fontSize: 12 },
-  notOpen: { borderRadius: 20, borderWidth: 1, borderColor: c.border.strong, backgroundColor: c.surface.sunken, padding: 16, gap: 14 }, notOpenIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: c.surface.sunken, alignItems: 'center', justifyContent: 'center' }, notOpenCopy: { color: c.text.body, fontFamily: fonts.regular, fontSize: 13, lineHeight: 19, marginTop: 4 }, secondaryButton: { minHeight: 48, borderRadius: 14, borderWidth: 1, borderColor: c.border.strong, backgroundColor: c.surface.raised, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, secondaryButtonText: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 14 }, flexShrink: { flexShrink: 1 }, meetings: { minHeight: 76, borderRadius: 20, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.sunken, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }, meetingsIcon: { width: 42, height: 42, borderRadius: 13, backgroundColor: c.action.primary, alignItems: 'center', justifyContent: 'center' }, pressed: { opacity: 0.84, transform: [{ scale: 0.99 }] },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 }, emptyTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 19, marginTop: 15 }, emptyCopy: { color: c.text.body, fontFamily: fonts.regular, fontSize: 13, lineHeight: 20, textAlign: 'center', marginTop: 7 },
+const useStyles = makeStyles(({ colors: c, radius, shadow }) => StyleSheet.create({
+  safe: { flex: 1, backgroundColor: c.surface.page },
+  content: { padding: 16, paddingBottom: 108, gap: 14 },
+  topRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  heroBlock: { gap: 4, marginTop: 2 },
+  offline: { minHeight: 36, borderRadius: radius.control, backgroundColor: c.status.warning.bg, justifyContent: 'center', paddingHorizontal: 12 },
+  offlineText: { color: c.status.warning.fg, fontFamily: fonts.semibold, fontSize: 13 },
+  heroTitle: { ...typography.display, color: c.text.strong, fontFamily: fonts.extraBold, letterSpacing: -0.9 },
+  heroCopy: { ...typography.support, color: c.text.body, fontFamily: fonts.regular },
+  cardTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  continueIcon: { width: 42, height: 42, borderRadius: radius.control, backgroundColor: c.surface.sunken, alignItems: 'center', justifyContent: 'center' },
+  flex: { flex: 1, minWidth: 0 },
+  cardKicker: { color: c.text.muted, fontFamily: fonts.semibold, fontSize: 12 },
+  cardTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 15, lineHeight: 21 },
+  cardMeta: { color: c.text.body, fontFamily: fonts.regular, fontSize: 13, lineHeight: 18, marginTop: 2 },
+  progressCopy: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 14, marginBottom: 6 },
+  progressLabel: { color: c.text.body, fontFamily: fonts.semibold, fontSize: 13 },
+  progressValue: { ...tabularNums, color: c.text.strong, fontFamily: fonts.bold, fontSize: 13 },
+  section: { gap: 10, marginTop: 6 },
+  stack: { gap: 10 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  redoIcon: { width: 38, height: 38, borderRadius: radius.control, backgroundColor: c.status.warning.bg, alignItems: 'center', justifyContent: 'center' },
+  gradeIcon: { width: 38, height: 38, borderRadius: radius.control, backgroundColor: c.status.success.bg, alignItems: 'center', justifyContent: 'center' },
+  gradeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  grade: { color: c.status.success.fg, fontFamily: fonts.bold, fontSize: 13 },
+  feedback: { color: c.text.body, fontFamily: fonts.regular, fontSize: 13, lineHeight: 19, marginTop: 6 },
+  announcementIcon: { width: 38, height: 38, borderRadius: radius.control, backgroundColor: c.status.info.bg, alignItems: 'center', justifyContent: 'center' },
+  announcementBody: { color: c.text.body, fontFamily: fonts.regular, fontSize: 13, lineHeight: 19, marginTop: 3 },
+  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: c.action.primary },
+  quickGrid: { flexDirection: 'row', gap: 10 },
+  singleColumn: { flexDirection: 'column' },
+  quickItem: { flex: 1 },
+  quickItemLarge: { flex: 0 },
+  quickLabel: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 14, marginTop: 8 },
+  metricGrid: { flexDirection: 'row', gap: 8 },
+  metricCard: { flex: 1, minHeight: 106, borderRadius: radius.card, borderWidth: StyleSheet.hairlineWidth, borderColor: c.border.subtle, backgroundColor: c.surface.raised, padding: 14, justifyContent: 'space-between', ...shadow.raised },
+  metricCardLarge: { flex: 0, minHeight: 144 },
+  metricNumber: { ...tabularNums, color: c.text.strong, fontFamily: fonts.extraBold, fontSize: 24, marginTop: 8 },
+  metricCardLabel: { color: c.text.body, fontFamily: fonts.semibold, fontSize: 13, lineHeight: 17 },
+  studentAvatar: { width: 42, height: 42, borderRadius: radius.control, backgroundColor: c.surface.sunken, alignItems: 'center', justifyContent: 'center' },
+  studentInitials: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 13 },
+  studentTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  studentPercent: { ...tabularNums, color: c.text.strong, fontFamily: fonts.extraBold, fontSize: 13 },
+  signalRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
+  signal: { minHeight: 24, borderRadius: radius.chip, backgroundColor: c.surface.sunken, borderWidth: StyleSheet.hairlineWidth, borderColor: c.border.subtle, paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', gap: 4 },
+  signalText: { fontFamily: fonts.bold, fontSize: 12 },
+  notOpen: { borderRadius: radius.card, borderWidth: StyleSheet.hairlineWidth, borderColor: c.border.subtle, backgroundColor: c.surface.raised, padding: 16, gap: 14, ...shadow.raised },
+  notOpenIcon: { width: 42, height: 42, borderRadius: radius.control, backgroundColor: c.surface.sunken, alignItems: 'center', justifyContent: 'center' },
+  notOpenCopy: { color: c.text.body, fontFamily: fonts.regular, fontSize: 14, lineHeight: 21, marginTop: 4 },
+  secondaryButton: { minHeight: 48, borderRadius: radius.control, borderWidth: 1, borderColor: c.border.strong, backgroundColor: c.surface.raised, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  secondaryButtonText: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 14 },
+  flexShrink: { flexShrink: 1 },
+  meetings: { minHeight: 74, borderRadius: radius.card, borderWidth: StyleSheet.hairlineWidth, borderColor: c.border.subtle, backgroundColor: c.surface.raised, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12, ...shadow.raised },
+  meetingsIcon: { width: 42, height: 42, borderRadius: radius.control, backgroundColor: c.action.primary, alignItems: 'center', justifyContent: 'center' },
+  pressed: { opacity: 0.84, transform: [{ scale: 0.99 }] },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
+  emptyTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 19, marginTop: 15 },
+  emptyCopy: { color: c.text.body, fontFamily: fonts.regular, fontSize: 14, lineHeight: 21, textAlign: 'center', marginTop: 7 },
 }));

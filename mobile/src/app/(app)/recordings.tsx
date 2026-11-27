@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Redirect, useRouter, type Href } from 'expo-router';
 import { Check, ChevronRight, Film, Link2, Play, Search, UploadCloud } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
-import { RefreshControl, Pressable as NativePressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ProgressBar, StatusPill } from '@/components/learning-ui';
@@ -137,24 +137,73 @@ export default function RecordingsScreen() {
         {STATUS_FILTERS.map((item) => {
           const active = statusFilter === item.id;
           return (
-            <NativePressable
+            <Pressable
               key={item.id}
+              haptic="selection"
               accessibilityRole="button"
               accessibilityState={{ selected: active }}
               onPress={() => setStatusFilter(item.id)}
               style={[styles.filterChip, active && styles.filterChipActive]}
             >
               <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>{item.label}</Text>
-            </NativePressable>
+            </Pressable>
           );
         })}
       </ScrollView>
     )}
     {groups.map(({ cohort, count, dateGroups }) => <View key={cohort} style={styles.group}><View style={styles.groupHeading}><Text style={styles.groupKicker}>COHORT</Text><Text style={styles.groupTitle}>{cohort}</Text><Text style={styles.groupCount}>{count}</Text></View>{dateGroups.map(([date, items]) => <View key={date} style={styles.dateGroup}><Text style={styles.dateHeading}>{date}</Text><View style={styles.rows}>{items.map((item) => <RecordingRow key={item.item_key} item={item} onPress={() => router.push(`/recording/${encodeURIComponent(item.item_key)}?cohort_id=${item.cohort_id}` as Href)} />)}</View></View>)}</View>)}
-    {!groups.length && <View style={styles.empty}><Film color={c.text.body} size={31} /><Text style={styles.emptyTitle}>{filter || effectiveStatusFilter !== 'all' ? 'No matching recordings' : 'No recordings yet'}</Text><Text style={styles.emptyCopy}>{filter || effectiveStatusFilter !== 'all' ? 'Try a different search or filter.' : 'Your class replays will appear here after they are published.'}</Text>{(filter || effectiveStatusFilter !== 'all') && <NativePressable accessibilityRole="button" onPress={() => { setFilter(''); setStatusFilter('all'); }} style={styles.resetButton}><Text style={styles.resetText}>Reset filters</Text></NativePressable>}</View>}
+    {!groups.length && <View style={styles.empty}><Film color={c.text.body} size={31} /><Text style={styles.emptyTitle}>{filter || effectiveStatusFilter !== 'all' ? 'No matching recordings' : 'No recordings yet'}</Text><Text style={styles.emptyCopy}>{filter || effectiveStatusFilter !== 'all' ? 'Try a different search or filter.' : 'Your class replays will appear here after they are published.'}</Text>{(filter || effectiveStatusFilter !== 'all') && <Pressable accessibilityRole="button" onPress={() => { setFilter(''); setStatusFilter('all'); }} style={styles.resetButton}><Text style={styles.resetText}>Reset filters</Text></Pressable>}</View>}
   </ScrollView>}</SafeAreaView>;
 }
 
-const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
-  safe: { flex: 1, backgroundColor: c.surface.page }, header: { minHeight: 68, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border.subtle, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 7 }, headerActions: { flexDirection: 'row', gap: 6 }, back: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' }, uploadButton: { width: 44, height: 44, borderRadius: 14, borderWidth: 1, borderColor: c.border.strong, backgroundColor: c.surface.sunken, alignItems: 'center', justifyContent: 'center' }, kicker: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 1 }, headerTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 17, marginTop: 2 }, content: { padding: 20, paddingBottom: 100, gap: 15 }, flex: { flex: 1, minWidth: 0 }, offline: { minHeight: 36, borderRadius: 12, backgroundColor: c.status.warning.bg, justifyContent: 'center', paddingHorizontal: 12 }, offlineText: { color: c.status.warning.fg, fontFamily: fonts.semibold, fontSize: 12 }, hero: { borderRadius: 22, borderWidth: 1, borderColor: c.border.strong, backgroundColor: c.surface.sunken, padding: 20 }, heroIcon: { width: 46, height: 46, borderRadius: 15, backgroundColor: c.surface.sunken, alignItems: 'center', justifyContent: 'center' }, heroKicker: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 1.2, marginTop: 15 }, heroTitle: { color: c.text.strong, fontFamily: fonts.extraBold, fontSize: 24, letterSpacing: -0.6, marginTop: 5 }, heroCopy: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 18, marginTop: 8 }, continueTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, resumeBadge: { minHeight: 30, borderRadius: 999, backgroundColor: c.selection.bg, color: c.text.strong, fontFamily: fonts.bold, fontSize: 12, paddingHorizontal: 12, paddingVertical: 6, overflow: 'hidden' }, heroProgress: { marginTop: 12 }, filterRow: { gap: 8, paddingVertical: 2 }, filterChip: { minHeight: 44, borderRadius: 999, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, paddingHorizontal: 14, justifyContent: 'center' }, filterChipActive: { borderColor: c.selection.indicator, backgroundColor: c.selection.bg }, filterChipText: { color: c.text.body, fontFamily: fonts.semibold, fontSize: 13 }, filterChipTextActive: { color: c.text.strong, fontFamily: fonts.bold }, search: { minHeight: 50, borderRadius: 16, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10 }, input: { flex: 1, color: c.text.strong, fontFamily: fonts.regular, fontSize: 13, paddingVertical: 12 }, group: { gap: 9 }, groupHeading: { flexDirection: 'row', alignItems: 'baseline', gap: 8, paddingHorizontal: 2 }, groupKicker: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 1 }, groupTitle: { flex: 1, color: c.text.strong, fontFamily: fonts.bold, fontSize: 16 }, groupCount: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12 }, dateGroup: { gap: 7 }, dateHeading: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 0.5, textTransform: 'uppercase', paddingHorizontal: 3, marginTop: 3 }, rows: { gap: 8 }, row: { minHeight: 94, borderRadius: 18, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, padding: 13, flexDirection: 'row', alignItems: 'center', gap: 11 }, sourceIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: c.surface.sunken, alignItems: 'center', justifyContent: 'center' }, sourceIconExternal: { backgroundColor: c.surface.sunken }, rowTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 7 }, rowTitle: { flex: 1, color: c.text.strong, fontFamily: fonts.bold, fontSize: 13, lineHeight: 18 }, badge: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 0.5, borderRadius: 8, backgroundColor: c.surface.sunken, paddingHorizontal: 6, paddingVertical: 4 }, badgeExternal: { color: c.status.warning.fg, backgroundColor: c.surface.sunken }, rowMeta: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, marginTop: 4 }, progress: { marginTop: 8 }, watched: { color: c.status.success.fg, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 0.8, marginTop: 6 }, empty: { alignItems: 'center', paddingVertical: 55 }, emptyTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 16, marginTop: 12 }, emptyCopy: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 17, textAlign: 'center', marginTop: 5, maxWidth: 270 }, resetButton: { minHeight: 44, marginTop: 14, borderRadius: 12, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, paddingHorizontal: 16, justifyContent: 'center' }, resetText: { color: c.text.strong, fontFamily: fonts.semibold, fontSize: 13 },
+const useStyles = makeStyles(({ colors: c, radius, shadow }) => StyleSheet.create({
+  safe: { flex: 1, backgroundColor: c.surface.page },
+  header: { minHeight: 58, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border.subtle, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 7 },
+  headerActions: { flexDirection: 'row', gap: 6 },
+  back: { width: 44, height: 44, borderRadius: radius.control, alignItems: 'center', justifyContent: 'center' },
+  uploadButton: { width: 44, height: 44, borderRadius: radius.control, borderWidth: StyleSheet.hairlineWidth, borderColor: c.border.subtle, backgroundColor: c.surface.raised, alignItems: 'center', justifyContent: 'center' },
+  kicker: { color: c.text.muted, fontFamily: fonts.semibold, fontSize: 12 },
+  headerTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 17, marginTop: 1 },
+  content: { padding: 16, paddingBottom: 100, gap: 14 },
+  flex: { flex: 1, minWidth: 0 },
+  offline: { minHeight: 36, borderRadius: radius.control, backgroundColor: c.status.warning.bg, justifyContent: 'center', paddingHorizontal: 12 },
+  offlineText: { color: c.status.warning.fg, fontFamily: fonts.semibold, fontSize: 13 },
+  hero: { borderRadius: radius.card, borderWidth: StyleSheet.hairlineWidth, borderColor: c.border.subtle, backgroundColor: c.surface.raised, padding: 18, ...shadow.raised },
+  heroIcon: { width: 44, height: 44, borderRadius: radius.control, backgroundColor: c.surface.sunken, alignItems: 'center', justifyContent: 'center' },
+  heroKicker: { color: c.text.muted, fontFamily: fonts.semibold, fontSize: 12, marginTop: 12 },
+  heroTitle: { color: c.text.strong, fontFamily: fonts.extraBold, fontSize: 22, letterSpacing: -0.5, marginTop: 4 },
+  heroCopy: { color: c.text.body, fontFamily: fonts.regular, fontSize: 14, lineHeight: 20, marginTop: 6 },
+  continueTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  resumeBadge: { minHeight: 30, borderRadius: radius.chip, backgroundColor: c.selection.bg, color: c.text.strong, fontFamily: fonts.bold, fontSize: 12, paddingHorizontal: 12, paddingVertical: 6, overflow: 'hidden', fontVariant: ['tabular-nums'] },
+  heroProgress: { marginTop: 12 },
+  filterRow: { gap: 8, paddingVertical: 2 },
+  filterChip: { minHeight: 44, borderRadius: radius.chip, borderWidth: StyleSheet.hairlineWidth, borderColor: c.border.subtle, backgroundColor: c.surface.raised, paddingHorizontal: 14, justifyContent: 'center' },
+  filterChipActive: { borderColor: c.selection.indicator, backgroundColor: c.selection.bg },
+  filterChipText: { color: c.text.body, fontFamily: fonts.semibold, fontSize: 13 },
+  filterChipTextActive: { color: c.text.strong, fontFamily: fonts.bold },
+  search: { minHeight: 48, borderRadius: radius.control, borderWidth: StyleSheet.hairlineWidth, borderColor: c.border.subtle, backgroundColor: c.surface.raised, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  input: { flex: 1, color: c.text.strong, fontFamily: fonts.regular, fontSize: 15, paddingVertical: 11 },
+  group: { gap: 9 },
+  groupHeading: { flexDirection: 'row', alignItems: 'baseline', gap: 8, paddingHorizontal: 2 },
+  groupKicker: { color: c.text.muted, fontFamily: fonts.semibold, fontSize: 12 },
+  groupTitle: { flex: 1, color: c.text.strong, fontFamily: fonts.bold, fontSize: 16 },
+  groupCount: { color: c.text.muted, fontFamily: fonts.bold, fontSize: 13, fontVariant: ['tabular-nums'] },
+  dateGroup: { gap: 7 },
+  dateHeading: { color: c.text.muted, fontFamily: fonts.bold, fontSize: 12, paddingHorizontal: 3, marginTop: 3 },
+  rows: { gap: 8 },
+  row: { minHeight: 88, borderRadius: radius.card, borderWidth: StyleSheet.hairlineWidth, borderColor: c.border.subtle, backgroundColor: c.surface.raised, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, ...shadow.raised },
+  sourceIcon: { width: 42, height: 42, borderRadius: radius.control, backgroundColor: c.surface.sunken, alignItems: 'center', justifyContent: 'center' },
+  sourceIconExternal: { backgroundColor: c.surface.sunken },
+  rowTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 7 },
+  rowTitle: { flex: 1, color: c.text.strong, fontFamily: fonts.bold, fontSize: 15, lineHeight: 21 },
+  badge: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, borderRadius: radius.sm, backgroundColor: c.surface.sunken, paddingHorizontal: 7, paddingVertical: 3 },
+  badgeExternal: { color: c.status.warning.fg, backgroundColor: c.status.warning.bg },
+  rowMeta: { color: c.text.body, fontFamily: fonts.regular, fontSize: 13, marginTop: 3 },
+  progress: { marginTop: 8 },
+  watched: { color: c.status.success.fg, fontFamily: fonts.bold, fontSize: 12, marginTop: 6 },
+  empty: { alignItems: 'center', paddingVertical: 55 },
+  emptyTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 17, marginTop: 12 },
+  emptyCopy: { color: c.text.body, fontFamily: fonts.regular, fontSize: 14, lineHeight: 20, textAlign: 'center', marginTop: 5, maxWidth: 280 },
+  resetButton: { minHeight: 44, marginTop: 14, borderRadius: radius.control, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, paddingHorizontal: 16, justifyContent: 'center' },
+  resetText: { color: c.text.strong, fontFamily: fonts.semibold, fontSize: 14 },
 }));

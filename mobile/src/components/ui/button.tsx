@@ -4,17 +4,20 @@ import { fonts, typography } from '@/constants/csg-theme';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { PressableScale } from './pressable-scale';
 export type ButtonVariant = 'primary' | 'secondary' | 'quiet' | 'danger' | 'success';
+export type ButtonSize = 'md' | 'sm';
 // Variants own foreground, background and border colors. Caller styles set layout/shape.
-export type ButtonProps = Omit<PressableProps, 'children'> & { children?: React.ReactNode; label?: string; variant?: ButtonVariant; loading?: boolean; textStyle?: StyleProp<TextStyle>; foregroundColor?: string };
-export function Button({ label, children, variant = 'primary', loading = false, disabled, style, textStyle, foregroundColor, accessibilityState, ...props }: ButtonProps) {
+export type ButtonProps = Omit<PressableProps, 'children'> & { children?: React.ReactNode; label?: string; variant?: ButtonVariant; size?: ButtonSize; loading?: boolean; textStyle?: StyleProp<TextStyle>; foregroundColor?: string };
+export function Button({ label, children, variant = 'primary', size = 'md', loading = false, disabled, style, textStyle, foregroundColor, accessibilityState, ...props }: ButtonProps) {
   const { colors: c } = useTheme();
   const styles = useStyles();
   const foreground = foregroundColor ?? (variant === 'primary' ? c.text.onAction : variant === 'danger' ? c.status.danger.fg : variant === 'success' ? c.status.success.fg : c.text.strong);
+  const labelBase = size === 'sm' ? styles.labelSm : styles.label;
+  const minHeightFloor = size === 'sm' ? 44 : 48;
   const paint = (node: React.ReactNode): React.ReactNode => {
     const items = Children.toArray(node);
-    if (items.every((item) => typeof item === 'string' || typeof item === 'number')) return <Text style={[styles.label, textStyle, { color: foreground }]}>{items.join('')}</Text>;
+    if (items.every((item) => typeof item === 'string' || typeof item === 'number')) return <Text style={[labelBase, textStyle, { color: foreground }]}>{items.join('')}</Text>;
     return Children.map(node, (child) => {
-    if (typeof child === 'string' || typeof child === 'number') return <Text style={[styles.label, textStyle, { color: foreground }]}>{child}</Text>;
+    if (typeof child === 'string' || typeof child === 'number') return <Text style={[labelBase, textStyle, { color: foreground }]}>{child}</Text>;
     if (!isValidElement(child)) return child;
     const element = child as ReactElement<{ style?: StyleProp<TextStyle>; color?: string; children?: React.ReactNode }>;
     if (child.type === Fragment) return cloneElement(element, {}, paint(element.props.children));
@@ -26,16 +29,18 @@ export function Button({ label, children, variant = 'primary', loading = false, 
     style={(state) => {
       const caller = typeof style === 'function' ? style(state) : style;
       const flat = StyleSheet.flatten(caller);
-      return [styles.base, caller, styles[variant], accessibilityState?.selected && variant === 'secondary' && styles.selected,
-        { minHeight: Math.max(48, typeof flat?.minHeight === 'number' ? flat.minHeight : 0), minWidth: Math.max(44, typeof flat?.minWidth === 'number' ? flat.minWidth : 0) }];
+      return [styles.base, size === 'sm' && styles.baseSm, caller, styles[variant], accessibilityState?.selected && variant === 'secondary' && styles.selected,
+        { minHeight: Math.max(minHeightFloor, typeof flat?.minHeight === 'number' ? flat.minHeight : 0), minWidth: Math.max(44, typeof flat?.minWidth === 'number' ? flat.minWidth : 0) }];
     }}>
     {loading && <ActivityIndicator accessibilityLabel="Working" color={foreground} />}
-    {label !== undefined ? <Text style={[styles.label, textStyle, { color: foreground }]}>{label}</Text> : typeof children === 'string' || typeof children === 'number' ? <Text style={[styles.label, textStyle, { color: foreground }]}>{children}</Text> : paint(children)}
+    {label !== undefined ? <Text style={[labelBase, textStyle, { color: foreground }]}>{label}</Text> : typeof children === 'string' || typeof children === 'number' ? <Text style={[labelBase, textStyle, { color: foreground }]}>{children}</Text> : paint(children)}
   </PressableScale>;
 }
 const useStyles = makeStyles(({ colors: c, radius }) => StyleSheet.create({
   base: { minHeight: 48, minWidth: 44, borderRadius: radius.control, paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1 },
+  baseSm: { minHeight: 44, paddingHorizontal: 12, paddingVertical: 8, gap: 6 },
   label: { ...typography.body, fontFamily: fonts.bold, textAlign: 'center', flexShrink: 1 },
+  labelSm: { ...typography.support, fontFamily: fonts.bold, textAlign: 'center', flexShrink: 1 },
   primary: { backgroundColor: c.action.primary, borderColor: c.action.primary },
   secondary: { backgroundColor: c.surface.raised, borderColor: c.border.strong },
   quiet: { backgroundColor: 'transparent', borderColor: 'transparent' },

@@ -71,7 +71,6 @@ export default function LearnScreen() {
     return (
       <SafeAreaView edges={['top']} style={styles.safe}>
         <ScrollView refreshControl={<RefreshControl refreshing={false} onRefresh={() => void refresh()} tintColor={c.text.body} />} contentContainerStyle={styles.content}>
-          <Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.eyebrow}>YOUR CURRICULUM</Text>
           <Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.title}>Learn</Text>
           <LearningCard>
             <View style={styles.emptyHeader}><BookOpen color={c.text.body} size={22} /><Text style={styles.staffTitle}>No course yet</Text></View>
@@ -96,10 +95,11 @@ export default function LearnScreen() {
   if (activeQuery.error && !activeQuery.data) return <SafeAreaView style={styles.safe}><ErrorState message={(activeQuery.error as Error).message} retry={() => void activeQuery.refetch()} /></SafeAreaView>;
 
   return <SafeAreaView edges={['top']} style={styles.safe}><ScrollView refreshControl={<RefreshControl refreshing={activeQuery.isRefetching} onRefresh={() => void Promise.all([refresh(), activeQuery.refetch()])} tintColor={c.text.body} />} contentContainerStyle={styles.content}>
-    <SearchHeaderButton /><CohortSwitcher />
-    <Text maxFontSizeMultiplier={fontScaleLimits.utility} style={styles.eyebrow}>{isStaff ? 'CONTENT' : 'YOUR CURRICULUM'}</Text>
-    <Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.title}>Learn</Text>
-    <Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.subtitle}>{isStaff ? 'Review what students see, wherever you are' : student?.cohort?.name || 'Lessons, resources, and progress'}</Text>
+    <View style={styles.topRow}><CohortSwitcher compact /><SearchHeaderButton inline /></View>
+    <View style={styles.heroBlock}>
+      <Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.title}>Learn</Text>
+      <Text maxFontSizeMultiplier={fontScaleLimits.content} style={styles.subtitle}>{isStaff ? 'Review what students see, wherever you are' : student?.cohort?.name || 'Lessons, resources, and progress'}</Text>
+    </View>
     <PausedLearningCard cohortId={selectedCohortId} />
     {student?.student_today && Boolean(selectedCohortId) && !isAlumniOnly && <ResourceButton title="My work" copy="See your submissions and instructor feedback" icon={<BookMarked color={c.text.body} size={20} />} onPress={() => router.push(`/my-work?cohort_id=${selectedCohortId}` as Href)} />}
     {isStaff ? <>
@@ -146,14 +146,36 @@ function ResourceButton({ title, copy, icon, onPress }: { title: string; copy: s
   return <Pressable accessibilityRole="button" accessibilityLabel={title} onPress={onPress} style={styles.resourceButton}><View style={styles.resourceIcon}>{icon}</View><View style={styles.flex}><Text style={styles.resourceTitle}>{title}</Text><Text style={styles.resourceCopy}>{copy}</Text></View><ArrowRight color={c.text.body} size={19} /></Pressable>;
 }
 
-const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
-  safe: { flex: 1, backgroundColor: c.surface.page }, content: { padding: 20, paddingBottom: 120, gap: 15 }, eyebrow: { ...typography.label, color: c.text.body, fontFamily: fonts.bold, letterSpacing: 1.8, marginTop: 8 }, title: { ...typography.display, color: c.text.strong, fontFamily: fonts.extraBold, letterSpacing: -1.2, marginTop: -9 }, subtitle: { ...typography.support, color: c.text.body, fontFamily: fonts.regular, marginTop: -10, marginBottom: 4 },
-  search: { minHeight: 50, borderRadius: 16, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10 }, input: { flex: 1, color: c.text.strong, fontFamily: fonts.regular, fontSize: 13, paddingVertical: 12 }, stack: { gap: 10 },
-  moduleTop: { flexDirection: 'row', alignItems: 'center', gap: 11 }, moduleIcon: { width: 42, height: 42, borderRadius: 13, backgroundColor: c.surface.sunken, alignItems: 'center', justifyContent: 'center' }, moduleIconLocked: { backgroundColor: c.surface.sunken }, flex: { flex: 1, minWidth: 0 }, moduleType: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 0.8, textTransform: 'uppercase' }, moduleName: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 15, marginTop: 2 }, moduleMeta: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, marginTop: 3 }, progress: { marginTop: 14 }, noResults: { color: c.text.body, fontFamily: fonts.regular, fontSize: 13, textAlign: 'center', paddingVertical: 25 },
-  resourceButton: { minHeight: 72, borderRadius: 19, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, padding: 13, flexDirection: 'row', alignItems: 'center', gap: 11, marginTop: 6 }, resourceIcon: { width: 42, height: 42, borderRadius: 13, backgroundColor: c.surface.sunken, alignItems: 'center', justifyContent: 'center' }, resourceTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 14 }, resourceCopy: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, marginTop: 3 }, libraryStack: { gap: 4 }, staffTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 17, marginTop: 15 }, staffCopy: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 19, marginTop: 6 },
-  partialWarning: { minHeight: 58, borderRadius: 16, borderWidth: 1, borderColor: c.status.warning.border, backgroundColor: c.status.warning.bg, paddingHorizontal: 14, paddingVertical: 11, flexDirection: 'row', alignItems: 'center', gap: 10 }, partialWarningText: { flex: 1, color: c.status.warning.fg, fontFamily: fonts.medium, fontSize: 12, lineHeight: 18 },
+const useStyles = makeStyles(({ colors: c, radius, shadow }) => StyleSheet.create({
+  safe: { flex: 1, backgroundColor: c.surface.page },
+  content: { padding: 16, paddingBottom: 108, gap: 14 },
+  topRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  heroBlock: { gap: 3, marginTop: 2 },
+  title: { ...typography.display, color: c.text.strong, fontFamily: fonts.extraBold, letterSpacing: -0.9 },
+  subtitle: { ...typography.support, color: c.text.body, fontFamily: fonts.regular },
+  search: { minHeight: 48, borderRadius: radius.control, borderWidth: StyleSheet.hairlineWidth, borderColor: c.border.subtle, backgroundColor: c.surface.raised, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  input: { flex: 1, color: c.text.strong, fontFamily: fonts.regular, fontSize: 15, paddingVertical: 11 },
+  stack: { gap: 10 },
+  moduleTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  moduleIcon: { width: 42, height: 42, borderRadius: radius.control, backgroundColor: c.surface.sunken, alignItems: 'center', justifyContent: 'center' },
+  moduleIconLocked: { backgroundColor: c.surface.sunken },
+  flex: { flex: 1, minWidth: 0 },
+  moduleType: { color: c.text.muted, fontFamily: fonts.semibold, fontSize: 12 },
+  moduleName: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 16, lineHeight: 22, marginTop: 1 },
+  moduleMeta: { color: c.text.body, fontFamily: fonts.regular, fontSize: 13, marginTop: 2 },
+  progress: { marginTop: 12 },
+  noResults: { color: c.text.body, fontFamily: fonts.regular, fontSize: 14, textAlign: 'center', paddingVertical: 25 },
+  resourceButton: { minHeight: 68, borderRadius: radius.card, borderWidth: StyleSheet.hairlineWidth, borderColor: c.border.subtle, backgroundColor: c.surface.raised, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4, ...shadow.raised },
+  resourceIcon: { width: 40, height: 40, borderRadius: radius.control, backgroundColor: c.surface.sunken, alignItems: 'center', justifyContent: 'center' },
+  resourceTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 15 },
+  resourceCopy: { color: c.text.body, fontFamily: fonts.regular, fontSize: 13, marginTop: 2 },
+  libraryStack: { gap: 6 },
+  staffTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 17, marginTop: 4 },
+  staffCopy: { color: c.text.body, fontFamily: fonts.regular, fontSize: 14, lineHeight: 20, marginTop: 4 },
+  partialWarning: { minHeight: 54, borderRadius: radius.card, borderWidth: StyleSheet.hairlineWidth, borderColor: c.status.warning.border, backgroundColor: c.status.warning.bg, paddingHorizontal: 14, paddingVertical: 11, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  partialWarningText: { flex: 1, color: c.status.warning.fg, fontFamily: fonts.medium, fontSize: 13, lineHeight: 19 },
   emptyHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  emptyActions: { gap: 10, marginTop: 16 },
-  supportButton: { minHeight: 48, borderRadius: 14, borderWidth: 1, borderColor: c.border.strong, backgroundColor: c.surface.page, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  supportButtonText: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 13 },
+  emptyActions: { gap: 10, marginTop: 14 },
+  supportButton: { minHeight: 48, borderRadius: radius.control, borderWidth: 1, borderColor: c.border.strong, backgroundColor: c.surface.raised, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  supportButtonText: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 14 },
 }));
