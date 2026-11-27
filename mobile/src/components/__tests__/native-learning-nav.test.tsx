@@ -301,7 +301,8 @@ test('staff profile uses server counts, reasons and review target rather than re
   fireEvent.press(screen.getByRole('button', { name: 'Open Other cohort enrollment' }));
   expect(mockPush).toHaveBeenLastCalledWith({ pathname: '/staff/student/[id]', params: { id: String(progress.user.id), cohort_id: '9' } });
   fireEvent.press(screen.getByRole('button', { name: 'Start follow-up plan' }));
-  expect(openAuthenticatedWebPage).toHaveBeenLastCalledWith(expect.anything(), `/admin/cohorts/4/students/${progress.user.id}/overview`);
+  expect(screen.getByRole('button', { name: 'Create plan' })).toBeTruthy();
+  expect(openAuthenticatedWebPage).not.toHaveBeenCalled();
 });
 
 test('staff keeps retained enrollment work visible when current curriculum block ids differ', async () => {

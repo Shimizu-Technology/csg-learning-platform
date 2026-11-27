@@ -1,12 +1,15 @@
 import { BackButton } from '@/components/back-button';
+import { BottomSheet } from '@/components/ui/bottom-sheet';
+import { Button } from '@/components/ui/button';
 import { themedAlert as Alert } from '@/lib/alerts';
+import { haptic } from '@/lib/haptics';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Activity, AlertTriangle, ArrowRight, BookOpen, CalendarClock, CheckCircle2, ClipboardCheck, Clock3, ExternalLink, Film, GitBranch, MessageSquare, RotateCcw, UserRound } from 'lucide-react-native';
 import { useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { LearningCard, ProgressBar, SectionHeading } from '@/components/learning-ui';
@@ -15,15 +18,20 @@ import { fonts } from '@/constants/csg-theme';
 import { demoHelpRequests, demoInterventions, demoLessonVideoProgress, demoRecordingProgress, demoStaffSubmissions, demoStudentProgress } from '@/lib/demo-staff';
 import { demoDms } from '@/lib/demo-data';
 import { openAuthenticatedWebPage, openExternalPage } from '@/lib/external-links';
-import { currentSubmissions, learningKeys } from '@/lib/learning';
-import type { Intervention, StaffVideoProgress, Submission } from '@/lib/types';
+import { currentSubmissions, isStaffAttentionQuery, learningKeys } from '@/lib/learning';
+import type { Intervention, InterventionSeverity, InterventionTrigger, StaffVideoProgress, Submission } from '@/lib/types';
 import { ENROLLMENT_STATUS_LABELS, FOLLOW_UP_REASON_LABELS, FOLLOW_UP_STATUS_LABELS, humanize } from '@/lib/display-labels';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
 
+const FOLLOW_UP_REASONS = (Object.keys(FOLLOW_UP_REASON_LABELS) as InterventionTrigger[]).map((value) => ({
+  value,
+  label: FOLLOW_UP_REASON_LABELS[value],
+}));
+
 export default function StaffStudentScreen() {
   const styles = useStyles();
-  const { colors: c } = useTheme();
+  const { colors: c, scheme } = useTheme();
   const { id, cohort_id: cohortIdParam } = useLocalSearchParams<{ id: string; cohort_id?: string }>();
   const studentId = Number(id);
   const requestedCohortId = Number(cohortIdParam) || undefined;
@@ -32,6 +40,11 @@ export default function StaffStudentScreen() {
   const { api, user } = useSession();
   const queryClient = useQueryClient();
   const [expandedModules, setExpandedModules] = useState<Record<number, boolean>>({});
+  const [followUpOpen, setFollowUpOpen] = useState(false);
+  const [triggerType, setTriggerType] = useState<InterventionTrigger>(FOLLOW_UP_REASONS[0]?.value ?? 'manual');
+  const [severity, setSeverity] = useState<InterventionSeverity>('normal');
+  const [followUpDays, setFollowUpDays] = useState<3 | 7 | 14>(7);
+  const [actionSummary, setActionSummary] = useState('');
   const query = useQuery({
     queryKey: learningKeys.studentDetail(user?.id || 0, studentId, requestedCohortId),
     queryFn: async ({ signal }) => {
@@ -67,6 +80,37 @@ export default function StaffStudentScreen() {
     queryClient.setQueryData(learningKeys.intervention(user!.id, intervention.id), { intervention });
     router.push({ pathname: '/staff/intervention/[id]', params: { id: String(intervention.id) } });
   }
+
+  const createInterventionMutation = useMutation({
+    mutationFn: () => {
+      const enrollmentId = query.data?.progress.enrollment.id;
+      if (!enrollmentId) throw new Error('Student enrollment is unavailable.');
+      return api.createIntervention({
+        enrollment_id: enrollmentId,
+        trigger_type: triggerType,
+        severity,
+        action_summary: actionSummary.trim() || undefined,
+        next_follow_up_at: new Date(Date.now() + followUpDays * 86_400_000).toISOString(),
+      });
+    },
+    onSuccess: async (result) => {
+      haptic('success');
+      setFollowUpOpen(false);
+      setActionSummary('');
+      if (user) {
+        queryClient.setQueryData(learningKeys.intervention(user.id, result.intervention.id), result);
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: learningKeys.studentDetail(user.id, studentId, requestedCohortId) }),
+          queryClient.invalidateQueries({ predicate: (q) => isStaffAttentionQuery(q.queryKey, user.id) }),
+        ]);
+      }
+      openIntervention(result.intervention);
+    },
+    onError: (error) => {
+      haptic('error');
+      Alert.alert('Could not start follow-up plan', (error as Error).message || 'Try again.');
+    },
+  });
 
   function openSubmission(submission: Submission, cohortId: number) {
     queryClient.setQueryData(learningKeys.submission(user!.id, submission.id), { submission });
@@ -107,7 +151,7 @@ export default function StaffStudentScreen() {
       {data.progress.status?.needs_attention && <LearningCard><Text style={styles.cardTitle}>Why flagged</Text><Text style={styles.cardMeta}>{data.progress.status.label}</Text>{data.progress.status.reasons.map(reason => <Text key={reason.code} style={styles.cardMeta}>{reason.label}</Text>)}</LearningCard>}
       {(data.progress.enrollments?.length || 0) > 1 && <View style={styles.stack}><SectionHeading title="Enrollments" />{data.progress.enrollments!.map(enrollment => <LearningCard key={enrollment.id} onPress={() => router.push({ pathname: '/staff/student/[id]', params: { id: String(studentId), cohort_id: String(enrollment.cohort_id) } })} label={`Open ${enrollment.cohort_name} enrollment`}><Text style={styles.cardTitle}>{enrollment.cohort_name}</Text><Text style={styles.cardMeta}>{humanize(enrollment.status, ENROLLMENT_STATUS_LABELS)}</Text></LearningCard>)}</View>}
       {data.progress.status?.next_review_submission_id && <Pressable accessibilityRole="button" accessibilityLabel="Grade next" style={styles.quick} onPress={() => router.push({ pathname: '/staff/submission/[id]', params: { id: String(data.progress.status!.next_review_submission_id), cohort_id: String(data.progress.cohort.id), student_id: String(studentId) } })}><ClipboardCheck color={c.text.body} size={18} /><Text style={styles.quickText}>Grade next ({data.progress.status.ungraded_count})</Text></Pressable>}
-      <Pressable accessibilityRole="button" accessibilityLabel="Start follow-up plan" style={styles.quick} onPress={() => void openAuthenticatedWebPage(api, `/admin/cohorts/${data.progress.cohort.id}/students/${studentId}/overview`).catch(error => Alert.alert('Could not open follow-up controls', (error as Error).message))}><CalendarClock color={c.text.body} size={18} /><Text style={styles.quickText}>Start follow-up plan on web</Text></Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel="Start follow-up plan" style={styles.quick} onPress={() => { if (auth.demo) { Alert.alert('Live account required', 'Sign in with a staff account to start a follow-up plan.'); return; } setFollowUpOpen(true); }}><CalendarClock color={c.text.body} size={18} /><Text style={styles.quickText}>Start follow-up plan</Text></Pressable>
       <View style={styles.quickRow}><Pressable accessibilityRole="button" accessibilityLabel={`Message ${data.progress.user.full_name} in ${data.progress.cohort.name}`} onPress={() => void openDirectMessage()} style={styles.quick}><MessageSquare color={c.text.body} size={18} /><Text style={styles.quickText}>Message</Text></Pressable><Pressable accessibilityRole="button" onPress={() => void openAuthenticatedWebPage(api, `/admin/cohorts/${data.progress.cohort.id}/students/${studentId}/overview`).catch((error) => Alert.alert('Could not open the student page', (error as Error).message))} style={styles.quick}><ExternalLink color={c.text.body} size={18} /><Text style={styles.quickText}>Student page</Text></Pressable></View>
       {data.intervention && <Pressable accessibilityRole="button" accessibilityLabel={`Open follow-up plan for ${data.progress.user.full_name}`} onPress={() => openIntervention(data.intervention!)} style={[styles.intervention, data.intervention.follow_up_due && styles.interventionDue]}><CalendarClock color={data.intervention.follow_up_due ? c.status.warning.fg : c.text.body} size={19} /><View style={styles.flex}><Text style={[styles.interventionTitle, data.intervention.follow_up_due && styles.interventionTitleDue]}>{data.intervention.follow_up_due ? 'Follow-up due' : 'Follow-up plan'}</Text><Text numberOfLines={2} style={styles.interventionCopy}>{humanize(data.intervention.trigger_type, FOLLOW_UP_REASON_LABELS)} · {humanize(data.intervention.status, FOLLOW_UP_STATUS_LABELS)} · {data.intervention.owner.full_name}</Text></View><ArrowRight color={c.text.muted} size={17} /></Pressable>}
 
@@ -128,6 +172,73 @@ export default function StaffStudentScreen() {
       {user.is_admin && <Pressable accessibilityRole="button" accessibilityLabel={`Open safe restart controls for ${data.progress.user.full_name}`} onPress={() => void openAuthenticatedWebPage(api, `/admin/cohorts/${data.progress.cohort.id}/students/${studentId}/access`).catch((error) => Alert.alert('Could not open restart controls', (error as Error).message))} style={styles.restart}><RotateCcw color={c.text.body} size={18} /><View style={styles.flex}><Text style={styles.restartTitle}>Restart class progress</Text><Text style={styles.restartCopy}>Opens the audited email-confirmation workflow</Text></View><ExternalLink color={c.text.muted} size={17} /></Pressable>}
       <Pressable accessibilityRole="button" onPress={() => void openAuthenticatedWebPage(api, `/admin/cohorts/${data.progress.cohort.id}/students/${studentId}/access`).catch((error) => Alert.alert('Could not open student access', (error as Error).message))} style={styles.handoff}><AlertTriangle color={c.status.warning.fg} size={18} /><View style={styles.flex}><Text style={styles.handoffTitle}>Need advanced controls?</Text><Text style={styles.handoffCopy}>Open access, overrides, and administration controls for this enrollment securely on the web.</Text></View><ExternalLink color={c.text.muted} size={17} /></Pressable>
     </ScrollView>
+    <BottomSheet
+      visible={followUpOpen}
+      title="Start follow-up plan"
+      subtitle={`${data.progress.user.full_name} · ${data.progress.cohort.name}`}
+      onClose={() => { if (!createInterventionMutation.isPending) setFollowUpOpen(false); }}
+    >
+      <View style={styles.sheetBody}>
+        <Text style={styles.sheetLabel}>REASON</Text>
+        <View style={styles.chipWrap} accessibilityRole="radiogroup" accessibilityLabel="Follow-up reason">
+          {FOLLOW_UP_REASONS.map((item) => (
+            <Pressable
+              key={item.value}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: triggerType === item.value }}
+              onPress={() => setTriggerType(item.value)}
+              style={[styles.choiceChip, triggerType === item.value && styles.choiceChipActive]}
+            >
+              <Text style={[styles.choiceChipText, triggerType === item.value && styles.choiceChipTextActive]}>{item.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+        <Text style={styles.sheetLabel}>PRIORITY</Text>
+        <View style={styles.chipWrap} accessibilityRole="radiogroup" accessibilityLabel="Follow-up priority">
+          {(['normal', 'urgent'] as const).map((level) => (
+            <Pressable
+              key={level}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: severity === level }}
+              onPress={() => setSeverity(level)}
+              style={[styles.choiceChip, severity === level && styles.choiceChipActive]}
+            >
+              <Text style={[styles.choiceChipText, severity === level && styles.choiceChipTextActive]}>{level === 'urgent' ? 'Urgent' : 'Normal'}</Text>
+            </Pressable>
+          ))}
+        </View>
+        <Text style={styles.sheetLabel}>NEXT FOLLOW-UP</Text>
+        <View style={styles.chipWrap}>
+          {([3, 7, 14] as const).map((days) => (
+            <Pressable
+              key={days}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: followUpDays === days }}
+              onPress={() => setFollowUpDays(days)}
+              style={[styles.choiceChip, followUpDays === days && styles.choiceChipActive]}
+            >
+              <Text style={[styles.choiceChipText, followUpDays === days && styles.choiceChipTextActive]}>In {days} days</Text>
+            </Pressable>
+          ))}
+        </View>
+        <Text style={styles.sheetLabel}>ACTION / NEXT STEP (OPTIONAL)</Text>
+        <TextInput
+          keyboardAppearance={scheme}
+          accessibilityLabel="Follow-up action summary"
+          value={actionSummary}
+          onChangeText={setActionSummary}
+          multiline
+          maxLength={2000}
+          placeholder="What should happen next with this learner?"
+          placeholderTextColor={c.text.muted}
+          style={styles.sheetInput}
+        />
+        <View style={styles.sheetActions}>
+          <Button variant="secondary" label="Cancel" disabled={createInterventionMutation.isPending} onPress={() => setFollowUpOpen(false)} style={styles.sheetButton} />
+          <Button variant="primary" label={createInterventionMutation.isPending ? 'Creating…' : 'Create plan'} disabled={createInterventionMutation.isPending} onPress={() => createInterventionMutation.mutate()} style={styles.sheetButton} />
+        </View>
+      </View>
+    </BottomSheet>
   </SafeAreaView>;
 }
 
@@ -143,4 +254,14 @@ function formatRelative(value: string | null) { if (!value) return 'not recorded
 const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: c.surface.page }, header: { minHeight: 70, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border.subtle, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }, back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }, headerCopy: { flex: 1, minWidth: 0 }, kicker: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 1.2 }, headerTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 17, marginTop: 2 }, content: { padding: 20, paddingBottom: 70, gap: 16 }, identity: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 4 }, avatar: { width: 64, height: 64, borderRadius: 22, backgroundColor: c.surface.sunken, borderWidth: 1, borderColor: c.border.strong, alignItems: 'center', justifyContent: 'center' }, initials: { color: c.text.strong, fontFamily: fonts.extraBold, fontSize: 18 }, flex: { flex: 1, minWidth: 0 }, name: { color: c.text.strong, fontFamily: fonts.extraBold, fontSize: 23, letterSpacing: -0.5 }, email: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, marginTop: 3 }, identityMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 9 }, metaChip: { minHeight: 25, borderRadius: 13, backgroundColor: c.surface.raised, borderWidth: 1, borderColor: c.border.subtle, paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', gap: 5 }, metaChipText: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12 }, scopeNote: { borderRadius: 16, borderWidth: 1, borderColor: c.border.strong, backgroundColor: c.surface.sunken, padding: 13, flexDirection: 'row', alignItems: 'flex-start', gap: 9 }, scopeText: { flex: 1, color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 17 }, progressTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 12 }, progressKicker: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 1.1 }, progressNumber: { color: c.text.strong, fontFamily: fonts.extraBold, fontSize: 32, marginTop: 3 }, stepCount: { alignItems: 'flex-end' }, stepCountValue: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 14 }, stepCountLabel: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, marginTop: 2 }, lastSeen: { color: c.text.body, fontFamily: fonts.medium, fontSize: 12, marginTop: 10 }, signalGrid: { flexDirection: 'row', gap: 8 }, signalCard: { flex: 1, minHeight: 100, borderRadius: 17, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, padding: 13, justifyContent: 'space-between' }, signalValue: { color: c.text.strong, fontFamily: fonts.extraBold, fontSize: 21, marginTop: 7 }, signalLabel: { color: c.text.body, fontFamily: fonts.semibold, fontSize: 12, lineHeight: 16 }, quickRow: { flexDirection: 'row', gap: 9 }, quick: { flex: 1, minHeight: 48, borderRadius: 15, backgroundColor: c.surface.sunken, borderWidth: 1, borderColor: c.border.strong, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, quickText: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 12 }, section: { gap: 11, marginTop: 10 }, stack: { gap: 9 }, row: { flexDirection: 'row', alignItems: 'center', gap: 11 }, reviewIcon: { width: 40, height: 40, borderRadius: 13, backgroundColor: c.surface.sunken, alignItems: 'center', justifyContent: 'center' }, completeIcon: { backgroundColor: c.surface.sunken }, cardTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 13, lineHeight: 18 }, cardMeta: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 16, marginTop: 2 }, moduleTop: { flexDirection: 'row', alignItems: 'center', gap: 11 }, moduleIcon: { width: 40, height: 40, borderRadius: 13, backgroundColor: c.surface.sunken, alignItems: 'center', justifyContent: 'center' }, modulePercent: { color: c.text.strong, fontFamily: fonts.extraBold, fontSize: 13 }, moduleBar: { marginTop: 13, marginBottom: 7 },   lessonRow: { minHeight: 44, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border.subtle, flexDirection: 'row', alignItems: 'center', gap: 8 }, lessonTitle: { flex: 1, color: c.text.body, fontFamily: fonts.medium, fontSize: 13 }, lessonCount: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12 }, expandLessons: { minHeight: 44, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border.subtle, alignItems: 'center', justifyContent: 'center' }, expandLessonsText: { color: c.selection.indicator, fontFamily: fonts.bold, fontSize: 13 }, videoBar: { marginTop: 8 }, activityRow: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10 }, divider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border.subtle }, activityTitle: { color: c.text.strong, fontFamily: fonts.semibold, fontSize: 12 }, restart: { minHeight: 72, borderRadius: 18, borderWidth: 1, borderColor: c.border.strong, backgroundColor: c.surface.sunken, padding: 15, flexDirection: 'row', alignItems: 'center', gap: 11, marginTop: 8 }, restartTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 12 }, restartCopy: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 16, marginTop: 3 }, handoff: { minHeight: 82, borderRadius: 18, borderWidth: 1, borderColor: c.border.strong, backgroundColor: c.surface.sunken, padding: 15, flexDirection: 'row', alignItems: 'center', gap: 11, marginTop: 8 }, handoffTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 12 }, handoffCopy: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 16, marginTop: 3 }, offline: { minHeight: 36, borderRadius: 12, backgroundColor: c.status.warning.bg, justifyContent: 'center', paddingHorizontal: 12 }, offlineText: { color: c.status.warning.fg, fontFamily: fonts.semibold, fontSize: 12 },
   intervention: { minHeight: 72, borderRadius: 18, borderWidth: 1, borderColor: c.border.strong, backgroundColor: c.surface.sunken, padding: 15, flexDirection: 'row', alignItems: 'center', gap: 11 }, interventionDue: { borderColor: c.status.warning.border, backgroundColor: c.status.warning.bg}, interventionTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 12 }, interventionTitleDue: { color: c.status.warning.fg}, interventionCopy: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 16, marginTop: 3 },
+  sheetBody: { gap: 10, paddingTop: 4 },
+  sheetLabel: { color: c.text.muted, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 0.8, marginTop: 4 },
+  chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  choiceChip: { minHeight: 44, borderRadius: 12, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.sunken, paddingHorizontal: 12, justifyContent: 'center', alignItems: 'center' },
+  choiceChipActive: { borderColor: c.selection.indicator, backgroundColor: c.selection.bg, borderWidth: 2 },
+  choiceChipText: { color: c.text.body, fontFamily: fonts.semibold, fontSize: 13 },
+  choiceChipTextActive: { color: c.text.strong, fontFamily: fonts.bold },
+  sheetInput: { minHeight: 96, borderRadius: 14, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.sunken, color: c.text.strong, fontFamily: fonts.regular, fontSize: 14, lineHeight: 20, padding: 12, textAlignVertical: 'top' },
+  sheetActions: { flexDirection: 'row', gap: 10, marginTop: 6 },
+  sheetButton: { flex: 1 },
 }));

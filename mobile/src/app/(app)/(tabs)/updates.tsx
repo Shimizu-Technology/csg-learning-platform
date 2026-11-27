@@ -6,7 +6,7 @@ import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
-import { Archive, Bell, CheckCheck, ChevronRight, FileCheck2, FolderOpen, Inbox, Megaphone, MessageCircle, PenLine, Pin, Send, Users, X } from 'lucide-react-native';
+import { Archive, Bell, CalendarClock, CheckCheck, ChevronRight, FileCheck2, FolderOpen, Inbox, Megaphone, MessageCircle, PenLine, Pin, Send, Users, X } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, Modal, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -27,6 +27,7 @@ import type { components } from '@/lib/api.generated';
 import type { Announcement, AppNotification, PaginationMeta } from '@/lib/types';
 import { mapUpdatePages, readAllAnnouncements, readAllNotifications, readAnnouncementPages, readAnnouncementNotificationPages, readNotification, uniqueUpdates, updatesKeys, type AnnouncementListPayload, type NotificationListPayload, type PagedUpdates, upsertAnnouncement } from '@/lib/updates-cache';
 import { isScheduledUpdate, sendsAboutLabel } from '@/lib/scheduled-updates';
+import { resolveTimeZone, schoolTimeGenericLabel, schoolWallTimeToIso } from '@/lib/school-time';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useCohort } from '@/providers/cohort-provider';
 import { useSession } from '@/providers/session-provider';
@@ -410,6 +411,68 @@ function AnnouncementDetail({ item, canEdit, canArchive, onClose, onEdit, onArch
   return <Modal visible={Boolean(item)} transparent animationType="slide" onRequestClose={onClose}><View style={styles.modalRoot}><Pressable accessible={false} style={StyleSheet.absoluteFill} onPress={onClose} /><View style={styles.sheet}><View style={styles.sheetHandle} />{item && <ScrollView contentContainerStyle={styles.detail}><View style={styles.detailTop}><View style={styles.detailIcon}><Megaphone color={c.text.body} size={20} /></View><Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} style={styles.close}><X color={c.text.body} size={20} /></Pressable></View><Text style={styles.detailScope}>{item.audience === 'global' ? 'School-wide' : item.cohort_name || 'Staff'} · {updateWhen(item)}</Text>{isScheduledUpdate(item) ? <Text testID="announcement-scheduled" style={styles.detailScope}>Scheduled updates go out with the hourly run. Only you and admins see it until then.</Text> : null}{item.read_summary && item.read_summary.notified > 0 ? <Text testID="announcement-read-summary" style={styles.detailScope}>{`${item.read_summary.read} of ${item.read_summary.notified} ${item.read_summary.notified === 1 ? 'person it went to has' : 'people it went to have'} read it`}</Text> : null}<Text style={styles.detailTitle}>{item.title}</Text>{item.edited_at ? <Text testID="announcement-edited" style={styles.detailScope}>{editedLabel(item.edited_at)}</Text> : null}<View style={styles.detailBody}><FormattedMessage body={item.body} mentionUsers={[]} /></View><Text style={styles.detailAuthor}>Shared by {item.author?.full_name || `${brand.schoolName}`}</Text>{(canEdit || canArchive) && <View style={styles.detailActions}>{canEdit && <Pressable accessibilityRole="button" onPress={onEdit} style={styles.secondaryButton}><PenLine color={c.text.strong} size={17} /><Text style={styles.secondaryText}>Edit</Text></Pressable>}{canArchive && item.status !== 'archived' && <Pressable accessibilityRole="button" onPress={onArchive} style={styles.archiveButton}><Archive color={c.text.body} size={17} /><Text style={styles.archiveText}>{item.status === 'draft' ? 'Delete draft' : 'Archive'}</Text></Pressable>}</View>}</ScrollView>}</View></View></Modal>;
 }
 
+const SCHEDULE_HOUR_OPTIONS = [8, 9, 12, 15, 18, 20] as const;
+
+function schoolDateParts(date: Date, zone: string): { year: number; month: number; day: number; hour: number } {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-CA', {
+      timeZone: zone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      hourCycle: 'h23',
+    })
+      .formatToParts(date)
+      .map((part) => [part.type, part.value]),
+  );
+  return {
+    year: Number(parts.year),
+    month: Number(parts.month),
+    day: Number(parts.day),
+    hour: Number(parts.hour) % 24,
+  };
+}
+
+function resolveScheduledSlot(daysAhead: number, hour: number, zoneInput?: string | null): { iso: string; daysAhead: number } {
+  const zone = resolveTimeZone(zoneInput);
+  const now = new Date();
+  const today = schoolDateParts(now, zone);
+  const baseUtcDay = Date.UTC(today.year, today.month - 1, today.day);
+  const hh = String(hour).padStart(2, '0');
+  const minFuture = now.getTime() + 65 * 60_000;
+
+  let offsetDays = Math.max(0, daysAhead);
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const ymd = new Date(baseUtcDay + offsetDays * 86_400_000).toISOString().slice(0, 10);
+    const iso = schoolWallTimeToIso(`${ymd}T${hh}:00:00`, zone, true);
+    if (iso && Date.parse(iso) >= minFuture) return { iso, daysAhead: offsetDays };
+    offsetDays += 1;
+  }
+  return { iso: new Date(minFuture).toISOString(), daysAhead: offsetDays };
+}
+
+function initialScheduleParts(scheduledFor: string | null | undefined, zoneInput?: string | null): { enabled: boolean; daysAhead: number; hour: number } {
+  if (!scheduledFor) return { enabled: false, daysAhead: 1, hour: 9 };
+  const parsed = new Date(scheduledFor);
+  if (!Number.isFinite(parsed.getTime())) {
+    return { enabled: true, daysAhead: 1, hour: 9 };
+  }
+  const zone = resolveTimeZone(zoneInput);
+  const today = schoolDateParts(new Date(), zone);
+  const target = schoolDateParts(parsed, zone);
+  const startOfToday = Date.UTC(today.year, today.month - 1, today.day);
+  const startOfTarget = Date.UTC(target.year, target.month - 1, target.day);
+  const days = Math.max(0, Math.min(360, Math.round((startOfTarget - startOfToday) / 86_400_000)));
+  return { enabled: true, daysAhead: days, hour: target.hour };
+}
+
+function formatHourLabel(hour: number): string {
+  const suffix = hour >= 12 ? 'PM' : 'AM';
+  const h12 = hour % 12 || 12;
+  return `${h12} ${suffix}`;
+}
+
 type EditorData = Omit<components['schemas']['AnnouncementCreateRequest'], 'audience' | 'client_request_id'> & { audience?: Announcement['audience'] };
 function AnnouncementEditor({ visible, initial, defaultCohortId, workspaces, onClose, onSave }: { visible: boolean; initial: Announcement | null; defaultCohortId: number | null; workspaces: { cohort_id: number | null; cohort_name: string | null; name: string }[]; onClose: () => void; onSave: (data: EditorData) => Promise<void> }) {
   const styles = useStyles();
@@ -420,7 +483,7 @@ function AnnouncementEditor({ visible, initial, defaultCohortId, workspaces, onC
   const change = <T,>(setter: (value: T) => void) => (value: T) => { revision.current += 1; setter(value); };
   const close = () => { if (!savingRef.current) onClose(); };
   const [bodySelection, setBodySelection] = useState({ start: 0, end: 0 });
-  const [title, setTitle] = useState(''); const [body, setBody] = useState(''); const [audience, setAudience] = useState<Announcement['audience']>('cohort'); const [cohortId, setCohortId] = useState<number | null>(null); const [pinned, setPinned] = useState(false); const [publish, setPublish] = useState(true); const [push, setPush] = useState(true); const [saving, setSaving] = useState(false);
+  const [title, setTitle] = useState(''); const [body, setBody] = useState(''); const [audience, setAudience] = useState<Announcement['audience']>('cohort'); const [cohortId, setCohortId] = useState<number | null>(null); const [pinned, setPinned] = useState(false); const [publish, setPublish] = useState(true); const [push, setPush] = useState(true); const [scheduleEnabled, setScheduleEnabled] = useState(false); const [scheduleDays, setScheduleDays] = useState(1); const [scheduleHour, setScheduleHour] = useState(9); const [scheduleDirty, setScheduleDirty] = useState(false); const [saving, setSaving] = useState(false);
   const cohorts = useMemo(() => Array.from(new Map(workspaces.filter((workspace) => workspace.cohort_id).map((workspace) => [workspace.cohort_id!, { id: workspace.cohort_id!, name: workspace.cohort_name || workspace.name }])).values()), [workspaces]);
   const audienceCohort = cohorts.find((cohort) => cohort.id === cohortId) || null;
   const contextCohort = cohorts.find((cohort) => cohort.id === defaultCohortId) || null;
@@ -430,14 +493,63 @@ function AnnouncementEditor({ visible, initial, defaultCohortId, workspaces, onC
   // A posted (or archived) update keeps its audience; only its words and pin change, and nobody is notified again (U-3.6).
   const posted = Boolean(initial && initial.status !== 'draft');
   const publishing = publish && (!initial || initial.status === 'draft');
+  const scheduling = !posted && !publish && scheduleEnabled;
+  const scheduleZone = resolveTimeZone(initial?.schedule_time_zone);
+  const initialScheduledFor = initial?.scheduled_for ?? null;
+  const effectiveSchedule = useMemo(() => {
+    if (!scheduling) return null;
+    if (!scheduleDirty && initialScheduledFor) {
+      return { iso: initialScheduledFor, daysAhead: scheduleDays };
+    }
+    return resolveScheduledSlot(scheduleDays, scheduleHour, scheduleZone);
+  }, [initialScheduledFor, scheduleDays, scheduleDirty, scheduleHour, scheduleZone, scheduling]);
+  const scheduledIso = effectiveSchedule?.iso ?? null;
+  const displayedScheduleDays = effectiveSchedule?.daysAhead ?? scheduleDays;
+  const selectScheduleDay = (nextDays: number) => {
+    revision.current += 1;
+    let nextHour = scheduleHour;
+    if (nextDays === 0 && resolveScheduledSlot(0, nextHour, scheduleZone).daysAhead !== 0) {
+      const firstTodayHour = SCHEDULE_HOUR_OPTIONS.find((option) => resolveScheduledSlot(0, option, scheduleZone).daysAhead === 0);
+      if (firstTodayHour !== undefined) nextHour = firstTodayHour;
+    }
+    const resolved = resolveScheduledSlot(nextDays, nextHour, scheduleZone);
+    setScheduleDays(resolved.daysAhead);
+    setScheduleHour(nextHour);
+    setScheduleDirty(true);
+  };
+  const selectScheduleHour = (hour: number) => {
+    revision.current += 1;
+    const resolved = resolveScheduledSlot(displayedScheduleDays, hour, scheduleZone);
+    setScheduleDays(resolved.daysAhead);
+    setScheduleHour(hour);
+    setScheduleDirty(true);
+  };
   const toContextCohort = audience === 'cohort' && audienceCohort !== null && audienceCohort.id === contextCohort?.id;
   const confirmAudience = () => {
     const showAlert = (title: string, message: string, action: string) => new Promise<boolean>((resolve) => Alert.alert(title, message, [{ text: 'Cancel', style: 'cancel', onPress: () => resolve(false) }, { text: action, onPress: () => resolve(true) }], { cancelable: true, onDismiss: () => resolve(false) }));
     if (publishing && !toContextCohort) return showAlert(audience === 'global' ? 'Post to everyone?' : audience === 'staff' ? 'Post to staff only?' : `Post to ${audienceLabel}?`, audience === 'global' ? 'This goes to every student and staff member in the school, not just one class.' : audience === 'staff' ? 'Students will not see this update.' : `${contextCohort ? `You are viewing ${contextCohort.name}, but this` : 'This'} will go to ${audienceLabel}.`, 'Post');
     return Promise.resolve(true);
   };
-  const reset = useCallback(() => { setTitle(initial?.title || ''); setBody(initial?.body || ''); setAudience(initial?.audience || 'cohort'); setCohortId(initial?.cohort_id || (defaultCohortId && cohorts.some((cohort) => cohort.id === defaultCohortId) ? defaultCohortId : null)); setPinned(initial?.pinned || false); setPublish(initial ? initial.status === 'published' : true); setPush(!initial || initial.status === 'draft'); }, [cohorts, defaultCohortId, initial]);
-  return <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onShow={reset} onRequestClose={close}><SafeAreaView style={styles.editorSafe}><View style={styles.editorHeader}><Pressable accessibilityRole="button" accessibilityLabel="Close update editor" disabled={saving} onPress={close} style={styles.close}><X color={c.text.body} size={20} /></Pressable><Text style={styles.editorTitle}>{posted ? 'Edit update' : initial ? 'Edit draft' : 'New update'}</Text><Button variant="primary" accessibilityRole="button" disabled={saving || !title.trim() || (!body.trim() && (posted || publish)) || (!posted && audience === 'cohort' && !cohortId)} onPress={async () => { if (savingRef.current) return; savingRef.current = true; const submittedRevision = revision.current; try { if (!(await confirmAudience())) return; setSaving(true); await onSave(posted ? { title: title.trim(), body: messageBodyForSend(body), pinned } : { title: title.trim(), body: messageBodyForSend(body), audience, cohort_id: audience === 'cohort' ? cohortId : null, status: publish ? 'published' : 'draft', pinned, send_push: publish && push }); if (revision.current === submittedRevision) onClose(); } catch (requestError) { Alert.alert('Could not save update', (requestError as Error).message); } finally { savingRef.current = false; setSaving(false); } }} style={styles.saveButton}><Send color={c.text.strong} size={15} /><Text style={styles.saveText}>{saving ? 'Saving' : 'Save'}</Text></Button></View><Text accessibilityLiveRegion="polite" style={[styles.audienceBar, !posted && !audienceLabel && styles.audienceBarMissing]}>{posted ? `Posted to ${audienceLabel || 'its audience'}. Who sees an update can’t change after it’s posted; post a new update to reach other people. Saving doesn’t notify anyone again.` : audienceLabel ? `Posting to: ${audienceLabel}` : 'Choose a cohort to post to'}</Text><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.editorContent}><Text style={styles.fieldLabel}>TITLE</Text><TextInput keyboardAppearance={scheme} accessibilityLabel="Update title" value={title} onChangeText={change(setTitle)} placeholder="What should everyone know?" placeholderTextColor={c.text.body} style={styles.field} /><Text style={styles.fieldLabel}>MESSAGE</Text><TextInput keyboardAppearance={scheme} ref={bodyInput} accessibilityLabel="Update message" accessibilityHint="Markdown: plain text with Preview" {...composerInputBehavior(body, bodySelection)} selection={bodySelection} onSelectionChange={(event) => setBodySelection(event.nativeEvent.selection)} value={body} onChangeText={change(setBody)} placeholder="Share the details clearly…" placeholderTextColor={c.text.body} multiline style={[styles.field, styles.bodyField]} /><MessageFormattingToolbar value={body} selection={bodySelection} visible onChange={change(setBody)} onSelectionChange={setBodySelection} onComposerFocus={() => bodyInput.current?.focus()} onLimitExceeded={() => Alert.alert("Draft is too long")} />{!posted && <><Text style={styles.fieldLabel}>AUDIENCE</Text><View style={styles.choiceRow}>{(['cohort', 'global', 'staff'] as const).map((value) => <Pressable key={value} accessibilityRole="radio" disabled={saving} accessibilityState={{ checked: audience === value }} onPress={() => change(setAudience)(value)} style={[styles.choice, audience === value && styles.choiceActive]}><Text style={[styles.choiceText, audience === value && styles.choiceTextActive]}>{value}</Text></Pressable>)}</View>{audience === 'cohort' && <><Text style={styles.fieldLabel}>COHORT</Text><View style={styles.cohortList}>{cohorts.map((cohort) => <Pressable key={cohort.id} accessibilityRole="radio" disabled={saving} accessibilityState={{ checked: cohortId === cohort.id }} onPress={() => change(setCohortId)(cohort.id)} style={[styles.cohortChoice, cohortId === cohort.id && styles.choiceActive]}><Users color={cohortId === cohort.id ? c.selection.indicator : c.text.body} size={15} /><Text style={[styles.choiceText, cohortId === cohort.id && styles.choiceTextActive]}>{cohort.name}</Text></Pressable>)}</View></>}</>}<EditorToggle label="Pin to the top" value={pinned} onValueChange={change(setPinned)} />{!posted && <><EditorToggle label="Post now" disabled={saving} value={publish} onValueChange={change(setPublish)} /><EditorToggle label="Send a push notification" value={push} onValueChange={change(setPush)} disabled={saving || !publish} /></>}</ScrollView></SafeAreaView></Modal>;
+  const reset = useCallback(() => {
+    const scheduleParts = initialScheduleParts(initial?.scheduled_for, initial?.schedule_time_zone);
+    setTitle(initial?.title || '');
+    setBody(initial?.body || '');
+    setAudience(initial?.audience || 'cohort');
+    setCohortId(initial?.cohort_id || (defaultCohortId && cohorts.some((cohort) => cohort.id === defaultCohortId) ? defaultCohortId : null));
+    setPinned(initial?.pinned || false);
+    setPublish(initial ? initial.status === 'published' : true);
+    setPush(initial && initial.status === 'draft' && initial.scheduled_for ? Boolean(initial.scheduled_send_push) : (!initial || initial.status === 'draft'));
+    setScheduleEnabled(scheduleParts.enabled);
+    setScheduleDays(scheduleParts.daysAhead);
+    setScheduleHour(scheduleParts.hour);
+    setScheduleDirty(false);
+  }, [cohorts, defaultCohortId, initial]);
+  return <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onShow={reset} onRequestClose={close}><SafeAreaView style={styles.editorSafe}><View style={styles.editorHeader}><Pressable accessibilityRole="button" accessibilityLabel="Close update editor" disabled={saving} onPress={close} style={styles.close}><X color={c.text.body} size={20} /></Pressable><Text style={styles.editorTitle}>{posted ? 'Edit update' : initial ? 'Edit draft' : 'New update'}</Text><Button variant="primary" accessibilityRole="button" disabled={saving || !title.trim() || (!body.trim() && (posted || publish || scheduling)) || (!posted && audience === 'cohort' && !cohortId)} onPress={async () => { if (savingRef.current) return; savingRef.current = true; const submittedRevision = revision.current; try { if (!(await confirmAudience())) return; setSaving(true); await onSave(posted ? { title: title.trim(), body: messageBodyForSend(body), pinned } : { title: title.trim(), body: messageBodyForSend(body), audience, cohort_id: audience === 'cohort' ? cohortId : null, status: publish ? 'published' : 'draft', pinned, send_push: (publish || scheduling) && push, scheduled_for: scheduling ? scheduledIso : null }); if (revision.current === submittedRevision) onClose(); } catch (requestError) { Alert.alert('Could not save update', (requestError as Error).message); } finally { savingRef.current = false; setSaving(false); } }} style={styles.saveButton}><Send color={c.text.strong} size={15} /><Text style={styles.saveText}>{saving ? 'Saving' : scheduling ? 'Schedule' : 'Save'}</Text></Button></View><Text accessibilityLiveRegion="polite" style={[styles.audienceBar, !posted && !audienceLabel && styles.audienceBarMissing]}>{posted ? `Posted to ${audienceLabel || 'its audience'}. Who sees an update can’t change after it’s posted; post a new update to reach other people. Saving doesn’t notify anyone again.` : audienceLabel ? `Posting to: ${audienceLabel}` : 'Choose a cohort to post to'}</Text><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.editorContent}><Text style={styles.fieldLabel}>TITLE</Text><TextInput keyboardAppearance={scheme} accessibilityLabel="Update title" value={title} onChangeText={change(setTitle)} placeholder="What should everyone know?" placeholderTextColor={c.text.body} style={styles.field} /><Text style={styles.fieldLabel}>MESSAGE</Text><TextInput keyboardAppearance={scheme} ref={bodyInput} accessibilityLabel="Update message" accessibilityHint="Markdown: plain text with Preview" {...composerInputBehavior(body, bodySelection)} selection={bodySelection} onSelectionChange={(event) => setBodySelection(event.nativeEvent.selection)} value={body} onChangeText={change(setBody)} placeholder="Share the details clearly…" placeholderTextColor={c.text.body} multiline style={[styles.field, styles.bodyField]} /><MessageFormattingToolbar value={body} selection={bodySelection} visible onChange={change(setBody)} onSelectionChange={setBodySelection} onComposerFocus={() => bodyInput.current?.focus()} onLimitExceeded={() => Alert.alert("Draft is too long")} />{!posted && <><Text style={styles.fieldLabel}>AUDIENCE</Text><View style={styles.choiceRow}>{(['cohort', 'global', 'staff'] as const).map((value) => <Pressable key={value} accessibilityRole="radio" disabled={saving} accessibilityState={{ checked: audience === value }} onPress={() => change(setAudience)(value)} style={[styles.choice, audience === value && styles.choiceActive]}><Text style={[styles.choiceText, audience === value && styles.choiceTextActive]}>{value}</Text></Pressable>)}</View>{audience === 'cohort' && <><Text style={styles.fieldLabel}>COHORT</Text><View style={styles.cohortList}>{cohorts.map((cohort) => <Pressable key={cohort.id} accessibilityRole="radio" disabled={saving} accessibilityState={{ checked: cohortId === cohort.id }} onPress={() => change(setCohortId)(cohort.id)} style={[styles.cohortChoice, cohortId === cohort.id && styles.choiceActive]}><Users color={cohortId === cohort.id ? c.selection.indicator : c.text.body} size={15} /><Text style={[styles.choiceText, cohortId === cohort.id && styles.choiceTextActive]}>{cohort.name}</Text></Pressable>)}</View></>}</>}<EditorToggle label="Pin to the top" value={pinned} onValueChange={change(setPinned)} />{!posted && <><EditorToggle label="Post now" disabled={saving} value={publish} onValueChange={(next) => { revision.current += 1; setPublish(next); if (next) { setScheduleEnabled(false); setScheduleDirty(true); } }} /><EditorToggle label="Schedule for later" disabled={saving} value={scheduling} onValueChange={(next) => { revision.current += 1; setScheduleEnabled(next); setScheduleDirty(true); if (next) setPublish(false); }} />{scheduling && scheduledIso && <View style={styles.scheduleCard} testID="announcement-schedule-picker"><View style={styles.scheduleHeader}><CalendarClock color={c.text.strong} size={16} /><Text style={styles.schedulePreview}>{sendsAboutLabel(scheduledIso, scheduleZone)}</Text></View><Text style={styles.scheduleLabel}>DAY</Text><View style={styles.scheduleRow}>{([
+    { label: 'Tomorrow', days: 1 },
+    { label: '+2 days', days: 2 },
+    { label: '+3 days', days: 3 },
+    { label: '+1 week', days: 7 },
+  ] as const).map((preset) => <Pressable key={preset.days} accessibilityRole="radio" accessibilityState={{ checked: displayedScheduleDays === preset.days }} onPress={() => selectScheduleDay(preset.days)} style={[styles.scheduleChip, displayedScheduleDays === preset.days && styles.choiceActive]}><Text style={[styles.scheduleChipText, displayedScheduleDays === preset.days && styles.choiceTextActive]}>{preset.label}</Text></Pressable>)}</View><View style={styles.scheduleStepperRow}><Pressable accessibilityRole="button" accessibilityLabel="Previous day" onPress={() => selectScheduleDay(Math.max(0, displayedScheduleDays - 1))} style={styles.scheduleStepBtn}><Text style={styles.scheduleChipText}>−1 day</Text></Pressable><Text style={styles.scheduleStepValue}>{displayedScheduleDays === 0 ? 'Today' : displayedScheduleDays === 1 ? 'In 1 day' : `In ${displayedScheduleDays} days`}</Text><Pressable accessibilityRole="button" accessibilityLabel="Next day" onPress={() => selectScheduleDay(Math.min(360, displayedScheduleDays + 1))} style={styles.scheduleStepBtn}><Text style={styles.scheduleChipText}>+1 day</Text></Pressable></View><Text style={styles.scheduleLabel}>HOUR ({schoolTimeGenericLabel(scheduleZone)} · HOURLY SEND)</Text><View style={styles.scheduleRow}>{SCHEDULE_HOUR_OPTIONS.map((hour) => <Pressable key={hour} accessibilityRole="radio" accessibilityState={{ checked: scheduleHour === hour }} onPress={() => selectScheduleHour(hour)} style={[styles.scheduleChip, scheduleHour === hour && styles.choiceActive]}><Text style={[styles.scheduleChipText, scheduleHour === hour && styles.choiceTextActive]}>{formatHourLabel(hour)}</Text></Pressable>)}</View></View>}<EditorToggle label="Send a push notification" value={push} onValueChange={change(setPush)} disabled={saving || (!publish && !scheduling)} /></>}</ScrollView></SafeAreaView></Modal>;
 }
 function EditorToggle({ label, value, onValueChange, disabled = false }: { label: string; value: boolean; onValueChange: (value: boolean) => void; disabled?: boolean }) {
   const styles = useStyles();
@@ -446,7 +558,7 @@ function unreadUpdatesLabel(count: number) { return count > 0 ? `${count} unread
 function editedLabel(value: string) { return `Edited ${formatCourseDateTime(value, { withYear: true, fallback: 'recently' })}`; }
 /** When it went out, or for a scheduled draft when it will (U-3.6). */
 function updateWhen(item: Announcement) {
-  if (item.status === 'draft' && item.schedule_failure) return item.schedule_failure; return isScheduledUpdate(item) ? sendsAboutLabel(item.scheduled_for!) : formatDate(item.published_at || item.updated_at); }
+  if (item.status === 'draft' && item.schedule_failure) return item.schedule_failure; return isScheduledUpdate(item) ? sendsAboutLabel(item.scheduled_for!, item.schedule_time_zone) : formatDate(item.published_at || item.updated_at); }
 function formatDate(value: string | null) { return value ? formatCourseDate(value, { withYear: true, fallback: 'Recently' }) : 'Recently'; }
 function formatRelative(value: string) { const minutes = Math.max(0, Math.round((Date.now() - new Date(value).getTime()) / 60_000)); if (minutes < 1) return 'Now'; if (minutes < 60) return `${minutes}m ago`; if (minutes < 1_440) return `${Math.floor(minutes / 60)}h ago`; return formatDate(value); }
 
@@ -536,4 +648,14 @@ const useStyles = makeStyles(({ colors: c, radius, shadow }) => StyleSheet.creat
   editorToggleText: { flex: 1, color: c.text.strong, fontFamily: fonts.semibold, fontSize: 15 },
   switchSlot: { minWidth: 54, minHeight: 44, alignItems: 'flex-end', justifyContent: 'center' },
   switch: {},
+  scheduleCard: { marginTop: 12, marginBottom: 4, borderRadius: radius.card, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, padding: 14, gap: 10 },
+  scheduleHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  schedulePreview: { flex: 1, color: c.text.strong, fontFamily: fonts.bold, fontSize: 14 },
+  scheduleLabel: { color: c.text.muted, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 0.7, marginTop: 4 },
+  scheduleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  scheduleChip: { minHeight: 44, borderRadius: radius.control, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.sunken, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' },
+  scheduleChipText: { color: c.text.body, fontFamily: fonts.bold, fontSize: 13 },
+  scheduleStepperRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  scheduleStepBtn: { minHeight: 44, borderRadius: radius.control, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.sunken, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' },
+  scheduleStepValue: { color: c.text.strong, fontFamily: fonts.semibold, fontSize: 13 },
 }));

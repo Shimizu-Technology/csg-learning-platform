@@ -1,4 +1,4 @@
-import { openWebTask } from '@/lib/external-links';
+import { openExternalPage, openWebTask } from '@/lib/external-links';
 import { OtaRestartRow } from '@/components/ota-update-notice';
 import { brand } from '../../../lib/brand';
 import { haptic } from '@/lib/haptics';
@@ -9,9 +9,9 @@ import { makeStyles, useTheme, useThemePreference, type ThemePreference } from '
 import * as Application from 'expo-application';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect, useRouter, type Href } from 'expo-router';
-import { Activity, Bell, CalendarCheck, CalendarClock, Check, ChevronRight, FileText, GitBranch, GraduationCap, LogOut, Mail, Monitor, Moon, RefreshCw, Save, Settings2, ShieldCheck, Sun, Trash2, UserX } from 'lucide-react-native';
+import { Activity, AtSign, Award, Bell, CalendarCheck, CalendarClock, Check, ChevronRight, FileText, GitBranch, GraduationCap, LogOut, Mail, Monitor, Moon, Receipt, RefreshCw, Save, Settings2, Share2, ShieldCheck, Sun, Trash2, UserX } from 'lucide-react-native';
 import { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, Linking, Modal, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Linking, Modal, ScrollView, Share, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/avatar';
 import { fontScaleLimits, fonts, switchColors, typography } from '@/constants/csg-theme';
@@ -37,6 +37,20 @@ export default function ProfileScreen() {
   const dashboardQuery = useQuery({ queryKey: learningKeys.dashboard(user?.id || 0, selectedCohortId), queryFn: ({ signal }) => api.dashboard(signal, selectedCohortId), enabled: Boolean(user && !user.is_staff && !auth.demo) });
   const studentDashboard = dashboardQuery.data?.dashboard && isStudentDashboard(dashboardQuery.data.dashboard) ? dashboardQuery.data.dashboard : null;
   const savedGithub = profileQuery.data?.user.github_username || user?.github_username || '';
+  const savedHandle = profileQuery.data?.user.handle || user?.handle || '';
+  const [openingReceiptId, setOpeningReceiptId] = useState<number | null>(null);
+  const openReceipt = async (purchaseId: number) => {
+    if (openingReceiptId !== null) return;
+    setOpeningReceiptId(purchaseId);
+    try {
+      const response = await api.checkoutReceipt(purchaseId);
+      await openExternalPage(response.url);
+    } catch (error) {
+      Alert.alert('Could not open receipt', (error as Error).message || 'Please try again later.');
+    } finally {
+      setOpeningReceiptId(null);
+    }
+  };
   // Learners only see the GitHub card when their course uses GitHub (or they already linked one); staff always do.
   // If the dashboard cannot load, keep the card so a learner who needs GitHub is never blocked.
   const githubApp = !auth.demo && Boolean(selectedCohort?.features?.github_app && !user?.is_staff);
@@ -254,8 +268,9 @@ export default function ProfileScreen() {
   return (
     <SafeAreaView edges={['top']} style={styles.safe}><ScrollView contentContainerStyle={styles.content}><OtaRestartRow />
       <Text accessibilityRole="header" maxFontSizeMultiplier={fontScaleLimits.display} style={styles.heading}>You</Text>
-      <View style={styles.person}><Avatar name={user?.full_name || `${brand.schoolAbbreviation} User`} size={62} /><View style={styles.flex}><Text style={styles.name}>{user?.full_name || `${brand.schoolShortName} member`}</Text><Text style={styles.email}>{user?.email}</Text><View style={styles.role}><ShieldCheck color={c.status.success.fg} size={13} /><Text style={styles.roleText}>{humanize(user?.role, ROLE_LABELS) || 'Member'}</Text></View></View></View>
+      <View style={styles.person}><Avatar name={user?.full_name || `${brand.schoolAbbreviation} User`} size={62} /><View style={styles.flex}><Text style={styles.name}>{user?.full_name || `${brand.schoolShortName} member`}</Text><Text style={styles.email}>{user?.email}{savedHandle ? ` · @${savedHandle}` : ''}</Text><View style={styles.role}><ShieldCheck color={c.status.success.fg} size={13} /><Text style={styles.roleText}>{humanize(user?.role, ROLE_LABELS) || 'Member'}</Text></View></View></View>
       {auth.demo && <View style={styles.demo}><Text style={styles.demoTitle}>Simulator walkthrough</Text><Text style={styles.demoCopy}>Local sample data is active. This mode is compiled out of production behavior.</Text></View>}
+      {!auth.demo && <HandleEditor initialValue={savedHandle} api={api} userId={user?.id || 0} afterSave={refresh} />}
       {githubApp ? <View style={styles.githubCard}>
         <Text style={styles.settingTitle}>GitHub repositories</Text>
         {bindings.isSuccess ? <>
@@ -268,7 +283,45 @@ export default function ProfileScreen() {
         </> : <Text style={styles.settingCopy}>{bindings.isFetching ? 'Checking GitHub connection…' : 'GitHub connection status unavailable.'}</Text>}
       </View> : showGithub && <GithubEditor initialValue={savedGithub} api={api} userId={user?.id || 0} afterSave={refresh} />}
       {studentDashboard?.capabilities?.features?.private_meetings !== false && studentDashboard?.private_meetings_enabled && <Pressable accessibilityRole="button" accessibilityLabel="Book your weekly private hour" accessibilityHint="Choose or change your weekly meeting in the app" onPress={() => router.push('/meetings' as Href)} style={styles.manage} testID="profile-book-private-hour"><View style={styles.settingIcon}><CalendarCheck color={c.text.body} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>Book your weekly private hour</Text><Text style={styles.settingCopy}>Choose or change your 60-minute Zoom hour.</Text></View><ChevronRight color={c.text.body} size={18} /></Pressable>}
-      {!!profileQuery.data?.enrollments.length && <><Text style={styles.sectionLabel}>ENROLLMENTS</Text><View style={styles.group}>{profileQuery.data.enrollments.map((enrollment, index) => <View key={enrollment.id} style={[styles.enrollment, index > 0 && styles.groupDivider]}><View style={styles.settingIcon}><GraduationCap color={c.text.body} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>{enrollment.cohort_name}</Text><Text style={styles.settingCopy}>{enrollment.curriculum_name}</Text></View><Text style={[styles.enrollmentStatus, enrollment.status === 'active' && styles.enrollmentActive]}>{humanize(enrollment.status, ENROLLMENT_STATUS_LABELS)}</Text></View>)}</View></>}
+      {user?.is_staff && <Pressable accessibilityRole="button" accessibilityLabel="Open meetings" onPress={() => router.push('/meetings' as Href)} style={styles.manage}><View style={styles.settingIcon}><CalendarCheck color={c.text.body} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>1:1 meetings</Text><Text style={styles.settingCopy}>Review bookings, join Zoom, and update meeting links.</Text></View><ChevronRight color={c.text.muted} size={18} /></Pressable>}
+      {!!profileQuery.data?.enrollments.length && <><Text style={styles.sectionLabel}>ENROLLMENTS</Text><View style={styles.group}>{profileQuery.data.enrollments.map((enrollment, index) => {
+        const certificate = enrollment.course_completion?.certificate && !enrollment.course_completion.certificate.revoked ? enrollment.course_completion.certificate : null;
+        const certificateUrl = certificate ? `${brand.appUrl}/certificates/${encodeURIComponent(certificate.code)}` : null;
+        return (
+          <View key={enrollment.id} style={[styles.enrollmentBlock, index > 0 && styles.groupDivider]}>
+            <View style={styles.enrollment}>
+              <View style={styles.settingIcon}><GraduationCap color={c.text.body} size={19} /></View>
+              <View style={styles.flex}>
+                <Text style={styles.settingTitle}>{enrollment.cohort_name}</Text>
+                <Text style={styles.settingCopy}>{enrollment.curriculum_name}</Text>
+              </View>
+              <Text style={[styles.enrollmentStatus, enrollment.status === 'active' && styles.enrollmentActive]}>{humanize(enrollment.status, ENROLLMENT_STATUS_LABELS)}</Text>
+            </View>
+            {(certificate || enrollment.purchase_id) ? (
+              <View style={styles.enrollmentActions}>
+                {certificate && certificateUrl ? (
+                  <>
+                    <Pressable accessibilityRole="button" accessibilityLabel={`View certificate for ${enrollment.cohort_name}`} onPress={() => void openExternalPage(certificateUrl).catch(() => Alert.alert('Could not open certificate'))} style={styles.enrollmentActionChip}>
+                      <Award color={c.status.success.fg} size={14} />
+                      <Text style={styles.enrollmentActionText}>View certificate</Text>
+                    </Pressable>
+                    <Pressable accessibilityRole="button" accessibilityLabel={`Share certificate for ${enrollment.cohort_name}`} onPress={() => void Share.share({ message: `${certificate.holder_name} — ${certificate.course_title} certificate: ${certificateUrl}`, url: certificateUrl }).catch(() => undefined)} style={styles.enrollmentActionChip}>
+                      <Share2 color={c.text.strong} size={14} />
+                      <Text style={styles.enrollmentActionText}>Share</Text>
+                    </Pressable>
+                  </>
+                ) : null}
+                {enrollment.purchase_id ? (
+                  <Pressable accessibilityRole="button" accessibilityLabel={`View receipt for ${enrollment.cohort_name}`} disabled={openingReceiptId === enrollment.purchase_id} onPress={() => void openReceipt(enrollment.purchase_id!)} style={styles.enrollmentActionChip}>
+                    {openingReceiptId === enrollment.purchase_id ? <ActivityIndicator color={c.text.strong} size="small" /> : <Receipt color={c.text.strong} size={14} />}
+                    <Text style={styles.enrollmentActionText}>{openingReceiptId === enrollment.purchase_id ? 'Opening…' : 'View receipt'}</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : null}
+          </View>
+        );
+      })}</View></>}
       <Pressable accessibilityRole="button" accessibilityLabel="Open your activity history" onPress={() => router.push('/activity' as Href)} style={styles.manage}><View style={styles.settingIcon}><Activity color={c.text.body} size={19} /></View><View style={styles.flex}><Text style={styles.settingTitle}>Your activity history</Text><Text style={styles.settingCopy}>Review your sign-ins, learning progress, and saved work.</Text></View><ChevronRight color={c.text.muted} size={18} /></Pressable>
       <Text style={styles.sectionLabel}>APPEARANCE</Text>
       <View style={styles.appearanceGroup} accessibilityRole="radiogroup" accessibilityLabel="App appearance">
@@ -333,6 +386,67 @@ function PolicyRow({ icon: Icon, title, copy, onPress, divider = false, destruct
   const styles = useStyles();
   const { colors: c } = useTheme();
   return <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.policyRow, divider && styles.groupDivider, pressed && { opacity: 0.72 }]}><View style={styles.settingIcon}><Icon color={destructive ? c.status.danger.fg : c.text.body} size={19} /></View><View style={styles.flex}><Text style={[styles.settingTitle, destructive && styles.destructiveTitle]}>{title}</Text><Text style={styles.settingCopy}>{copy}</Text></View><ChevronRight color={c.text.muted} size={18} /></Pressable>;
+}
+
+function HandleEditor({ initialValue, api, userId, afterSave }: { initialValue: string; api: ReturnType<typeof useSession>['api']; userId: number; afterSave: () => Promise<void> }) {
+  const styles = useStyles();
+  const { colors: c, scheme } = useTheme();
+  const [draft, setDraft] = useState(initialValue);
+  const [saved, setSaved] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const editRevisionRef = useRef(0);
+  const handle = dirty ? draft : initialValue;
+  const normalized = handle.trim().replace(/^@+/, '');
+  const queryClient = useQueryClient();
+  const mutation = useMutation({
+    mutationFn: async (submittedRevision: number) => {
+      await api.updateProfile({ handle: normalized || null });
+      return submittedRevision;
+    },
+    onSuccess: async (submittedRevision) => {
+      haptic('success');
+      if (editRevisionRef.current === submittedRevision) setSaved(true);
+      await Promise.all([queryClient.invalidateQueries({ queryKey: learningKeys.profile(userId) }), afterSave()]);
+      if (editRevisionRef.current === submittedRevision) setDirty(false);
+    },
+    onError: (error) => Alert.alert('Could not update handle', (error as Error).message),
+  });
+  const unchanged = normalized === initialValue.trim();
+  return (
+    <View style={styles.githubCard}>
+      <View style={styles.githubHeader}>
+        <View style={styles.settingIcon}><AtSign color={c.text.body} size={19} /></View>
+        <View style={styles.flex}>
+          <Text style={styles.settingTitle}>Mention handle</Text>
+          <Text style={styles.settingCopy}>People can @mention you in class messages.</Text>
+        </View>
+      </View>
+      <View style={styles.githubForm}>
+        <TextInput
+          keyboardAppearance={scheme}
+          accessibilityLabel="Mention handle"
+          editable={!mutation.isPending}
+          value={handle}
+          onChangeText={(value) => { editRevisionRef.current += 1; setDraft(value); setSaved(false); setDirty(true); }}
+          autoCapitalize="none"
+          autoCorrect={false}
+          placeholder="your-handle"
+          placeholderTextColor={c.text.muted}
+          style={styles.githubInput}
+        />
+        <Button
+          variant="primary"
+          accessibilityRole="button"
+          accessibilityLabel="Save mention handle"
+          disabled={mutation.isPending || unchanged}
+          onPress={() => mutation.mutate(editRevisionRef.current)}
+          style={[styles.save, (mutation.isPending || unchanged) && styles.disabled]}
+        >
+          {mutation.isPending ? <ActivityIndicator color={c.text.onAction} /> : saved ? <Check color={c.text.onAction} size={18} /> : <Save color={c.text.onAction} size={18} />}
+        </Button>
+      </View>
+    </View>
+  );
 }
 
 function GithubEditor({ initialValue, api, userId, afterSave }: { initialValue: string; api: ReturnType<typeof useSession>['api']; userId: number; afterSave: () => Promise<void> }) {
@@ -410,7 +524,11 @@ const useStyles = makeStyles(({ colors: c, radius, shadow }) => StyleSheet.creat
   githubInput: { flex: 1, minHeight: 48, borderRadius: radius.control, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.page, color: c.text.strong, fontFamily: fonts.regular, fontSize: 15, paddingHorizontal: 13 },
   save: { width: 50, minHeight: 48, borderRadius: radius.control, alignItems: 'center', justifyContent: 'center' },
   disabled: { opacity: 0.42 },
+  enrollmentBlock: { paddingBottom: 4 },
   enrollment: { minHeight: 64, paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  enrollmentActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 16, paddingBottom: 12 },
+  enrollmentActionChip: { minHeight: 44, borderRadius: radius.control, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.sunken, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  enrollmentActionText: { color: c.text.strong, fontFamily: fonts.semibold, fontSize: 13 },
   groupDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border.subtle },
   enrollmentStatus: { color: c.text.muted, fontFamily: fonts.bold, fontSize: 12 },
   enrollmentActive: { color: c.status.success.fg },
