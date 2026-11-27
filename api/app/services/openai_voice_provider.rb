@@ -23,9 +23,9 @@ class OpenaiVoiceProvider
     @api_key.present?
   end
 
-  def transcribe(upload)
+  def transcribe(upload, content_type: "audio/mp4", extension: "m4a")
     boundary = "csg-#{SecureRandom.hex(16)}"
-    body = multipart_body(boundary, upload)
+    body = multipart_body(boundary, upload, content_type: content_type, extension: extension)
     response = request(
       "/v1/audio/transcriptions",
       body,
@@ -92,15 +92,21 @@ class OpenaiVoiceProvider
 
   private
 
-  def multipart_body(boundary, upload)
-    audio = upload.tempfile.read
+  def multipart_body(boundary, upload, content_type:, extension:)
+    upload.tempfile.binmode if upload.tempfile.respond_to?(:binmode)
+    audio = upload.tempfile.read.to_s.b
     upload.tempfile.rewind
+    safe_extension = extension.to_s.gsub(/[^a-z0-9]/i, "")
+    safe_extension = "m4a" if safe_extension.empty?
+    safe_content_type = content_type.to_s.split(";").first.to_s.strip
+    safe_content_type = "audio/mp4" if safe_content_type.empty?
+
     parts = []
-    parts << multipart_field(boundary, "model", @transcription_model)
-    parts << multipart_field(boundary, "prompt", VOCABULARY)
-    parts << "--#{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"voice-draft.m4a\"\r\nContent-Type: audio/mp4\r\n\r\n#{audio}\r\n"
-    parts << "--#{boundary}--\r\n"
-    parts.join.b
+    parts << multipart_field(boundary, "model", @transcription_model).b
+    parts << multipart_field(boundary, "prompt", VOCABULARY).b
+    parts << "--#{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"voice-draft.#{safe_extension}\"\r\nContent-Type: #{safe_content_type}\r\n\r\n".b + audio + "\r\n".b
+    parts << "--#{boundary}--\r\n".b
+    parts.join
   end
 
   def multipart_field(boundary, name, value)

@@ -12,7 +12,30 @@ class OpenaiVoiceProviderTest < ActiveSupport::TestCase
     assert_equal "/v1/audio/transcriptions", request.fetch(:path)
     assert_includes request.fetch(:body), "gpt-transcribe"
     assert_includes request.fetch(:body), "Code School of Guam"
+    assert_includes request.fetch(:body), 'filename="voice-draft.m4a"'
+    assert_includes request.fetch(:body), "Content-Type: audio/mp4"
     assert_includes request.fetch(:headers).fetch("Content-Type"), "multipart/form-data"
+  end
+
+  test "uses real filename and content type for binary webm and ogg uploads" do
+    provider = FakeOpenaiVoiceProvider.new
+    with_upload("\x1A\x45\xDF\xA3\x9F\x42\x86\x81\x01".b) do |upload|
+      assert_equal "I am stuck on Rails.", provider.transcribe(upload, content_type: "audio/webm", extension: "webm")
+    end
+
+    webm_body = provider.requests.last.fetch(:body)
+    assert_includes webm_body, 'filename="voice-draft.webm"'.b
+    assert_includes webm_body, "Content-Type: audio/webm".b
+    assert_includes webm_body, "\x1A\x45\xDF\xA3".b
+
+    with_upload("OggS\x00\x02\xFF\xEE".b) do |upload|
+      assert_equal "I am stuck on Rails.", provider.transcribe(upload, content_type: "audio/ogg", extension: "ogg")
+    end
+
+    ogg_body = provider.requests.last.fetch(:body)
+    assert_includes ogg_body, 'filename="voice-draft.ogg"'.b
+    assert_includes ogg_body, "Content-Type: audio/ogg".b
+    assert_includes ogg_body, "OggS\x00\x02\xFF\xEE".b
   end
 
   test "uses strict stored-false cleanup and parses its structured result" do

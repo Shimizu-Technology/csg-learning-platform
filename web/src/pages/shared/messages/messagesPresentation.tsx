@@ -263,6 +263,7 @@ export function messagesPresentation({ conversation, directory, feed, realtime, 
             hasAttachments={pendingAttachments.length > 0}
             sending={mutations.sending}
             inThreadPanel={inThreadPanel}
+            voiceSurface={inThreadPanel || activeThreadRoot ? 'thread' : 'message'}
             onSend={mutations.sendComposerMessage}
             onTyping={realtime.reportComposerTyping}
             onFiles={attachments.addFiles}

@@ -2,9 +2,11 @@ import { type JSONContent } from '@tiptap/core';
 import { AtSign, Paperclip, Send, Users } from 'lucide-react';
 import { forwardRef, memo, useCallback, useEffect, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { MarkdownEditor, ToolbarButton, isComposingKey, markdownToEditorDoc, type MarkdownEditorHandle } from '../../../components/shared/MarkdownEditor';
+import { VoiceDraftButton, VoiceDraftPanel } from '../../../components/shared/VoiceDraftControls';
 import { Avatar } from '../../../components/ui/Avatar';
 import { Button } from '../../../components/ui/Button';
 import { RowButton } from '../../../components/ui/RowButton';
+import { useVoiceDraft } from '../../../hooks/useVoiceDraft';
 import { MESSAGE_BODY_LIMIT, messageCharacterCount, readComposerDraft, safeLocalStorage, writeComposerDraft } from '../../../lib/messageComposerState';
 import { normalizeMessageMarkdown } from '../../../lib/messageFormat';
 import { matchingPeople, personContext } from '../../../lib/person-context';
@@ -42,6 +44,7 @@ export const MessageComposer = memo(forwardRef<MessageComposerHandle, {
   hasAttachments: boolean
   sending: boolean
   inThreadPanel: boolean
+  voiceSurface?: 'message' | 'thread'
   onSend: (send: MessageComposerSend) => boolean
   onTyping: (hasContent: boolean) => void
   onFiles: (files: File[]) => void
@@ -58,12 +61,14 @@ export const MessageComposer = memo(forwardRef<MessageComposerHandle, {
   hasAttachments,
   sending,
   inThreadPanel,
+  voiceSurface,
   onSend,
   onTyping,
   onFiles,
   onAttach,
   onEditLastMessage,
 }, ref) {
+  const containerRef = useRef<HTMLDivElement | null>(null)
   const editorRef = useRef<MarkdownEditorHandle | null>(null)
   const draftKeyRef = useRef(draftKey)
   const [initialDraft] = useState(() => (draftKey
@@ -189,6 +194,37 @@ export const MessageComposer = memo(forwardRef<MessageComposerHandle, {
     }, 250)
   }, [saveDraftNow, updateCounts])
 
+  const voice = useVoiceDraft({
+    surface: voiceSurface ?? (inThreadPanel ? 'thread' : 'message'),
+    disabled: sending,
+    maxDraftLength: MESSAGE_BODY_LIMIT,
+    getDraft: () => editorRef.current?.getMarkdown() ?? bodyRef.current,
+    getSelection: () => {
+      const textarea = containerRef.current?.querySelector<HTMLTextAreaElement>('textarea')
+      if (textarea) return { start: textarea.selectionStart, end: textarea.selectionEnd }
+      const current = editorRef.current?.getMarkdown() ?? bodyRef.current
+      return { start: current.length, end: current.length }
+    },
+    onDraftChange: (nextValue) => {
+      const editor = editorRef.current
+      if (editor) {
+        loadingDraftRef.current = true
+        editor.setMarkdown(nextValue)
+        loadingDraftRef.current = false
+        handleChange(nextValue, editor.getRichContent())
+        editor.focus()
+      } else {
+        handleChange(nextValue)
+      }
+    },
+  })
+  const cancelVoice = voice.cancel
+  const markVoiceSent = voice.markSent
+
+  useEffect(() => {
+    cancelVoice()
+  }, [draftKey, cancelVoice])
+
   const handleCaretText = useCallback((text: string) => {
     const token = text.match(/(^|\s)@([^\s@]*)$/)?.[2] ?? null
     setMentionToken((current) => {
@@ -299,6 +335,7 @@ export const MessageComposer = memo(forwardRef<MessageComposerHandle, {
     if (messageCharacterCount(body) > MESSAGE_BODY_LIMIT) return
     const mentionUserIds = resolveMentionedUserIds(body, mentionableUsers, selectedMentionIdsRef.current)
     if (!onSend({ body, mentionUserIds })) return
+    markVoiceSent(body)
     if (draftTimerRef.current !== null) window.clearTimeout(draftTimerRef.current)
     draftTimerRef.current = null
     loadingDraftRef.current = true
@@ -312,7 +349,7 @@ export const MessageComposer = memo(forwardRef<MessageComposerHandle, {
     onTypingRef.current(false)
     if (draftKeyRef.current) unsavedComposerDrafts.delete(draftKeyRef.current)
     if (draftKeyRef.current) writeComposerDraft(draftKeyRef.current, null, safeLocalStorage())
-  }, [hasAttachments, mentionableUsers, onSend, updateCounts])
+  }, [hasAttachments, markVoiceSent, mentionableUsers, onSend, updateCounts])
 
   useImperativeHandle(ref, () => ({
     focus: () => editorRef.current?.focus(),
@@ -322,7 +359,23 @@ export const MessageComposer = memo(forwardRef<MessageComposerHandle, {
   const renderPreview = useCallback((markdown: string) => <FormattedMessage body={markdown} mentionPatterns={mentionPatternsRef.current} />, [])
 
   return (
-    <div className="relative">
+    <div ref={containerRef} className="relative">
+      <VoiceDraftPanel
+        state={voice.state}
+        durationMillis={voice.durationMillis}
+        maxDurationSeconds={voice.maxDurationSeconds}
+        error={voice.error}
+        notice={voice.notice}
+        hasReview={Boolean(voice.review)}
+        hasRecording={voice.hasRecording}
+        onStop={() => void voice.stop()}
+        onCancel={voice.cancel}
+        onRetry={voice.retry}
+        onRecordAgain={voice.recordAgain}
+        onRestore={voice.restore}
+        onDismiss={voice.dismissReview}
+        className="mb-2"
+      />
       <MarkdownEditor
         ref={editorRef}
         variant="composer"
@@ -357,7 +410,14 @@ export const MessageComposer = memo(forwardRef<MessageComposerHandle, {
           </span>
         ) : null}
         submitSlot={(
-          <>
+          <div className="flex items-center gap-1">
+            <VoiceDraftButton
+              state={voice.state}
+              supported={voice.supported}
+              disabled={sending}
+              compact
+              onClick={() => void voice.start()}
+            />
             <Button
               type="button"
               size="sm"
@@ -379,7 +439,7 @@ export const MessageComposer = memo(forwardRef<MessageComposerHandle, {
               <span className="hidden sm:inline">Send</span>
             </Button>
             {sendBlockedReason && <span id={sendReasonId} className="sr-only">{sendBlockedReason}</span>}
-          </>
+          </div>
         )}
       />
       {mentionSuggestions.length > 0 && (

@@ -8314,6 +8314,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/transcriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Transcribe a recorded voice draft
+         * @description Validates uploaded M4A, WebM, or Ogg audio and returns a reviewable raw and lightly cleaned voice draft without sending.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["VoiceTranscriptionResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -14368,6 +14407,12 @@ export interface components {
             doc_content?: string;
             /** @description Required to change a doc's content or title: the `doc_version` the editor loaded (409 when missing or stale). */
             base_doc_version?: number;
+        };
+        VoiceTranscriptionResponse: {
+            raw_text: string;
+            suggested_text: string;
+            duration_seconds: number;
+            warnings: string[];
         };
     };
     responses: {

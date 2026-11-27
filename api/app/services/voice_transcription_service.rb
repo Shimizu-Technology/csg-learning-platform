@@ -5,10 +5,10 @@ class VoiceTranscriptionService
     @provider = provider
   end
 
-  def call(upload:, duration_seconds:)
+  def call(upload:, duration_seconds:, content_type: "audio/mp4", extension: "m4a")
     raise NotConfigured unless @provider.configured?
 
-    raw_text = @provider.transcribe(upload)
+    raw_text = @provider.transcribe(upload, content_type: content_type, extension: extension)
     cleanup = @provider.clean_up(raw_text)
     {
       raw_text: raw_text,
