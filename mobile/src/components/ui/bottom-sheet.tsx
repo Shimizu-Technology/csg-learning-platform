@@ -1,5 +1,6 @@
 import { useContext, type ReactNode } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useReducedMotion } from 'react-native-reanimated';
 import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
 import { X } from 'lucide-react-native';
 import { PressableScale } from '@/components/ui/pressable-scale';
@@ -33,6 +34,7 @@ export function BottomSheet({
 }: BottomSheetProps) {
   const styles = useStyles();
   const { colors: c } = useTheme();
+  const reducedMotion = useReducedMotion();
   const insets = useContext(SafeAreaInsetsContext);
   const bottomPad = Math.max(insets?.bottom ?? 0, 16);
 
@@ -41,7 +43,7 @@ export function BottomSheet({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
+    <Modal visible={visible} transparent animationType={reducedMotion ? 'none' : 'slide'} onRequestClose={handleClose}>
       <View style={styles.root}>
         <Pressable
           accessible={false}

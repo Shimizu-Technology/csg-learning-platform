@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
 import { useColorScheme } from 'react-native';
 import * as SystemUI from 'expo-system-ui';
 import { themes, type CsgTheme } from '@/constants/csg-theme';
@@ -41,6 +41,7 @@ function isThemePreference(value: string | null): value is ThemePreference {
 export function ThemeProvider({ children }: PropsWithChildren) {
   const osScheme = useColorScheme() === 'dark' ? 'dark' : 'light';
   const [preference, setPreferenceState] = useState<ThemePreference>('system');
+  const explicitSelectionRef = useRef(false);
 
   useEffect(() => {
     const storage = getAsyncStorage();
@@ -48,7 +49,7 @@ export function ThemeProvider({ children }: PropsWithChildren) {
     let mounted = true;
     void storage.getItem(STORAGE_KEY)
       .then((stored) => {
-        if (mounted && isThemePreference(stored)) setPreferenceState(stored);
+        if (mounted && !explicitSelectionRef.current && isThemePreference(stored)) setPreferenceState(stored);
       })
       .catch(() => undefined);
     return () => {
@@ -57,6 +58,7 @@ export function ThemeProvider({ children }: PropsWithChildren) {
   }, []);
 
   const setPreference = useCallback((next: ThemePreference) => {
+    explicitSelectionRef.current = true;
     setPreferenceState(next);
     const storage = getAsyncStorage();
     if (storage) void storage.setItem(STORAGE_KEY, next).catch(() => undefined);

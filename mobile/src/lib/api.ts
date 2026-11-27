@@ -336,7 +336,7 @@ export class CsgApi {
   cancelPrivateMeeting = (bookingId: number) => this.request<{ booking: PrivateMeetingBooking }>(`/api/v1/private_meetings/${bookingId}`, { method: 'DELETE' });
 
   session = () => this.request<components['schemas']['SessionResponse']>('/api/v1/sessions', { method: 'POST' });
-  presence = () => this.request<{ last_seen_at: string }>('/api/v1/presence', { method: 'POST' });
+  presence = (signal?: AbortSignal) => this.request<{ last_seen_at: string }>('/api/v1/presence', { method: 'POST', signal });
   courseOutline = (cohortId?: number | null, signal?: AbortSignal) => this.request<components['schemas']['CourseOutlineResponse']>(`/api/v1/course_outline${queryString({ cohort_id: cohortId })}`, { signal });
   resendInvite = (userId: number) => this.request<{ message: string; invitation: { status: string; sent_at: string | null; error: string | null } }>(`/api/v1/users/${userId}/resend_invite`, { method: 'POST' });
   activityEvents = (params?: { feed?: 'cohort' | 'school'; user_id?: number; cohort_id?: number; category?: string; before_id?: number }, signal?: AbortSignal) => this.request<ActivityEventsResponse>(`/api/v1/activity_events${queryString(params || {})}`, { signal });
@@ -374,7 +374,7 @@ export class CsgApi {
   deleteCohortFile = (cohortId: number, fileId: number, options: { pendingOnly?: boolean } = {}) => this.request<void>(`/api/v1/cohorts/${cohortId}/files/${fileId}${options.pendingOnly ? '?pending_only=true' : ''}`, { method: 'DELETE' });
   downloadCohortFile = (cohortId: number, fileId: number, versionId?: number) => this.request<components['schemas']['CohortFileDownloadResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/download${queryString({ version_id: versionId })}`);
   previewCohortFile = (cohortId: number, fileId: number, versionId?: number) => this.request<components['schemas']['CohortFilePreviewResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/preview${queryString({ version_id: versionId })}`);
-  cohortFileVersions = (cohortId: number, fileId: number) => this.request<components['schemas']['CohortFileVersionsResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/versions`);
+  cohortFileVersions = (cohortId: number, fileId: number, signal?: AbortSignal) => this.request<components['schemas']['CohortFileVersionsResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/versions`, { signal });
   createCohortFileVersion = (cohortId: number, fileId: number, input: components['schemas']['CohortFileVersionCreateInput']) => this.request<components['schemas']['CohortFileVersionUploadResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/versions`, { method: 'POST', body: JSON.stringify(input) });
   completeCohortFileVersion = (cohortId: number, fileId: number, versionId: number) => this.request<components['schemas']['CohortFileVersionCompleteResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/versions/${versionId}/complete`, { method: 'POST' });
   copyCohortFileToStudents = (cohortId: number, fileId: number, folder?: string) => this.request<components['schemas']['CohortFileCopyResponse']>(`/api/v1/cohorts/${cohortId}/files/${fileId}/copy_to_students`, { method: 'POST', body: JSON.stringify(folder ? { folder } : {}) });

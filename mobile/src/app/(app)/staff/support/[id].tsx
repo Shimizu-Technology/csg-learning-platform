@@ -5,8 +5,9 @@ import { themedAlert as Alert } from '@/lib/alerts';
 import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { BookOpen, CheckCircle2, Clock3, ExternalLink, LifeBuoy, MessageSquareText, Send, ShieldAlert, UserRound, UserRoundCheck } from 'lucide-react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -23,7 +24,6 @@ import type { SupportQueue } from '@/lib/types';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
 import { formatCourseDateTime } from '@/lib/course-time';
-import { useRef, useState } from 'react';
 import { newReplyRequestId } from '@/lib/reply-attempt';
 import { humanize } from '@/lib/display-labels';
 
@@ -72,7 +72,7 @@ export default function StaffHelpRequestScreen() {
       return Promise.resolve({ reply: sent, help_request: { ...request!, status: input.resolve ? 'resolved' as const : 'acknowledged' as const, staff_response: input.body, replies: [...(request!.replies ?? []), sent], acknowledged_at: request!.acknowledged_at || now, resolved_at: input.resolve ? now : null, updated_at: now } });
     },
     onSuccess: async (result, variables) => {
-      voiceDraft.markSent(variables.body);
+      voiceDraft.markSent?.(variables.body);
       attemptId.current = null;
       setResponse('');
       queryClient.setQueryData(learningKeys.helpRequest(user?.id || 0, requestId), { help_request: result.help_request });
@@ -93,7 +93,24 @@ export default function StaffHelpRequestScreen() {
     onDraftChange: setResponse,
     onSelectionChange: setResponseSelection,
   });
-  const sendReply = (resolve: boolean) => reply.mutate({ body: response.trim(), resolve, client_request_id: attemptId.current ??= newReplyRequestId() });
+  const voiceActive = voiceDraft.state === 'recording' || voiceDraft.state === 'transcribing';
+  const sendBlocked = !response.trim() || busy || voiceActive;
+  const cancelVoiceRef = useRef(voiceDraft.cancel);
+  useEffect(() => {
+    cancelVoiceRef.current = voiceDraft.cancel;
+  }, [voiceDraft.cancel]);
+  useEffect(() => () => {
+    void cancelVoiceRef.current?.();
+  }, [requestId]);
+  useFocusEffect(
+    useCallback(() => () => {
+      void cancelVoiceRef.current?.();
+    }, []),
+  );
+  const sendReply = (resolve: boolean) => {
+    if (sendBlocked) return;
+    reply.mutate({ body: response.trim(), resolve, client_request_id: attemptId.current ??= newReplyRequestId() });
+  };
 
   async function openMessage() {
     if (!request?.student) return;
@@ -134,7 +151,7 @@ export default function StaffHelpRequestScreen() {
         else void openAuthenticatedWebPage(api, request.context_path).catch((error) => Alert.alert('Could not open it', (error as Error).message));
       }} style={styles.linkButton}><BookOpen color={c.text.body} size={17} /><Text style={styles.linkText}>{request.context_type === 'recording' ? 'Open recording' : 'Open lesson'}</Text><ExternalLink color={c.text.muted} size={16} /></Pressable><Pressable accessibilityRole="button" onPress={() => void openAuthenticatedWebPage(api, `/admin/help-requests/${request.id}`).catch((error) => Alert.alert('Could not open the help request', (error as Error).message))} style={styles.linkButton}><LifeBuoy color={c.text.body} size={17} /><Text style={styles.linkText}>Open full help request</Text><ExternalLink color={c.text.muted} size={16} /></Pressable></View>
 
-      {active && <View style={styles.actionCard}>{request.status === 'open' && <Pressable accessibilityRole="button" disabled={busy} onPress={() => mutation.mutate({ status: 'acknowledged' })} style={styles.secondaryButton}><UserRoundCheck color={c.text.strong} size={17} /><Text style={styles.secondaryText}>Acknowledge</Text></Pressable>}<Text style={styles.label}>REPLY VISIBLE TO THE STUDENT</Text><TextInput keyboardAppearance={scheme} accessibilityLabel="Reply to the student" value={response} selection={responseSelection} onSelectionChange={(event) => setResponseSelection(event.nativeEvent.selection)} onChangeText={setResponse} maxLength={2000} multiline placeholder="Give a clear next step, explanation, or question back." placeholderTextColor={c.text.body} style={styles.input} /><View style={styles.voiceRow}><VoiceDraftButton state={voiceDraft.state} disabled={busy} onPress={() => void voiceDraft.start()} /><Text style={styles.voiceHint}>Dictate a response, then review it before sending.</Text></View><VoiceDraftPanel state={voiceDraft.state} durationMillis={voiceDraft.durationMillis} maxDurationSeconds={voiceDraft.maxDurationSeconds} metering={voiceDraft.metering} error={voiceDraft.error} notice={voiceDraft.notice} hasReview={Boolean(voiceDraft.review)} hasRecording={voiceDraft.hasRecording} onStop={() => void voiceDraft.stop()} onCancel={() => void voiceDraft.cancel()} onRetry={voiceDraft.retry} onRecordAgain={() => void voiceDraft.recordAgain()} onRestore={voiceDraft.restore} onDismiss={voiceDraft.dismissReview} /><Pressable accessibilityRole="button" disabled={!response.trim() || busy} onPress={() => sendReply(false)} style={[styles.secondaryButton, (!response.trim() || busy) && styles.disabled]}><Send color={c.text.strong} size={17} /><Text style={styles.secondaryText}>{reply.isPending && !reply.variables?.resolve ? 'Sending…' : 'Send reply'}</Text></Pressable><Button variant="primary" accessibilityRole="button" disabled={!response.trim() || busy} onPress={() => sendReply(true)} style={[styles.primaryButton, (!response.trim() || busy) && styles.disabled]}><CheckCircle2 color={c.text.onAction} size={17} /><Text style={styles.primaryText}>{reply.isPending && reply.variables?.resolve ? 'Sending…' : 'Reply & resolve'}</Text></Button><Text style={styles.metaText}>Send reply keeps the request open.</Text></View>}
+      {active && <View style={styles.actionCard}>{request.status === 'open' && <Pressable accessibilityRole="button" disabled={busy} onPress={() => mutation.mutate({ status: 'acknowledged' })} style={styles.secondaryButton}><UserRoundCheck color={c.text.strong} size={17} /><Text style={styles.secondaryText}>Acknowledge</Text></Pressable>}<Text style={styles.label}>REPLY VISIBLE TO THE STUDENT</Text><TextInput keyboardAppearance={scheme} accessibilityLabel="Reply to the student" value={response} selection={responseSelection} onSelectionChange={(event) => setResponseSelection(event.nativeEvent.selection)} onChangeText={setResponse} maxLength={2000} multiline placeholder="Give a clear next step, explanation, or question back." placeholderTextColor={c.text.body} style={styles.input} /><View style={styles.voiceRow}><VoiceDraftButton state={voiceDraft.state} disabled={busy} onPress={() => void voiceDraft.start()} /><Text style={styles.voiceHint}>Dictate a response, then review it before sending.</Text></View><VoiceDraftPanel state={voiceDraft.state} durationMillis={voiceDraft.durationMillis} maxDurationSeconds={voiceDraft.maxDurationSeconds} metering={voiceDraft.metering} error={voiceDraft.error} notice={voiceDraft.notice} hasReview={Boolean(voiceDraft.review)} hasRecording={voiceDraft.hasRecording} onStop={() => void voiceDraft.stop()} onCancel={() => void voiceDraft.cancel()} onRetry={voiceDraft.retry} onRecordAgain={() => void voiceDraft.recordAgain()} onRestore={voiceDraft.restore} onDismiss={voiceDraft.dismissReview} /><Pressable accessibilityRole="button" disabled={sendBlocked} onPress={() => sendReply(false)} style={[styles.secondaryButton, sendBlocked && styles.disabled]}><Send color={c.text.strong} size={17} /><Text style={styles.secondaryText}>{reply.isPending && !reply.variables?.resolve ? 'Sending…' : 'Send reply'}</Text></Pressable><Button variant="primary" accessibilityRole="button" disabled={sendBlocked} onPress={() => sendReply(true)} style={[styles.primaryButton, sendBlocked && styles.disabled]}><CheckCircle2 color={c.text.onAction} size={17} /><Text style={styles.primaryText}>{reply.isPending && reply.variables?.resolve ? 'Sending…' : 'Reply & resolve'}</Text></Button><Text style={styles.metaText}>Send reply keeps the request open.</Text></View>}
     </ScrollView>
   </SafeAreaView>;
 }

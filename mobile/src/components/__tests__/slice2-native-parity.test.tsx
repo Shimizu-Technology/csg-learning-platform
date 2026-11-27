@@ -4,6 +4,7 @@ import { CohortFileCard } from '@/components/cohort-file-card';
 import { DriveFolderStrip } from '@/components/drive-controls';
 import { BottomSheet } from '@/components/ui/bottom-sheet';
 import { LoadingState } from '@/components/ui/loading-state';
+import { isLearnerOverviewQuery, learningKeys } from '@/lib/learning';
 
 const mockCohortFileVersions = jest.fn();
 const mockDownloadCohortFile = jest.fn();
@@ -132,8 +133,13 @@ describe('Slice 2 native feel & parity components', () => {
     fireEvent.press(view.getByRole('button', { name: 'More actions for Week 2 Slides' }));
     fireEvent.press(view.getByText('Version history (v2)'));
 
-    await waitFor(() => expect(mockCohortFileVersions).toHaveBeenCalledWith(7, 42));
+    await waitFor(() => expect(mockCohortFileVersions).toHaveBeenCalledWith(7, 42, expect.anything()));
     expect(await view.findByText('v2 · Current')).toBeTruthy();
     expect(view.getByText('v1')).toBeTruthy();
+  });
+
+  it('includes courseOutline in learner overview invalidation', () => {
+    expect(isLearnerOverviewQuery(learningKeys.courseOutline(12, 4), 12)).toBe(true);
+    expect(isLearnerOverviewQuery(learningKeys.courseOutline(12, 4), 99)).toBe(false);
   });
 });

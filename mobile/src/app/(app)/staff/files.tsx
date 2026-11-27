@@ -73,7 +73,7 @@ export default function StaffCohortFilesScreen() {
   const [needsReviewOnly, setNeedsReviewOnly] = useState(false);
   const [openFileId, setOpenFileId] = useState<number | null>(Number(fileParam) || null);
   const [activeDocFileId, setActiveDocFileId] = useState<number | null>(null);
-  const [renamingFolder, setRenamingFolder] = useState<string | null>(null);
+  const [renamingFolder, setRenamingFolder] = useState<{ cohortId: number; folder: string } | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
   const [savingRename, setSavingRename] = useState(false);
   const queryClient = useQueryClient();
@@ -282,21 +282,30 @@ export default function StaffCohortFilesScreen() {
   };
 
   const openRenameFolder = (folderName: string) => {
-    setRenamingFolder(folderName);
+    if (!selectedCohortId) return;
+    setRenamingFolder({ cohortId: selectedCohortId, folder: folderName });
     setRenameDraft(folderName);
   };
 
+  const activeRename = renamingFolder && renamingFolder.cohortId === selectedCohortId ? renamingFolder : null;
+
   const submitRenameFolder = async () => {
-    if (!renamingFolder || !selectedCohortId || savingRename) return;
+    if (!activeRename || savingRename) return;
     const nextName = renameDraft.trim();
-    if (!nextName || nextName === renamingFolder) {
+    if (!nextName || nextName === activeRename.folder) {
       setRenamingFolder(null);
+      return;
+    }
+    if (nextName.toLowerCase() === 'all') {
+      Alert.alert('Choose another name', '“All” is reserved for viewing every folder.');
       return;
     }
     setSavingRename(true);
     try {
-      const result = await api.renameCohortFolder(selectedCohortId, { from_folder: renamingFolder, to_folder: nextName });
-      setClassFolder(result.folder || nextName);
+      const result = await api.renameCohortFolder(activeRename.cohortId, { from_folder: activeRename.folder, to_folder: nextName });
+      if (selectedCohortId === activeRename.cohortId) {
+        setClassFolder(result.folder || nextName);
+      }
       setRenamingFolder(null);
       void filesQuery.refetch();
     } catch (error) {
@@ -501,11 +510,11 @@ export default function StaffCohortFilesScreen() {
       </>}
     </ScrollView>
     <BottomSheet
-      visible={Boolean(renamingFolder)}
+      visible={Boolean(activeRename)}
       onClose={() => { if (!savingRename) setRenamingFolder(null); }}
       closeDisabled={savingRename}
       title="Rename folder"
-      subtitle={renamingFolder ? `Move all files in “${renamingFolder}” to a new folder name.` : undefined}
+      subtitle={activeRename ? `Move all files in “${activeRename.folder}” to a new folder name.` : undefined}
       scrollable={false}
     >
       <TextInput

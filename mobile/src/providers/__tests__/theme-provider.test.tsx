@@ -71,3 +71,30 @@ it('persists and applies in-app light/dark/system theme overrides', async () => 
   expect(ui.getByTestId('scheme').props.children).toBe('system:dark');
   expect(AsyncStorage.setItem).toHaveBeenCalledWith('@csg/theme-preference', 'system');
 });
+
+it('ignores late AsyncStorage hydration after an explicit preference selection', async () => {
+  let resolveStored!: (value: string | null) => void;
+  (AsyncStorage.getItem as jest.Mock).mockImplementationOnce(
+    () => new Promise<string | null>((resolve) => { resolveStored = resolve; }),
+  );
+
+  function Probe() {
+    const theme = useTheme();
+    const { preference, setPreference } = useThemePreference();
+    return (
+      <>
+        <Text testID="scheme">{`${preference}:${theme.scheme}`}</Text>
+        <Pressable accessibilityRole="button" onPress={() => setPreference('light')}>
+          <Text>Pick light</Text>
+        </Pressable>
+      </>
+    );
+  }
+
+  const ui = render(<ThemeProvider><Probe /></ThemeProvider>);
+  act(() => { fireEvent.press(ui.getByText('Pick light')); });
+  expect(ui.getByTestId('scheme').props.children).toBe('light:light');
+
+  await act(async () => { resolveStored('dark'); });
+  expect(ui.getByTestId('scheme').props.children).toBe('light:light');
+});

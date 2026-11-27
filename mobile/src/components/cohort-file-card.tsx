@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Linking, StyleSheet, Text, View } from 'react-native';
 import {
   CopyPlus,
@@ -107,6 +107,21 @@ export function CohortFileCard({
   const [versions, setVersions] = useState<components['schemas']['CohortFileVersion'][]>([]);
   const [loadingVersions, setLoadingVersions] = useState(false);
   const [versionsError, setVersionsError] = useState<string | null>(null);
+  const versionsGenerationRef = useRef(0);
+  const versionsAbortRef = useRef<AbortController | null>(null);
+
+  const cancelVersionLoad = () => {
+    versionsGenerationRef.current += 1;
+    versionsAbortRef.current?.abort();
+    versionsAbortRef.current = null;
+    setLoadingVersions(false);
+  };
+
+  useEffect(() => () => {
+    versionsGenerationRef.current += 1;
+    versionsAbortRef.current?.abort();
+    versionsAbortRef.current = null;
+  }, [file.id]);
   const link = file.kind === 'link';
   const doc = file.kind === 'doc';
   const href = link ? safeExternalFileUrl(file.external_url) : null;
@@ -158,16 +173,25 @@ export function CohortFileCard({
     await openExternalPage(url);
   });
   const loadVersions = async () => {
+    cancelVersionLoad();
+    const generation = versionsGenerationRef.current;
+    const controller = new AbortController();
+    versionsAbortRef.current = controller;
     setSheetMode('versions');
     setLoadingVersions(true);
     setVersionsError(null);
     try {
-      const response = await api.cohortFileVersions(cohortId, file.id);
+      const response = await api.cohortFileVersions(cohortId, file.id, controller.signal);
+      if (versionsGenerationRef.current !== generation || controller.signal.aborted) return;
       setVersions(response.versions || []);
     } catch (failure) {
+      if (versionsGenerationRef.current !== generation || controller.signal.aborted) return;
       setVersionsError((failure as Error).message || 'Could not load version history.');
     } finally {
-      setLoadingVersions(false);
+      if (versionsGenerationRef.current === generation) {
+        versionsAbortRef.current = null;
+        setLoadingVersions(false);
+      }
     }
   };
   const openLink = async () => {
@@ -299,7 +323,7 @@ export function CohortFileCard({
 
       <BottomSheet
         visible={sheetOpen}
-        onClose={() => setSheetOpen(false)}
+        onClose={() => { cancelVersionLoad(); setSheetOpen(false); }}
         title={sheetMode === 'versions' ? 'Version history' : sheetMode === 'move' ? 'Move to folder' : file.title}
         subtitle={sheetMode === 'versions' || sheetMode === 'move' ? file.title : undefined}
       >
@@ -376,7 +400,7 @@ export function CohortFileCard({
                 </View>
               ))
             )}
-            <Button size="sm" variant="secondary" label="Back" onPress={() => setSheetMode('actions')} />
+            <Button size="sm" variant="secondary" label="Back" onPress={() => { cancelVersionLoad(); setSheetMode('actions'); }} />
           </View>
         ) : (
           <View style={styles.sheetList}>
@@ -441,7 +465,7 @@ export function CohortFileCard({
           title={file.title}
           preview={preview}
           onClose={() => setPreview(null)}
-          onDownload={() => { setPreview(null); void download(); }}
+          onDownload={() => { const versionId = preview?.version_id ?? undefined; setPreview(null); void download(versionId); }}
           review={reviewing && preview ? <CohortFileReviewSection cohortId={cohortId} file={file} access={reviewing} onChanged={onChanged} /> : undefined}
         />
       )}

@@ -6,7 +6,7 @@ import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Mail, Search, Users } from 'lucide-react-native';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Keyboard, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -33,6 +33,7 @@ export default function StaffAccessScreen() {
   const [filter, setFilter] = useState<Filter>('all');
   const [search, setSearch] = useState('');
   const [resendingUserId, setResendingUserId] = useState<number | null>(null);
+  const resendingRef = useRef(false);
   const cohortsQuery = useQuery({ queryKey: ['staff-access-cohorts', user?.id], queryFn: ({ signal }) => api.cohorts(signal), enabled: Boolean(user?.is_staff && !auth.demo) });
   const cohorts = cohortsQuery.data?.cohorts || [];
   const selectedCohortId = cohortId ?? cohorts[0]?.id ?? null;
@@ -71,17 +72,19 @@ export default function StaffAccessScreen() {
   };
 
   const handleResendInvite = async (userId: number, name: string) => {
-    if (resendingUserId !== null) return;
+    if (!user?.is_admin || resendingRef.current) return;
+    resendingRef.current = true;
     setResendingUserId(userId);
     try {
       const result = await api.resendInvite(userId);
       haptic('success');
-      Alert.alert('Invite sent', result.message || `Sent a fresh invite to ${name}.`);
+      Alert.alert('Invite queued', result.message || `Queued a fresh invite for ${name}.`);
       void accessQuery.refetch();
     } catch (error) {
       haptic('error');
       Alert.alert('Could not resend invite', (error as Error).message);
     } finally {
+      resendingRef.current = false;
       setResendingUserId(null);
     }
   };
@@ -102,7 +105,7 @@ export default function StaffAccessScreen() {
           const github = githubLabel(student.user_id);
           const membershipLabel = student.joined_at ? 'Joined cohort' : 'Added, not yet opened';
           const appLabel = student.last_sign_in_at ? 'Signed in to app' : student.invite_pending ? `App invite ${student.invite_delivery_status === 'failed' ? 'failed' : student.invite_delivery_status === 'not_sent' ? 'not sent' : student.invite_delivery_status === 'queued' ? 'queued' : 'sent'}` : 'App account ready · no sign-in';
-          const canResend = !student.last_sign_in_at && (student.invite_pending || student.invite_delivery_status === 'failed' || student.invite_delivery_status === 'not_sent');
+          const canResend = Boolean(user?.is_admin) && !student.last_sign_in_at && (student.invite_pending || student.invite_delivery_status === 'failed' || student.invite_delivery_status === 'not_sent');
           return (
             <View key={student.user_id} style={styles.personCard}>
               <Pressable accessibilityRole="button" accessibilityLabel={`Open ${student.full_name}. ${membershipLabel}. ${appLabel}${github ? `. ${github[0]}` : ''}`} onPress={() => router.push({ pathname: '/staff/student/[id]', params: { id: String(student.user_id), cohort_id: String(selectedCohortId) } })} style={styles.person}>

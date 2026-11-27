@@ -27,19 +27,27 @@ export default function AppLayout() {
   const lastPresenceAtRef = useRef(0);
 
   useEffect(() => {
-    if (!loaded || !signedIn || demo || !user) return;
+    if (!loaded || !signedIn || demo || !user || typeof api.presence !== 'function') return;
+    let active = AppState.currentState === 'active' || AppState.currentState === 'unknown';
+    let controller: AbortController | null = null;
     const ping = () => {
+      if (!active) return;
       const now = Date.now();
       if (now - lastPresenceAtRef.current < 30_000) return;
       lastPresenceAtRef.current = now;
-      void api.presence().catch(() => undefined);
+      controller?.abort();
+      controller = new AbortController();
+      void api.presence(controller.signal).catch(() => undefined);
     };
     ping();
     const interval = setInterval(ping, 60_000);
     const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') ping();
+      active = state === 'active';
+      if (active) ping();
     });
     return () => {
+      active = false;
+      controller?.abort();
       clearInterval(interval);
       sub.remove();
     };

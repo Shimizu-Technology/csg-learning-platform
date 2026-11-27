@@ -40,7 +40,9 @@ export default function LearnScreen() {
   const { api, user, enrollments } = useSession();
   const { selectedCohortId, selectedCohort, loading: cohortLoading, error: cohortError, stale: cohortStale, refresh } = useCohort();
   const [filter, setFilter] = useState('');
-  const [outlineFilter, setOutlineFilter] = useState<OutlineFilter>('all');
+  const [outlineFilterState, setOutlineFilterState] = useState<{ cohortId: number | null; filter: OutlineFilter }>({ cohortId: selectedCohortId, filter: 'all' });
+  const outlineFilter: OutlineFilter = outlineFilterState.cohortId === selectedCohortId ? outlineFilterState.filter : 'all';
+  const setOutlineFilter = (next: OutlineFilter) => setOutlineFilterState({ cohortId: selectedCohortId, filter: next });
   const [toggledGroups, setToggledGroups] = useState<Record<string, boolean>>({});
   const isStaff = Boolean(user?.is_staff);
   const alumniCohort = selectedCohort ? selectedCohort.cohort_type === 'alumni' : isAlumniOnlyEnrollment(enrollments);
@@ -50,7 +52,7 @@ export default function LearnScreen() {
     enabled: Boolean(user && !isStaff && !cohortLoading && selectedCohortId != null),
   });
   const outlineQuery = useQuery({
-    queryKey: ['course-outline', user?.id || 0, selectedCohortId],
+    queryKey: learningKeys.courseOutline(user?.id || 0, selectedCohortId),
     queryFn: ({ signal }) => api.courseOutline(selectedCohortId, signal),
     enabled: Boolean(user && !isStaff && !auth.demo && !cohortLoading && selectedCohortId != null && !alumniCohort && typeof api.courseOutline === 'function'),
     retry: false,
@@ -245,16 +247,17 @@ export default function LearnScreen() {
                   <ChevronRight color={c.text.muted} size={18} />
                 </Pressable>
                 {mod.groups.map((group) => {
+                  const groupStateKey = `${selectedCohortId ?? 'none'}:${group.key}`;
                   const defaultOpen = outlineFilter !== 'all' || group.current || group.this_week || mod.groups.length === 1;
-                  const isOpen = toggledGroups[group.key] ?? defaultOpen;
+                  const isOpen = toggledGroups[groupStateKey] ?? defaultOpen;
                   return (
-                    <Card key={group.key} style={styles.groupCard}>
+                    <Card key={groupStateKey} style={styles.groupCard}>
                       {group.label && (
                         <Pressable
                           accessibilityRole="button"
                           accessibilityState={{ expanded: isOpen }}
                           haptic="selection"
-                          onPress={() => setToggledGroups((prev) => ({ ...prev, [group.key]: !isOpen }))}
+                          onPress={() => setToggledGroups((prev) => ({ ...prev, [groupStateKey]: !isOpen }))}
                           style={styles.groupHeader}
                         >
                           <View style={styles.flex}>
@@ -280,11 +283,11 @@ export default function LearnScreen() {
                             accessibilityLabel={locked ? `${lesson.title} is locked` : `Open ${lesson.title}`}
                             disabled={locked}
                             onPress={locked ? undefined : () => openLesson(lesson.id, lesson.redo_block_id)}
-                            style={[styles.outlineRow, (idx > 0 || Boolean(group.label)) && styles.outlineRowDivider, locked && styles.lockedRow]}
+                            style={[styles.outlineRow, (idx > 0 || Boolean(group.label)) && styles.outlineRowDivider]}
                           >
                             <Text style={styles.lessonNum}>{lesson.number}</Text>
                             <View style={styles.flex}>
-                              <Text numberOfLines={2} style={styles.outlineLessonTitle}>{lesson.title}</Text>
+                              <Text numberOfLines={2} style={[styles.outlineLessonTitle, locked && styles.lockedTitle]}>{lesson.title}</Text>
                               {locked && lesson.opens_on ? (
                                 <Text style={styles.outlineLessonMeta}>Opens {formatCourseDate(lesson.opens_on, { weekday: true })}</Text>
                               ) : lesson.due_on ? (
@@ -377,10 +380,10 @@ const useStyles = makeStyles(({ colors: c, radius, shadow }) => StyleSheet.creat
   groupMeta: { ...tabularNums, color: c.text.muted, fontFamily: fonts.medium, fontSize: 12, marginTop: 1 },
   outlineRow: { minHeight: 54, paddingHorizontal: 14, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 10 },
   outlineRowDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border.subtle },
-  lockedRow: { opacity: 0.6 },
+  lockedTitle: { color: c.text.body },
   lessonNum: { ...tabularNums, width: 24, color: c.text.muted, fontFamily: fonts.bold, fontSize: 12, textAlign: 'center' },
   outlineLessonTitle: { color: c.text.strong, fontFamily: fonts.semibold, fontSize: 14, lineHeight: 20 },
-  outlineLessonMeta: { color: c.text.muted, fontFamily: fonts.regular, fontSize: 12, marginTop: 2 },
+  outlineLessonMeta: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, marginTop: 2 },
   search: { minHeight: 48, borderRadius: radius.control, borderWidth: StyleSheet.hairlineWidth, borderColor: c.border.subtle, backgroundColor: c.surface.raised, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10 },
   input: { flex: 1, color: c.text.strong, fontFamily: fonts.regular, fontSize: 15, paddingVertical: 11 },
   stack: { gap: 10 },

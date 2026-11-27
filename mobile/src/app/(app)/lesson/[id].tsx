@@ -109,6 +109,7 @@ export default function LessonScreen() {
         const learnerId = user?.id || 0;
         void Promise.all([
           queryClient.invalidateQueries({ queryKey: learningKeys.dashboard(learnerId, cohortId) }),
+          queryClient.invalidateQueries({ queryKey: learningKeys.courseOutline(learnerId, cohortId) }),
           queryClient.invalidateQueries({ queryKey: learningKeys.movedModule(learnerId, lesson.module_id, cohortId) }),
           queryClient.invalidateQueries({ queryKey: learningKeys.weeklyPlan(learnerId, cohortId) }),
         ]);
