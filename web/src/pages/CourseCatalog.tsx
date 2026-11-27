@@ -199,7 +199,23 @@ export function CourseCatalog() {
         {isCanceled && !hasInlineCanceledStatus && <p role="status" className="mt-8 rounded-2xl border border-line bg-surface-raised p-4 text-sm text-ink-secondary">Checkout wasn’t completed. If you were charged, contact support before trying again. Otherwise, review your course below whenever you’re ready.</p>}
         {error && offerings.length > 0 && <p role="alert" className="mt-8 rounded-2xl border border-danger-line bg-danger-soft p-4 text-sm text-danger-ink">{error}</p>}
         <div className={`mt-12 grid gap-6 ${slug ? 'max-w-4xl' : 'md:grid-cols-2'}`}>
-          {loading && offerings.length === 0 && <p role="status" className="text-sm text-ink-secondary md:col-span-2">Loading courses…</p>}
+          {loading && offerings.length === 0 && (
+            <div role="status" aria-live="polite" className={`grid gap-6 ${slug ? 'md:col-span-1' : 'md:col-span-2 md:grid-cols-2'}`}>
+              <span className="sr-only">Loading courses…</span>
+              {(slug ? [0] : [0, 1]).map((item) => (
+                <div key={item} aria-hidden="true" className="flex flex-col gap-4 rounded-2xl border border-brand-line bg-surface-raised p-6 sm:p-7">
+                  <div className="h-11 w-11 animate-pulse rounded-md bg-brand-cream-sunken motion-reduce:animate-none" />
+                  <div className="h-3 w-28 animate-pulse rounded-full bg-brand-cream-sunken motion-reduce:animate-none" />
+                  <div className="h-8 w-3/4 animate-pulse rounded-full bg-line motion-reduce:animate-none" />
+                  <div className="space-y-2">
+                    <div className="h-4 w-full animate-pulse rounded-full bg-surface-sunken motion-reduce:animate-none" />
+                    <div className="h-4 w-5/6 animate-pulse rounded-full bg-surface-sunken motion-reduce:animate-none" />
+                  </div>
+                  <div className="mt-4 h-12 w-48 animate-pulse rounded-md bg-brand-cream-sunken motion-reduce:animate-none" />
+                </div>
+              ))}
+            </div>
+          )}
           {visibleOfferings.map((offering) => {
             const enrolled = enrollments.some((entry) => entry.cohort.id === offering.id && hasCourseAccess(entry))
             const pendingPurchase = pending?.find((purchase) => purchase.cohort_id === offering.id)

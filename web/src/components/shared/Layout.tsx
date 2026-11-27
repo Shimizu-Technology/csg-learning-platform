@@ -23,6 +23,18 @@ import { IconButton } from '../ui/Button'
 import { useKeyboardAwareViewport } from '../../lib/visualViewport'
 import { shellNavigation } from '../../lib/shellNavigation'
 
+function mobileHeaderTitle(pathname: string, search: string): string {
+  const normalized = pathname.replace(/\/+$/, '') || '/'
+  if (normalized === '/resources') return 'Resources'
+  if (normalized === '/my-work') return 'My work'
+  if (normalized === '/profile') return 'Profile'
+  if (normalized === '/meetings') return 'Meetings'
+  if (normalized === '/admin/settings') return 'Settings'
+  if (normalized === '/admin/content/submission-audit') return 'Submission audit'
+  if (/^\/messages\/dm\/\d+$/.test(normalized)) return 'Messages'
+  return originLabel(`${pathname}${search}`) || PRODUCT_NAME
+}
+
 interface LayoutProps {
   children?: React.ReactNode
 }
@@ -300,11 +312,11 @@ export function Layout({ children }: LayoutProps) {
     onTouchStart: () => preloadRoute(path),
   })
   const bottomNav = navItems.filter((item) => (isStaff ? ['/admin', '/admin/grading', '/admin/support', '/messages'] : ['/dashboard', '/materials', '/my-work', '/messages']).includes(item.to.split('?')[0]))
+  const showsMobileCohortSwitcher = !isStaff && !isMessagesListRoute && (cohorts?.length ?? 0) > 1
+  const mobileRouteTitle = mobileHeaderTitle(location.pathname, location.search)
   const pageContentClassName = isMessagesRoute
     ? 'h-full p-0 lg:p-4'
-    : isStaff
-      ? 'p-4 pb-24 sm:p-6 sm:pb-24 lg:p-8'
-      : 'py-4 pb-[calc(6rem+env(safe-area-inset-bottom,0px))] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] sm:py-6 sm:pb-[calc(6rem+env(safe-area-inset-bottom,0px))] sm:pl-[max(1.5rem,env(safe-area-inset-left))] sm:pr-[max(1.5rem,env(safe-area-inset-right))] lg:p-8'
+    : 'py-4 pb-[calc(5.25rem+env(safe-area-inset-bottom,0px))] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] sm:py-6 sm:pb-[calc(5.25rem+env(safe-area-inset-bottom,0px))] sm:pl-[max(1.5rem,env(safe-area-inset-left))] sm:pr-[max(1.5rem,env(safe-area-inset-right))] lg:p-8'
 
   const renderMobileLinks = (items: typeof navItems) => items.map((item) => (
               <Link
@@ -321,12 +333,6 @@ export function Layout({ children }: LayoutProps) {
               >
                 <span className="relative">
                   <item.icon className="h-5 w-5" />
-                  {item.to.startsWith('/announcements') && unreadCount > 0 && (
-                    <span className="absolute -right-1.5 -top-1.5 h-2.5 w-2.5 rounded-full bg-action-primary ring-2 ring-surface-raised" />
-                  )}
-                  {item.to.startsWith('/messages') && messageUnreadCount > 0 && (
-                    <span className="absolute -right-1.5 -top-1.5 h-2.5 w-2.5 rounded-full bg-action-primary ring-2 ring-surface-raised" />
-                  )}
                 </span>
                 {item.label}
                 {getNavUnreadCount(item.to) > 0 && <span className="ml-auto min-w-6 rounded-full bg-action-primary px-2 py-0.5 text-center text-xs font-semibold tabular-nums text-on-action">{getNavUnreadCount(item.to)}</span>}
@@ -356,11 +362,11 @@ export function Layout({ children }: LayoutProps) {
             >
               <span className="relative shrink-0">
                 <item.icon className="h-5 w-5" />
-                {item.to.startsWith('/announcements') && unreadCount > 0 && (
-                  <span className="absolute -right-1.5 -top-1.5 h-2.5 w-2.5 rounded-full bg-action-primary ring-2 ring-surface-raised" />
+                {collapsed && item.to.startsWith('/announcements') && unreadCount > 0 && (
+                  <span data-unread-dot aria-hidden="true" className="absolute -right-1.5 -top-1.5 h-2.5 w-2.5 rounded-full bg-action-primary ring-2 ring-surface-raised" />
                 )}
-                {item.to.startsWith('/messages') && messageUnreadCount > 0 && (
-                  <span className="absolute -right-1.5 -top-1.5 h-2.5 w-2.5 rounded-full bg-action-primary ring-2 ring-surface-raised" />
+                {collapsed && item.to.startsWith('/messages') && messageUnreadCount > 0 && (
+                  <span data-unread-dot aria-hidden="true" className="absolute -right-1.5 -top-1.5 h-2.5 w-2.5 rounded-full bg-action-primary ring-2 ring-surface-raised" />
                 )}
               </span>
               {!collapsed && item.label}
@@ -400,6 +406,11 @@ export function Layout({ children }: LayoutProps) {
         {/* The Messages list has its own workspace switcher in its header: one switcher per screen (U-4.11).
             A phone conversation view hides that list, so the top bar keeps its switcher there. */}
         {!isStaff && !isMessagesListRoute && <CohortSwitcher compact />}
+        {!showsMobileCohortSwitcher && (
+          <span data-mobile-route-title className="min-w-0 truncate text-sm font-bold tracking-tight text-ink sm:hidden">
+            {mobileRouteTitle}
+          </span>
+        )}
         <div className="ml-auto flex shrink-0 items-center gap-1">
           {showNotificationsBell && <Link to="/announcements?tab=inbox" aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ''}`} className="pressable relative inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-ink-secondary hover:bg-surface-sunken"><Bell className="h-5 w-5" aria-hidden="true" />{unreadCount > 0 && <span aria-hidden="true" className="absolute right-0.5 top-0.5 rounded-full bg-action-primary px-1.5 text-xs font-bold tabular-nums text-on-action">{unreadCount > 99 ? '99+' : unreadCount}</span>}</Link>}
           <IconButton label="Search and go" onClick={() => setCommandPaletteOpen(true)}><Search className="h-5 w-5" aria-hidden="true" /></IconButton>
@@ -542,7 +553,20 @@ export function Layout({ children }: LayoutProps) {
               </Link>
             )
           })}
-          <button ref={menuButtonRef} type="button" aria-label="More navigation" aria-haspopup="dialog" aria-expanded={sidebarOpen} onClick={() => { restoreMenuButtonFocusRef.current = false; setSidebarOpen(true) }} className="pressable flex min-h-11 flex-col items-center justify-center gap-1 rounded-xl text-xs font-medium text-ink-muted"><Ellipsis className="h-5 w-5" aria-hidden="true" />More</button>
+          <button
+            ref={menuButtonRef}
+            type="button"
+            aria-label="More navigation"
+            aria-haspopup="dialog"
+            aria-expanded={sidebarOpen}
+            onClick={() => { restoreMenuButtonFocusRef.current = false; setSidebarOpen(true) }}
+            className={`pressable relative flex h-[4.25rem] min-w-0 flex-col items-center justify-center gap-1 rounded-xl text-xs ${sidebarOpen ? 'font-semibold text-ink' : 'font-medium text-ink-muted hover:text-ink'}`}
+          >
+            <span className={`relative flex h-7 w-12 items-center justify-center rounded-full transition-colors duration-[180ms] ${sidebarOpen ? 'bg-surface-sunken' : ''}`}>
+              <Ellipsis className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <span className="max-w-full truncate px-0.5">More</span>
+          </button>
         </nav>
       )}
       <CommandPalette key={user?.id} open={commandPaletteOpen} isStaff={Boolean(isStaff)} onClose={closeCommandPalette} />

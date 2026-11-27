@@ -280,7 +280,7 @@ export function StudentManagement() {
       </div>
 
       {selected.size > 0 && (
-        <div role="region" aria-label="Selected students" className="sticky top-2 z-20 flex flex-wrap items-center gap-3 rounded-xl border border-line-strong bg-surface-raised px-4 py-2 shadow-sm">
+        <div role="region" aria-label="Selected students" className="sticky top-16 z-20 flex flex-wrap items-center gap-3 rounded-xl border border-line-strong bg-surface-overlay px-4 py-2.5 shadow-overlay lg:top-2">
           <p className="text-sm font-semibold tabular-nums text-ink">{selected.size} selected</p>
           <Button size="sm" onClick={() => setComposing(true)}><MessageCircle className="h-4 w-4" aria-hidden="true" />Message selected</Button>
           <Button size="sm" variant="secondary" onClick={() => setSelected(new Map())}><X className="h-4 w-4" aria-hidden="true" />Clear</Button>
@@ -340,89 +340,160 @@ export function StudentManagement() {
                 </div>
 
                 <Collapse open={!isCollapsed}>
-                  <div className="overflow-x-auto">
+                  <div>
                     {groupStudents.length === 0 ? (
                       <p className="px-6 py-8 text-center text-sm text-ink-muted">No students match your filters</p>
                     ) : (
-                      <table className="w-full">
-                        <thead>
-                          <tr className="border-b border-line bg-surface-sunken">
-                            <th className="w-11 py-2.5 pl-2 pr-0 text-left sm:w-14 sm:pl-4"><span className="sr-only">Select</span></th>
-                            <th className="px-3 py-2.5 text-left text-xs font-semibold text-ink-muted sm:px-4">Student</th>
-                            <th className="px-3 py-2.5 text-left text-xs font-semibold text-ink-muted sm:px-4">Progress</th>
-                            <th className="hidden px-4 py-2.5 text-left text-xs font-semibold text-ink-muted lg:table-cell">Last active</th>
-                            <th className="hidden px-4 py-2.5 text-left text-xs font-semibold text-ink-muted xl:table-cell">Last 7 days</th>
-                            <th className="hidden px-4 py-2.5 text-left text-xs font-semibold text-ink-muted sm:table-cell">Status</th>
-                            <th className="hidden px-3 py-2.5 sm:table-cell"><span className="sr-only">Actions</span></th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-line">
-                          {groupStudents.map(student => (
-                            <tr
+                      <>
+                        {/* Mobile card view */}
+                        <ul className="divide-y divide-line md:hidden" aria-label={`${group.cohort.name} students`}>
+                          {groupStudents.map((student) => (
+                            <li
                               key={student.user_id}
-                              className={`transition-colors duration-150 hover:bg-surface-sunken ${student.needs_attention ? 'bg-warning-soft/60' : ''}`}
+                              className={`space-y-3 px-4 py-4 transition-colors duration-150 ${student.needs_attention ? 'bg-warning-soft/60' : ''}`}
                             >
-                              <td className="w-11 py-3 pl-2 pr-0 align-top sm:w-14 sm:pl-4">
-                                <label className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-xl hover:bg-surface-sunken">
-                                  <input type="checkbox" className="h-4 w-4 accent-primary" checked={selected.has(recipientKey({ userId: student.user_id, cohortId: group.cohort.id }))} onChange={() => toggleSelected({ userId: student.user_id, name: student.full_name, cohortId: group.cohort.id })} aria-label={`Select ${student.full_name}`} />
+                              <div className="flex items-start gap-2">
+                                <label className="-ml-2 -mt-1 flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-xl hover:bg-surface-sunken">
+                                  <input
+                                    type="checkbox"
+                                    className="h-4 w-4 accent-action-primary"
+                                    checked={selected.has(recipientKey({ userId: student.user_id, cohortId: group.cohort.id }))}
+                                    onChange={() => toggleSelected({ userId: student.user_id, name: student.full_name, cohortId: group.cohort.id })}
+                                    aria-label={`Select ${student.full_name}`}
+                                  />
                                 </label>
-                              </td>
-                              <td className="max-w-[13rem] px-3 py-3 sm:max-w-xs sm:px-4">
-                                <div className="flex min-w-0 items-start gap-3">
-                                  <Avatar name={student.full_name} size="sm" className="mt-1.5" />
-                                  <div className="min-w-0 flex-1">
-                                    <Link to={cohortStudentPath(group.cohort.id, student.user_id)} state={studentLinkState} title={student.full_name} className="block truncate rounded-md py-1 text-sm font-semibold text-ink underline-offset-4 hover:underline">{student.full_name}</Link>
-                                    <p className="truncate text-xs text-ink-muted" title={student.email}>{student.email}</p>
-                                  </div>
-                                </div>
-                                <Badge>{enrollmentLabel(enrollmentFacts.get(`${student.user_id}:${group.cohort.id}`) || { status: student.enrollment_status, cohort_status: group.cohort.status })}</Badge>
-                                <div className="mt-1 flex flex-wrap items-center gap-2">
-                                  <PresenceBadge status={student.presence} />
-                                  <span className="text-xs tabular-nums text-ink-muted lg:hidden">Last active: {formatLastActivity(student.last_activity_at)}</span>
-                                  <span className="sm:hidden"><StatusBadge student={student} /></span>
-                                </div>
-                                <button type="button" onClick={() => void message.open(student.user_id, group.cohort.id)} disabled={message.opening === student.user_id} aria-label={`Message ${student.full_name}`} className="mt-1 inline-flex min-h-11 items-center gap-1.5 rounded-xl text-sm font-semibold text-ink-secondary hover:text-ink disabled:opacity-60 sm:hidden">
-                                  <MessageCircle className="h-4 w-4" aria-hidden="true" />{message.opening === student.user_id ? 'Opening…' : 'Message'}
-                                </button>
-                                {student.github_username && (
-                                  <a
-                                    href={`https://github.com/${student.github_username}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    onClick={e => e.stopPropagation()}
-                                    title={`@${student.github_username}`}
-                                    className="app-link mt-1 block truncate text-xs"
+                                <Avatar name={student.full_name} size="sm" className="mt-1 shrink-0" />
+                                <div className="min-w-0 flex-1">
+                                  <Link
+                                    to={cohortStudentPath(group.cohort.id, student.user_id)}
+                                    state={studentLinkState}
+                                    title={student.full_name}
+                                    className="block truncate rounded-md text-sm font-semibold text-ink underline-offset-4 hover:underline"
                                   >
-                                    @{student.github_username}
-                                  </a>
-                                )}
-                              </td>
-                              <td className="w-28 px-3 py-3 sm:w-40 sm:px-4">
-                                <ProgressBar value={student.progress_percentage} size="sm" />
-                                <p className="mt-1 text-xs tabular-nums text-ink-muted">
-                                  {lessonsLabel(student)}
-                                </p>
-                              </td>
-                              <td className="hidden px-4 py-3 lg:table-cell">
-                                <span className="whitespace-nowrap text-sm tabular-nums text-ink-muted">{formatLastActivity(student.last_activity_at)}</span>
-                              </td>
-                              <td className="hidden px-4 py-3 xl:table-cell">
-                                <p className="whitespace-nowrap text-sm tabular-nums text-ink-secondary">
-                                  {student.submissions_this_week} {student.submissions_this_week === 1 ? 'submission' : 'submissions'}
-                                </p>
-                              </td>
-                              <td className="hidden px-4 py-3 sm:table-cell">
+                                    {student.full_name}
+                                  </Link>
+                                  <p className="truncate text-xs text-ink-muted" title={student.email}>{student.email}</p>
+                                  {student.github_username && (
+                                    <a
+                                      href={`https://github.com/${student.github_username}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      onClick={e => e.stopPropagation()}
+                                      title={`@${student.github_username}`}
+                                      className="app-link mt-0.5 block truncate text-xs"
+                                    >
+                                      @{student.github_username}
+                                    </a>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-1.5 pl-9">
+                                <Badge>{enrollmentLabel(enrollmentFacts.get(`${student.user_id}:${group.cohort.id}`) || { status: student.enrollment_status, cohort_status: group.cohort.status })}</Badge>
                                 <StatusBadge student={student} />
-                              </td>
-                              <td className="hidden px-3 py-3 sm:table-cell">
-                                <Button size="sm" variant="secondary" onClick={() => void message.open(student.user_id, group.cohort.id)} disabled={message.opening === student.user_id} aria-label={`Message ${student.full_name}`}>
-                                  <MessageCircle className="h-4 w-4" aria-hidden="true" /><span className="hidden 2xl:inline">{message.opening === student.user_id ? 'Opening…' : 'Message'}</span>
+                                <PresenceBadge status={student.presence} />
+                              </div>
+                              <div className="space-y-1.5 pl-9">
+                                <ProgressBar value={student.progress_percentage} size="sm" />
+                                <div className="flex flex-wrap items-center justify-between gap-2 text-xs tabular-nums text-ink-muted">
+                                  <span>{lessonsLabel(student)}</span>
+                                  <span>Last active: {formatLastActivity(student.last_activity_at)}</span>
+                                </div>
+                              </div>
+                              <div className="flex justify-end pl-9">
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={() => void message.open(student.user_id, group.cohort.id)}
+                                  disabled={message.opening === student.user_id}
+                                  aria-label={`Message ${student.full_name}`}
+                                >
+                                  <MessageCircle className="h-4 w-4" aria-hidden="true" />
+                                  {message.opening === student.user_id ? 'Opening…' : 'Message'}
                                 </Button>
-                              </td>
-                            </tr>
+                              </div>
+                            </li>
                           ))}
-                        </tbody>
-                      </table>
+                        </ul>
+
+                        {/* Desktop table view */}
+                        <div className="hidden overflow-x-auto md:block">
+                          <table className="w-full">
+                            <thead>
+                              <tr className="border-b border-line bg-surface-sunken">
+                                <th className="w-14 py-2.5 pl-4 pr-0 text-left"><span className="sr-only">Select</span></th>
+                                <th className="px-4 py-2.5 text-left text-xs font-semibold text-ink-muted">Student</th>
+                                <th className="px-4 py-2.5 text-left text-xs font-semibold text-ink-muted">Progress</th>
+                                <th className="hidden px-4 py-2.5 text-left text-xs font-semibold text-ink-muted lg:table-cell">Last active</th>
+                                <th className="hidden px-4 py-2.5 text-left text-xs font-semibold text-ink-muted xl:table-cell">Last 7 days</th>
+                                <th className="px-4 py-2.5 text-left text-xs font-semibold text-ink-muted">Status</th>
+                                <th className="px-3 py-2.5"><span className="sr-only">Actions</span></th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-line">
+                              {groupStudents.map(student => (
+                                <tr
+                                  key={student.user_id}
+                                  className={`transition-colors duration-150 hover:bg-surface-sunken ${student.needs_attention ? 'bg-warning-soft/60' : ''}`}
+                                >
+                                  <td className="w-14 py-3 pl-4 pr-0 align-top">
+                                    <label className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-xl hover:bg-surface-sunken">
+                                      <input type="checkbox" className="h-4 w-4 accent-action-primary" checked={selected.has(recipientKey({ userId: student.user_id, cohortId: group.cohort.id }))} onChange={() => toggleSelected({ userId: student.user_id, name: student.full_name, cohortId: group.cohort.id })} aria-label={`Select ${student.full_name}`} />
+                                    </label>
+                                  </td>
+                                  <td className="max-w-xs px-4 py-3">
+                                    <div className="flex min-w-0 items-start gap-3">
+                                      <Avatar name={student.full_name} size="sm" className="mt-1.5" />
+                                      <div className="min-w-0 flex-1">
+                                        <Link to={cohortStudentPath(group.cohort.id, student.user_id)} state={studentLinkState} title={student.full_name} className="block truncate rounded-md py-1 text-sm font-semibold text-ink underline-offset-4 hover:underline">{student.full_name}</Link>
+                                        <p className="truncate text-xs text-ink-muted" title={student.email}>{student.email}</p>
+                                      </div>
+                                    </div>
+                                    <Badge>{enrollmentLabel(enrollmentFacts.get(`${student.user_id}:${group.cohort.id}`) || { status: student.enrollment_status, cohort_status: group.cohort.status })}</Badge>
+                                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                                      <PresenceBadge status={student.presence} />
+                                      <span className="text-xs tabular-nums text-ink-muted lg:hidden">Last active: {formatLastActivity(student.last_activity_at)}</span>
+                                    </div>
+                                    {student.github_username && (
+                                      <a
+                                        href={`https://github.com/${student.github_username}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        onClick={e => e.stopPropagation()}
+                                        title={`@${student.github_username}`}
+                                        className="app-link mt-1 block truncate text-xs"
+                                      >
+                                        @{student.github_username}
+                                      </a>
+                                    )}
+                                  </td>
+                                  <td className="w-40 px-4 py-3">
+                                    <ProgressBar value={student.progress_percentage} size="sm" />
+                                    <p className="mt-1 text-xs tabular-nums text-ink-muted">
+                                      {lessonsLabel(student)}
+                                    </p>
+                                  </td>
+                                  <td className="hidden px-4 py-3 lg:table-cell">
+                                    <span className="whitespace-nowrap text-sm tabular-nums text-ink-muted">{formatLastActivity(student.last_activity_at)}</span>
+                                  </td>
+                                  <td className="hidden px-4 py-3 xl:table-cell">
+                                    <p className="whitespace-nowrap text-sm tabular-nums text-ink-secondary">
+                                      {student.submissions_this_week} {student.submissions_this_week === 1 ? 'submission' : 'submissions'}
+                                    </p>
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    <StatusBadge student={student} />
+                                  </td>
+                                  <td className="px-3 py-3">
+                                    <Button size="sm" variant="secondary" onClick={() => void message.open(student.user_id, group.cohort.id)} disabled={message.opening === student.user_id} aria-label={`Message ${student.full_name}`}>
+                                      <MessageCircle className="h-4 w-4" aria-hidden="true" /><span className="hidden 2xl:inline">{message.opening === student.user_id ? 'Opening…' : 'Message'}</span>
+                                    </Button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </>
                     )}
                   </div>
                 </Collapse>

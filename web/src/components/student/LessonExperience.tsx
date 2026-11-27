@@ -265,7 +265,7 @@ export function LessonExperience({
   )
   return (
     <div className={showDesktopSidebar ? 'mx-auto flex w-full max-w-6xl items-start gap-8' : undefined}>
-    <article data-testid="lesson-experience" className="app-page mx-auto w-full max-w-3xl min-w-0 pb-32 lg:pb-8">
+    <article data-testid="lesson-experience" className="app-page mx-auto w-full max-w-3xl min-w-0 pb-4 lg:pb-8">
       {readProgress > 0 && (
         <div
           aria-hidden="true"
@@ -348,7 +348,7 @@ export function LessonExperience({
       )}
       <nav
         aria-label="Lesson navigation"
-        className="lesson-action-bar sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] z-10 -mx-4 flex flex-wrap items-center justify-end gap-3 border-t border-line bg-surface-raised px-4 py-3 shadow-raised lg:static lg:mx-0 lg:mt-6 lg:px-0 lg:shadow-none"
+        className="lesson-action-bar hide-with-keyboard sticky bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] z-10 flex flex-wrap items-center justify-end gap-2 rounded-2xl border border-line bg-surface-overlay/95 px-2.5 py-2 shadow-overlay backdrop-blur-sm lg:static lg:mt-6 lg:gap-3 lg:rounded-none lg:border-x-0 lg:border-b-0 lg:bg-transparent lg:px-0 lg:py-3 lg:shadow-none lg:backdrop-blur-none"
       >
         {saveError && (
           <p role="alert" className="w-full text-sm text-danger-ink">
@@ -356,18 +356,19 @@ export function LessonExperience({
           </p>
         )}
         {navigation?.previous && (
-          <LinkButton variant="quiet" state={backState} to={paths.lesson(navigation.previous.id)} className="mr-auto">
+          <LinkButton size="sm" variant="quiet" state={backState} to={paths.lesson(navigation.previous.id)} className="mr-auto">
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             <span className="sr-only lg:not-sr-only">Previous: {navigation.previous.title}</span>
           </LinkButton>
         )}
         {!readOnly && Boolean(navigation?.manual_block_ids.length) && (
-          <Button variant={next && !completeAndContinue ? 'secondary' : 'primary'} onClick={() => void markComplete(completeAndContinue ? next.id : undefined)} disabled={saving}>
+          <Button size="sm" variant={next && !completeAndContinue ? 'secondary' : 'primary'} onClick={() => void markComplete(completeAndContinue ? next.id : undefined)} disabled={saving}>
             {saving ? 'Saving…' : completeAndContinue ? 'Mark complete and continue' : 'Mark complete'}
           </Button>
         )}
         {next && !completeAndContinue && (
           <LinkButton
+            size="sm"
             state={backState}
             to={paths.lesson(next.id)}
             variant="primary"
@@ -383,6 +384,7 @@ export function LessonExperience({
         )}
         {finished && !readOnly && (
           <Button
+            size="sm"
             onClick={() =>
               setSearch((current) => {
                 current.set('complete', '1')

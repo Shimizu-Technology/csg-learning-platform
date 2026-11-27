@@ -12,12 +12,16 @@ import {
 } from '../../lib/cohortFiles'
 import { driveToneSurface, fileTimestampIso, fileVisualMeta } from '../../lib/driveHelpers'
 import { formatShortDateTime } from '../../lib/format'
+import { useMediaQuery } from '../../lib/useMediaQuery'
 import { Badge } from '../ui/Badge'
 import { AnchorButton, Button, IconButton } from '../ui/Button'
 import { CohortFileReviewPanel, ReviewStatusBadge, type ReviewAccess } from './CohortFileReview'
+import { Modal } from './Modal'
 
 /**
- * Google Drive-style right-side details, quick folder move, and review/comments inspector.
+ * Google Drive-style details, quick folder move, and review/comments inspector.
+ * Renders as a sticky right-hand side panel on desktop and as a real slide-over
+ * modal drawer on phones and tablets.
  */
 export function DriveInspectorDrawer({
   cohortId,
@@ -25,6 +29,7 @@ export function DriveInspectorDrawer({
   folderOptions,
   downloadDisabled = false,
   review,
+  desktopBreakpoint = 'lg',
   onClose,
   onOpenPreview,
   onFileChange,
@@ -34,10 +39,12 @@ export function DriveInspectorDrawer({
   folderOptions: string[]
   downloadDisabled?: boolean
   review?: ReviewAccess
+  desktopBreakpoint?: 'lg' | 'xl'
   onClose: () => void
   onOpenPreview: (file: CohortFile, pane?: 'main' | 'review') => void
   onFileChange?: (file: CohortFile) => void
 }) {
+  const isDesktop = useMediaQuery(desktopBreakpoint === 'xl' ? '(min-width: 1280px)' : '(min-width: 1024px)')
   const [targetFolder, setTargetFolder] = useState(file?.folder || '')
   const [moving, setMoving] = useState(false)
   const [moveError, setMoveError] = useState('')
@@ -87,28 +94,8 @@ export function DriveInspectorDrawer({
     }
   }
 
-  return (
-    <aside
-      aria-label={`Details for ${file.title}`}
-      tabIndex={-1}
-      onKeyDown={(event) => {
-        if (event.key !== 'Escape' || event.defaultPrevented) return
-        if (document.querySelector('[role="dialog"][aria-modal="true"], [data-app-modal]')) return
-        event.stopPropagation()
-        onClose()
-      }}
-      className="app-surface flex flex-col gap-4 p-4 focus:outline-none lg:sticky lg:top-6"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <Info className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />
-          <h3 className="truncate text-sm font-bold text-ink">File details</h3>
-        </div>
-        <IconButton label="Close file details" onClick={onClose}>
-          <X className="h-4 w-4" aria-hidden="true" />
-        </IconButton>
-      </div>
-
+  const body = (
+    <div className="flex flex-col gap-4">
       <div className={`flex flex-col items-center justify-center gap-2 rounded-2xl border px-4 py-6 text-center ${driveToneSurface(visual.tone)}`}>
         <Icon className="h-9 w-9" aria-hidden="true" />
         <span className="text-xs font-bold uppercase tracking-wider">{visual.badgeLabel}</span>
@@ -231,6 +218,47 @@ export function DriveInspectorDrawer({
           <CohortFileReviewPanel cohortId={cohortId} file={file} access={reviewing} onFileChange={onFileChange} />
         </div>
       )}
+    </div>
+  )
+
+  if (!isDesktop) {
+    return (
+      <Modal
+        open
+        onClose={onClose}
+        title="File details"
+        subtitle={file.title}
+        icon={<Info className="h-5 w-5 shrink-0 text-ink-muted" aria-hidden="true" />}
+        size="md"
+        variant="drawer"
+      >
+        {body}
+      </Modal>
+    )
+  }
+
+  return (
+    <aside
+      aria-label={`Details for ${file.title}`}
+      tabIndex={-1}
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape' || event.defaultPrevented) return
+        if (document.querySelector('[role="dialog"][aria-modal="true"], [data-app-modal]')) return
+        event.stopPropagation()
+        onClose()
+      }}
+      className="app-surface flex flex-col gap-4 p-4 focus:outline-none lg:sticky lg:top-6"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <Info className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />
+          <h3 className="truncate text-sm font-bold text-ink">File details</h3>
+        </div>
+        <IconButton label="Close file details" onClick={onClose}>
+          <X className="h-4 w-4" aria-hidden="true" />
+        </IconButton>
+      </div>
+      {body}
     </aside>
   )
 }

@@ -36,6 +36,12 @@ const ARBITRARY_COLOR = new RegExp(`(?<![\\w-])(?:${UTILITIES})-\\[(?:#|rgb|hsl|
 const HEX = /['"`]#[0-9a-fA-F]{3,8}['"`]/g
 // The typography plugin's colour themes (prose-slate, prose-gray …): use prose-tokens.
 const PROSE_THEME = new RegExp(`(?<![\\w-])prose-(?:${PALETTE})(?![\\w-])`, 'g')
+// Undefined semantic utilities that Tailwind v4 silently drops because index.css defines
+// `--color-action-primary`, `--color-on-action`, `--color-primary-soft`, `--color-primary-ink`, etc.
+const UNDEFINED_SEMANTIC_CLASS = new RegExp(
+  `(?<![\\w-])(?:(?:${UTILITIES})-(?:primary|accent)|(?:bg|text|border(?:-[trblxyse])?)-on-primary)(?:\\/\\d+)?(?![\\w-])`,
+  'g',
+)
 
 const root = resolve(__dirname, '../..')
 
@@ -56,6 +62,16 @@ export function findRawColors(source: string, allowHex = false) {
     for (const pattern of allowHex || comment ? [RAW_CLASS, ARBITRARY_COLOR, PROSE_THEME] : [RAW_CLASS, ARBITRARY_COLOR, PROSE_THEME, HEX]) {
       for (const match of line.matchAll(pattern)) hits.push(`${index + 1}: ${match[0]}`)
     }
+  })
+  return hits
+}
+
+export function findUndefinedSemanticClasses(source: string) {
+  const lines = source.split('\n')
+  const hits: string[] = []
+  lines.forEach((line, index) => {
+    if (/^\s*(\/\/|\/?\*)/.test(line)) return
+    for (const match of line.matchAll(UNDEFINED_SEMANTIC_CLASS)) hits.push(`${index + 1}: ${match[0]}`)
   })
   return hits
 }
@@ -83,6 +99,26 @@ describe('raw colours lint', () => {
       failures.push(...hits.map((hit) => `${name}:${hit}`))
     }
     expect(failures, 'Use a colour role from index.css (bg-surface-raised, text-ink-secondary, text-danger-ink …)').toEqual([])
+  })
+
+  it('catches undefined semantic utilities (bg-primary, border-primary, text-on-primary, accent-primary, bg-accent) while allowing defined roles', () => {
+    expect(
+      findUndefinedSemanticClasses('className="bg-primary border-primary text-on-primary accent-primary bg-accent text-primary hover:bg-primary/90"')
+        .map((hit) => hit.split(': ')[1]),
+    ).toEqual(['bg-primary', 'border-primary', 'text-on-primary', 'accent-primary', 'bg-accent', 'text-primary', 'bg-primary/90'])
+    expect(
+      findUndefinedSemanticClasses('className="bg-action-primary border-action-primary text-on-action accent-action-primary bg-primary-soft text-primary-ink border-primary-soft-line text-primary-soft-ink"'),
+    ).toEqual([])
+  })
+
+  it('no component uses undefined semantic utilities', () => {
+    const failures: string[] = []
+    for (const file of sources(join(root, 'src'))) {
+      const name = relative(root, file).replaceAll('\\', '/')
+      const hits = findUndefinedSemanticClasses(readFileSync(file, 'utf8'))
+      failures.push(...hits.map((hit) => `${name}:${hit}`))
+    }
+    expect(failures, 'Use defined Tailwind v4 tokens from index.css (bg-action-primary, border-action-primary, text-on-action, accent-action-primary …)').toEqual([])
   })
 
   it('keeps every hex exception in use', () => {

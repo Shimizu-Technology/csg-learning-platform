@@ -1,4 +1,4 @@
-import { ArrowRight, BarChart3, CheckCircle2, CircleDashed, GitBranch, RefreshCw, Target, Users } from 'lucide-react'
+import { ArrowRight, BarChart3, CheckCircle2, ChevronDown, CircleDashed, GitBranch, RefreshCw, Target, Users } from 'lucide-react'
 import { EmptyState } from '../../../components/shared/EmptyState'
 import { LoadingSpinner } from '../../../components/shared/LoadingSpinner'
 import { ProgressBar } from '../../../components/shared/ProgressBar'
@@ -42,9 +42,10 @@ export function Insights({
     )
   if (!insights.objectives.length && !insights.revision_patterns.length)
     return (
-      <details className="app-surface overflow-hidden">
-        <summary className="min-h-11 cursor-pointer px-5 py-4 text-sm font-semibold text-ink">
-          No learning evidence yet
+      <details className="group app-surface overflow-hidden">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-sm font-semibold text-ink transition-colors duration-150 hover:bg-surface-sunken">
+          <span>No learning evidence yet</span>
+          <ChevronDown className="h-4 w-4 shrink-0 text-ink-muted transition-transform duration-150 group-open:rotate-180" aria-hidden="true" />
         </summary>
         <p className="border-t border-line px-5 py-4 text-sm leading-6 text-ink-secondary">
           Nothing to show for this cohort yet. Learning insights use rubric ratings, graded submissions and checkpoints
@@ -117,7 +118,7 @@ export function Insights({
                         {objective.demonstrated_count} of {objective.learner_count} demonstrated
                       </p>
                     </div>
-                    <ArrowRight className="h-4 w-4 rotate-90 text-ink-muted transition-transform duration-150 group-open:-rotate-90" />
+                    <ChevronDown className="h-4 w-4 shrink-0 text-ink-muted transition-transform duration-150 group-open:rotate-180" aria-hidden="true" />
                   </div>
                 </summary>
                 <div className="border-t border-line bg-surface-sunken px-5 py-4 sm:px-6">
@@ -127,9 +128,9 @@ export function Insights({
                     <EvidencePill status="needs_revision" count={objective.status_counts.needs_revision} />
                     <EvidencePill status="not_evidenced" count={objective.status_counts.not_evidenced} />
                   </div>
-                  <div className="grid gap-2">
+                  <div className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface-raised">
                     {objective.students.map((student) => (
-                      <div key={student.enrollment_id} className="rounded-xl border border-line bg-surface-raised p-3">
+                      <div key={student.enrollment_id} className="px-4 py-3.5">
                         <div className="flex flex-wrap items-center justify-between gap-3">
                           <Link
                             to={`${cohortStudentPath(cohort.id, student.user.id, 'learning')}?objective=${objective.id}`}
@@ -142,9 +143,9 @@ export function Insights({
                           <EvidencePill status={student.status} />
                         </div>
                         {student.evidence.length ? (
-                          <div className="mt-3 space-y-2">
+                          <ul className="mt-2.5 divide-y divide-line border-t border-line pt-1">
                             {student.evidence.slice(0, 4).map((evidence) => (
-                              <div key={evidence.id} className="rounded-xl border border-line p-3">
+                              <li key={evidence.id} className="py-2 first:pt-1.5 last:pb-0">
                                 <ObjectiveEvidenceLinks
                                   evidence={evidence}
                                   cohortId={cohort.id}
@@ -152,9 +153,9 @@ export function Insights({
                                   objectiveId={objective.id}
                                   returnTo={returnTo}
                                 />
-                              </div>
+                              </li>
                             ))}
-                          </div>
+                          </ul>
                         ) : (
                           <p className="mt-2 text-xs text-ink-muted">No objective evidence recorded yet.</p>
                         )}

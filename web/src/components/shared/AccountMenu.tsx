@@ -104,7 +104,7 @@ export function AccountMenu({ name, role, avatarUrl, compact = false, onNavigate
           id={menuId}
           role="menu"
           aria-label="Account"
-          className={`account-menu absolute bottom-full z-50 mb-2 w-60 rounded-xl border border-line bg-surface-raised p-1.5 shadow-overlay ${compact ? 'left-0' : 'left-0 right-0 w-auto'}`}
+          className={`account-menu absolute bottom-full z-50 mb-2 w-60 rounded-xl border border-line bg-surface-overlay p-1.5 shadow-overlay ${compact ? 'left-0' : 'left-0 right-0 w-auto'}`}
         >
           <Link role="menuitem" to="/profile" onClick={close} className={itemClass}>
             <UserRound className="h-4 w-4 text-ink-muted" aria-hidden="true" />

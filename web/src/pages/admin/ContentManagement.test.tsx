@@ -209,11 +209,15 @@ it('defaults self-paced curricula to a sortable sequence and restores open/week 
 it('uses the shared confirmation for deletion and retains the curriculum on server refusal', async () => {
   mocks.deleteCurriculum.mockResolvedValue({ error: 'Curriculum has learner files' })
   await mount()
+  const openDelete = async () => {
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="More curriculum actions"]')!.click())
+    await act(async () => Array.from(container.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).find(item => item.textContent?.includes('Delete curriculum'))!.click())
+  }
   mocks.confirm.mockResolvedValue(false)
-  await act(async () => button('Delete curriculum').click())
+  await openDelete()
   expect(mocks.deleteCurriculum).not.toHaveBeenCalled()
   mocks.confirm.mockResolvedValue(true)
-  await act(async () => button('Delete curriculum').click())
+  await openDelete()
   expect(mocks.deleteCurriculum).toHaveBeenCalledWith(1)
   expect(mocks.error).toHaveBeenCalledWith('Curriculum has learner files')
   expect(container.textContent).toContain('Python')
@@ -336,16 +340,17 @@ it('does not intercept shortcuts already handled or while a modal is open', asyn
 })
 it('closes the curriculum menu on Escape and outside pointer down', async () => {
   await renderAt('/admin/content?curriculum=1&pane=detail')
-  const summary = container.querySelector<HTMLElement>('summary[aria-label="More curriculum actions"]')!
-  const menu = summary.parentElement as HTMLDetailsElement
-  menu.open = true
+  const trigger = container.querySelector<HTMLButtonElement>('button[aria-label="More curriculum actions"]')!
+  await act(async () => trigger.click())
+  expect(container.querySelector('[role="menu"]')).not.toBeNull()
+  expect(container.querySelector('[role="menu"]')?.textContent).not.toContain('Learner files')
   await act(async () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
-  expect(menu.open).toBe(false)
-  expect(document.activeElement).toBe(summary)
-  menu.open = true
+  expect(container.querySelector('[role="menu"]')).toBeNull()
+  expect(document.activeElement).toBe(trigger)
+  await act(async () => trigger.click())
+  expect(container.querySelector('[role="menu"]')).not.toBeNull()
   await act(async () => container.dispatchEvent(new Event('pointerdown', { bubbles: true })))
-  expect(menu.open).toBe(false)
-  expect(menu.textContent).not.toContain('Learner files')
+  expect(container.querySelector('[role="menu"]')).toBeNull()
 })
 it('resets explicit view choice when choosing a different curriculum', async () => {
   mocks.getCurricula.mockResolvedValue({ data: { curricula: [

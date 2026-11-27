@@ -438,11 +438,11 @@ a {
 
 @layer components {
   .app-page {
-    @apply mx-auto w-full max-w-6xl space-y-6 pb-20 lg:space-y-8 lg:pb-8;
+    @apply mx-auto w-full max-w-6xl space-y-6 pb-4 lg:space-y-8 lg:pb-8;
   }
 
   .app-page-wide {
-    @apply mx-auto w-full max-w-[1500px] space-y-6 pb-20 lg:space-y-8 lg:pb-8;
+    @apply mx-auto w-full max-w-[1500px] space-y-6 pb-4 lg:space-y-8 lg:pb-8;
   }
 
   /* One eyebrow per page header: 12px/600, 0.08em, secondary text, never red. */

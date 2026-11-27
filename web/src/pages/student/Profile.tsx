@@ -309,7 +309,10 @@ export function Profile() {
                 Retry
               </Button>
             ) : (
-              <span role="status" className="min-h-11 shrink-0 px-2 py-3 text-xs font-semibold text-ink-muted">Loading…</span>
+              <span role="status" className="inline-flex h-11 w-12 shrink-0 items-center justify-center">
+                <span className="sr-only">Loading…</span>
+                <span aria-hidden="true" className="h-7 w-12 animate-pulse rounded-full border border-line bg-surface-sunken motion-reduce:animate-none" />
+              </span>
             )
           ) : (
             <PreferenceSwitch v2={v2} checked={emailNotificationsEnabled} label="Message emails" busy={savingNotifications} onToggle={toggleEmailNotifications} />
@@ -327,7 +330,10 @@ export function Profile() {
             {pushConfig ? (
               <PreferenceSwitch v2={v2} checked={browserAlerts.pushEnabled} label="Browser alerts" onToggle={() => void browserAlerts.handleTogglePush()} />
             ) : notificationPreferenceError ? null : (
-              <span role="status" className="min-h-11 shrink-0 px-2 py-3 text-xs font-semibold text-ink-muted">Loading…</span>
+              <span role="status" className="inline-flex h-11 w-12 shrink-0 items-center justify-center">
+                <span className="sr-only">Loading…</span>
+                <span aria-hidden="true" className="h-7 w-12 animate-pulse rounded-full border border-line bg-surface-sunken motion-reduce:animate-none" />
+              </span>
             )}
           </div>
           {browserAlerts.pushMessage && <p role="status" className="mt-3 text-sm leading-6 text-ink-secondary sm:pl-[3.25rem]">{browserAlerts.pushMessage}</p>}

@@ -130,7 +130,21 @@ export function NotificationInbox() {
       })}
     </div>
     {error && <div role="alert" className="app-surface p-4 text-danger-ink">{error}<Button variant="secondary" onClick={() => void load()}>Retry</Button></div>}
-    {loading && <p role="status" className="text-sm text-ink-secondary">Loading notifications…</p>}
+    {loading && (
+      <div role="status" aria-live="polite" className="space-y-2">
+        <span className="sr-only">Loading notifications…</span>
+        {[0, 1, 2].map((item) => (
+          <div key={item} aria-hidden="true" className="flex items-start gap-3 rounded-2xl border border-line bg-surface-raised p-3 sm:p-4">
+            <div className="mt-1.5 h-9 w-9 shrink-0 animate-pulse rounded-xl bg-surface-sunken motion-reduce:animate-none" />
+            <div className="min-w-0 flex-1 space-y-2 py-1">
+              <div className="h-4 w-48 max-w-full animate-pulse rounded-full bg-line motion-reduce:animate-none" />
+              <div className="h-3.5 w-full max-w-md animate-pulse rounded-full bg-surface-sunken motion-reduce:animate-none" />
+              <div className="h-3 w-24 animate-pulse rounded-full bg-surface-sunken motion-reduce:animate-none" />
+            </div>
+          </div>
+        ))}
+      </div>
+    )}
     {!loading && !error && !visibleNotifications.length && <div className="app-surface p-6"><h2 className="font-semibold text-ink">{category === 'all' ? 'You’re all caught up' : 'No matching notifications'}</h2><p className="mt-2 text-sm text-ink-secondary">{category === 'all' ? 'Class activity and messages will appear here.' : 'Switch back to All to see every notification.'}</p></div>}
     <div className="space-y-2" aria-busy={loading}>
       {!loading && visibleNotifications.map((item, index) => {

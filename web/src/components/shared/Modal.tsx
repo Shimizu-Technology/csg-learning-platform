@@ -173,7 +173,7 @@ export function Modal({ open, onClose, title, subtitle, icon, children, footer, 
         aria-labelledby={titleId}
         aria-describedby={subtitle ? subtitleId : undefined}
         tabIndex={-1}
-        className={variant === 'drawer' ? `lesson-outline-drawer flex h-dvh w-full max-w-md flex-col overflow-hidden bg-surface-overlay shadow-overlay outline-none` : `app-modal flex w-full flex-col ${sizeMap[size]} max-h-[92dvh] overflow-hidden rounded-t-3xl bg-surface-raised pb-[env(safe-area-inset-bottom,0px)] shadow-overlay outline-none sm:max-h-[84dvh] sm:rounded-2xl sm:pb-0`}
+        className={variant === 'drawer' ? `lesson-outline-drawer flex h-dvh w-full max-w-md flex-col overflow-hidden bg-surface-overlay shadow-overlay outline-none` : `app-modal flex w-full flex-col ${sizeMap[size]} max-h-[92dvh] overflow-hidden rounded-t-3xl bg-surface-overlay pb-[env(safe-area-inset-bottom,0px)] shadow-overlay outline-none sm:max-h-[84dvh] sm:rounded-2xl sm:pb-0`}
       >
         <div className="flex shrink-0 items-start justify-between gap-4 border-b border-line px-5 py-4 sm:px-6">
           <div className="flex items-center gap-3 min-w-0">

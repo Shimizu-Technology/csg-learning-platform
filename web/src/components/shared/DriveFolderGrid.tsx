@@ -67,7 +67,7 @@ export function DriveFolderGrid({
               aria-pressed={selected}
               className={`group flex min-h-14 items-center gap-3 rounded-2xl border px-3.5 py-3 text-left transition-all duration-150 ${
                 dropping
-                  ? 'border-primary bg-primary-soft shadow-raised ring-2 ring-focus'
+                  ? 'border-action-primary bg-primary-soft shadow-raised ring-2 ring-focus'
                   : selected
                     ? 'border-primary-soft-line bg-primary-soft/60 text-ink shadow-raised'
                     : 'border-line bg-surface-raised text-ink hover:border-line-strong hover:bg-surface-sunken'

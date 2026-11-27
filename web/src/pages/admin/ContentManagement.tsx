@@ -1,13 +1,13 @@
 import { AuthoringCloneDialog } from './AuthoringCloneDialog'
 import { LessonRow, SequenceLessons, type Lesson } from './contentStudio/LessonTable'
 import { flushSync } from 'react-dom'
-import { CurriculumStatusActions, ModuleActions, StructureEditor } from './StructureActions'
+import { CurriculumActionsMenu, ModuleActions, StructureEditor } from './StructureActions'
 import { useEffect, useState, useMemo, useRef } from 'react'
 import { applyUrlPatch, urlParsers, useUrlState } from '../../lib/useUrlState'
 import { listLinkState, useListScrollMemory } from '../../lib/navigationContext'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Archive, ChevronDown, ChevronRight, Eye, Layers3, Plus, RotateCcw, Upload, MoreHorizontal } from 'lucide-react'
+import { Archive, ChevronDown, ChevronRight, Eye, Layers3, Plus, RotateCcw, Upload } from 'lucide-react'
 import { api } from '../../lib/api'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { NewExerciseModal } from './NewExerciseModal'
@@ -22,7 +22,7 @@ import { useUpload } from '../../contexts/UploadContext'
 import { useToast } from '../../contexts/ToastContext'
 import { useAuthContext } from '../../contexts/AuthContext'
 import { Button, LinkButton } from '../../components/ui/Button'
-import { TabButton, TextButton } from '../../components/ui/Choice'
+import { FilterChip, SegmentButton, SegmentedControl, TabButton, TextButton } from '../../components/ui/Choice'
 import { Collapse, TabList, TabPanel } from '../../components/ui/Motion'
 import { Badge } from '../../components/ui/Badge'
 import { gradingScaleLabel } from '../../lib/gradingScale'
@@ -112,7 +112,6 @@ export function ContentManagement() {
   const detailRequest = useRef<AbortController | null>(null)
   const currentId = useRef<number | undefined>(undefined)
   const focusedId = useRef<number | undefined>(undefined)
-  const actionsRef = useRef<HTMLDetailsElement>(null)
   const [selected, setSelected] = useState<Curriculum | null>(null)
   const [searchResults, setSearchResults] = useState<{ title: string; path: string; type: string }[]>([])
   const [searchError, setSearchError] = useState('')
@@ -261,22 +260,6 @@ export function ContentManagement() {
       }, { replace: true })
     }
   }, [selectedId, selected, detailLoading, location, hashId, navigate])
-  useEffect(() => {
-    const close = (event: Event) => {
-      const menu = actionsRef.current
-      if (!menu?.open) return
-      if (event instanceof KeyboardEvent && event.key === 'Escape') {
-        menu.open = false
-        menu.querySelector('summary')?.focus()
-      } else if (event.type === 'pointerdown' && !menu.contains(event.target as Node)) menu.open = false
-    }
-    document.addEventListener('keydown', close)
-    document.addEventListener('pointerdown', close)
-    return () => {
-      document.removeEventListener('keydown', close)
-      document.removeEventListener('pointerdown', close)
-    }
-  }, [])
   useEffect(() => {
     setSearchResults([])
     setSearchError('')
@@ -527,16 +510,16 @@ export function ContentManagement() {
               onChange={(e) => setUrlState({ q: e.target.value }, { history: 'replace' })}
             />
           </label>
-          <div role="group" aria-label="Curriculum status" className="my-3 flex flex-wrap gap-1">
+          <div role="group" aria-label="Curriculum status" className="my-3 flex flex-wrap gap-1.5">
             {(['all', 'active', 'draft', 'archived'] as const).map((status) => (
-              <Button
+              <FilterChip
                 key={status}
-                variant={url.status === status ? 'primary' : 'quiet'}
-                aria-pressed={url.status === status}
+                dense
+                selected={url.status === status}
                 onClick={() => setUrlState({ status })}
               >
                 {status.charAt(0).toUpperCase() + status.slice(1)}
-              </Button>
+              </FilterChip>
             ))}
           </div>
           <label className="block text-sm">
@@ -707,18 +690,9 @@ export function ContentManagement() {
                     <p className="mt-2 text-sm text-ink-secondary">{curriculum.description}</p>
                   )}
                   {canManageModules && (
-                    <div className="mt-3 flex flex-wrap gap-2">
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
                       <StructureEditor record={curriculum} kind="curriculum" onSaved={loadCurricula} />
-                      <details ref={actionsRef} className="relative">
-                        <summary
-                          className="flex min-h-11 cursor-pointer items-center rounded-xl border border-line px-4"
-                          aria-label="More curriculum actions"
-                        ><MoreHorizontal aria-hidden="true" className="h-4 w-4" /></summary>
-                        <div className="absolute right-0 z-10 mt-1 flex w-64 flex-wrap gap-2 rounded-xl border border-line bg-surface-raised p-3 shadow-raised">
-                          <CurriculumStatusActions curriculum={curriculum} onSaved={loadCurricula} />
-                          <Button variant="danger" onClick={() => void deleteCurriculum(curriculum)}>Delete curriculum</Button>
-                        </div>
-                      </details>
+                      <CurriculumActionsMenu curriculum={curriculum} onSaved={loadCurricula} onDelete={() => void deleteCurriculum(curriculum)} />
                     </div>
                   )}
                 </div>
@@ -736,18 +710,18 @@ export function ContentManagement() {
                       {co.name}
                     </Link>
                   ))}
-                  <div role="group" aria-label="Outline view" className="flex gap-1">
+                  <SegmentedControl label="Outline view">
                     {(['sequence', 'calendar'] as const).map((view) => (
-                      <Button
+                      <SegmentButton
                         key={view}
-                        variant={(sequence ? 'sequence' : 'calendar') === view ? 'primary' : 'quiet'}
-                        aria-pressed={(sequence ? 'sequence' : 'calendar') === view}
+                        dense
+                        selected={(sequence ? 'sequence' : 'calendar') === view}
                         onClick={() => setUrlState({ view })}
                       >
                         {view === 'sequence' ? 'Sequence' : 'Calendar'}
-                      </Button>
+                      </SegmentButton>
                     ))}
-                  </div>
+                  </SegmentedControl>
                   <label className="w-full text-sm">
                     Search modules and lessons
                     <input
@@ -1135,7 +1109,7 @@ function ModuleSection({
             </div>
           ) : (
             <>
-              <p className="mb-2 text-xs text-ink-muted">Scroll for more weeks →</p>
+              {weekNumbers.length > 1 && <p className="mb-2 text-xs text-ink-muted">Scroll for more weeks →</p>}
               <TabList
                 label={`${mod.name} weeks`}
                 className="flex items-center gap-1 border-b border-line mb-4 overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0"

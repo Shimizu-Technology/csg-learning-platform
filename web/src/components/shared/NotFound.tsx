@@ -10,7 +10,7 @@ export function NotFound() { return <StatusPage variant="not-found" /> }
 
 export function NotFoundRoute() {
   const { isLoading, isSignedIn, accessDenied } = useAuthContext()
-  if (isLoading) return <LoadingSpinner message="Loading..." />
+  if (isLoading) return <LoadingSpinner message="Loading..." fullScreen />
   if (isSignedIn && !accessDenied) {
     return <ProtectedRoute><Layout><NotFound /></Layout></ProtectedRoute>
   }

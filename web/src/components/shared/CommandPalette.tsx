@@ -229,8 +229,8 @@ export function CommandPalette({ open, isStaff, onClose }: CommandPaletteProps) 
     onClose()
   }
   if (!open) return null
-  return createPortal(<div className="fixed inset-0 z-[100] flex items-start justify-center bg-scrim px-3 pt-[8vh]" onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
-    <section role="dialog" aria-modal="true" aria-label="Search and go" className="w-full max-w-2xl overflow-hidden rounded-2xl border border-line bg-surface-raised shadow-overlay" onKeyDown={event => {
+  return createPortal(<div className="fixed inset-0 z-[100] flex items-start justify-center bg-scrim p-2 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-3 sm:pt-[8vh]" onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
+    <section role="dialog" aria-modal="true" aria-label="Search and go" className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-line bg-surface-overlay shadow-overlay sm:max-h-[82dvh]" onKeyDown={event => {
       if (event.key === 'Escape') { event.preventDefault(); onClose() }
       if (event.key === 'Tab') {
         const focusable = [...event.currentTarget.querySelectorAll<HTMLElement>('input, button')]
@@ -240,12 +240,12 @@ export function CommandPalette({ open, isStaff, onClose }: CommandPaletteProps) 
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); setSelected(results.length ? (selectedIndex + (event.key === 'ArrowDown' ? 1 : -1) + results.length) % results.length : 0) }
       if (event.key === 'Enter' && event.target === input.current && results[selectedIndex]) { event.preventDefault(); (list.current?.querySelector(`[data-index="${selectedIndex}"]`) as HTMLAnchorElement)?.click() }
     }}>
-      <div className="flex min-h-16 items-center gap-3 border-b border-line px-4">
+      <div className="flex min-h-14 shrink-0 items-center gap-3 border-b border-line px-4 sm:min-h-16">
         <Search className="h-5 w-5 shrink-0 text-ink-muted" aria-hidden="true" />
         <input ref={input} value={query} onChange={e => setQuery(e.target.value)} role="combobox" aria-expanded="true" aria-autocomplete="list" aria-controls="command-palette-results" aria-activedescendant={results[selectedIndex] ? `command-${selectedIndex}` : undefined} placeholder="Search files, lessons, messages, people, and pages…" aria-label="Search and go" className="min-h-14 min-w-0 flex-1 bg-transparent text-base text-ink outline-none" />
         <IconButton label="Close search" onClick={onClose}><X className="h-5 w-5" /></IconButton>
       </div>
-      <div className="flex flex-wrap items-center gap-1.5 border-b border-line bg-surface-sunken/40 px-4 py-2" role="group" aria-label="Filter search results">
+      <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-line bg-surface-sunken/40 px-4 py-2" role="group" aria-label="Filter search results">
         {FILTER_OPTIONS.map((option) => {
           const active = category === option.value
           return (
@@ -254,15 +254,15 @@ export function CommandPalette({ open, isStaff, onClose }: CommandPaletteProps) 
               type="button"
               aria-pressed={active}
               onClick={() => setCategory(option.value)}
-              className={`inline-flex min-h-8 items-center rounded-full border px-3 text-xs font-semibold transition-colors ${active ? 'border-primary-soft-line bg-primary-soft text-primary-ink' : 'border-line bg-surface-raised text-ink-secondary hover:border-line-strong hover:text-ink'}`}
+              className={`inline-flex min-h-11 items-center rounded-full border px-3 text-xs font-semibold transition-colors sm:min-h-8 ${active ? 'border-primary-soft-line bg-primary-soft text-primary-ink' : 'border-line bg-surface-raised text-ink-secondary hover:border-line-strong hover:text-ink'}`}
             >
               {option.label}
             </button>
           )
         })}
       </div>
-      <div aria-live="polite" className="text-sm text-ink-secondary">{!loading && !error && <p className="sr-only">{results.length} results available</p>}{loading && <p className="px-4 py-2">Searching…</p>}{partial && <p className="px-4 py-2">Some results took too long. Showing what we found.</p>}{error && <p role="alert" className="px-4 py-2">{error}</p>}</div>
-      <div ref={list} id="command-palette-results" role="listbox" aria-label="Search results" className="max-h-[56vh] overflow-y-auto p-2">
+      <div aria-live="polite" className="shrink-0 text-sm text-ink-secondary">{!loading && !error && <p className="sr-only">{results.length} results available</p>}{loading && <p className="px-4 py-2">Searching…</p>}{partial && <p className="px-4 py-2">Some results took too long. Showing what we found.</p>}{error && <p role="alert" className="px-4 py-2">{error}</p>}</div>
+      <div ref={list} id="command-palette-results" role="listbox" aria-label="Search results" className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2 sm:max-h-[56dvh]">
         {!results.length && !loading && <p className="px-3 py-8 text-center text-sm text-ink-secondary">{category !== 'all' ? 'No results in this category. Switch to All to broaden your search.' : query.trim().length < 2 ? 'Type at least two characters to search your files, learning, and conversations.' : 'No results. Try a name, handle, file title, or different words.'}</p>}
         {results.map((item, index) => {
           const Icon = itemIcon(item.kind)
@@ -292,7 +292,7 @@ export function CommandPalette({ open, isStaff, onClose }: CommandPaletteProps) 
           )
         })}
       </div>
-      <footer className="border-t border-line px-4 py-2 text-xs text-ink-secondary">↑↓ to choose · Enter to open · Esc to close</footer>
+      <footer className="hidden shrink-0 border-t border-line px-4 py-2 text-xs text-ink-secondary sm:block">↑↓ to choose · Enter to open · Esc to close</footer>
     </section>
   </div>, document.body)
 }

@@ -118,11 +118,15 @@ export function CohortFileRow({ cohortId, file, badges, actions, note, downloadD
               aria-checked={selected}
               aria-label={`Select ${file.title}`}
               onClick={() => onToggleSelect(file.id)}
-              className={`mt-2 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-colors ${
-                selected ? 'border-primary bg-primary text-on-primary' : 'border-line-strong bg-surface-raised text-transparent hover:border-ink-muted'
-              }`}
+              className="-ml-2 -mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl lg:ml-0 lg:mt-1.5 lg:h-7 lg:w-7"
             >
-              <Check className="h-3.5 w-3.5" aria-hidden="true" />
+              <span
+                className={`flex h-5 w-5 items-center justify-center rounded-md border transition-colors ${
+                  selected ? 'border-action-primary bg-action-primary text-on-action' : 'border-line-strong bg-surface-raised text-transparent hover:border-ink-muted'
+                }`}
+              >
+                <Check className="h-3.5 w-3.5" aria-hidden="true" />
+              </span>
             </button>
           )}
           <span className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${driveToneSurface(visual.tone)}`}>

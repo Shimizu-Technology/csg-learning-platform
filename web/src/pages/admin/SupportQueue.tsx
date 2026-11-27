@@ -4,7 +4,7 @@ import { PreviewLink as Link } from '../../contexts/PreviewNavigationContext'
 import { useCohortContext } from '../../contexts/CohortContext'
 import { useState } from 'react'
 import { useLocation, useSearchParams } from 'react-router-dom'
-import { ArrowRight, CalendarClock, CheckCircle2, CircleHelp, ClipboardPlus, Clock3, LifeBuoy, MessageSquareReply, RefreshCw, ShieldAlert, UserRoundCheck, X } from 'lucide-react'
+import { ArrowRight, CalendarClock, CheckCircle2, ChevronDown, CircleHelp, ClipboardPlus, Clock3, LifeBuoy, MessageSquareReply, RefreshCw, ShieldAlert, UserRoundCheck, X } from 'lucide-react'
 import { api } from '../../lib/api'
 import { trimBlankLines } from '../../lib/messageFormat'
 import { useStaffResource } from '../../lib/useStaffResource'
@@ -198,15 +198,23 @@ export function SupportQueue() {
         {interventionsEnabled && queue.summary.due_recovery_check_in_count > 0 && <SummaryCard label="Return plan follow-ups due" value={queue.summary.due_recovery_check_in_count} icon={ClipboardPlus} tone="warning" />}
       </section>
 
-      {interventionsEnabled && <details key={queue.summary.due_follow_up_count > 0 ? "due" : "quiet"} open={queue.summary.due_follow_up_count > 0} aria-label="Follow-up plans" className="app-surface overflow-hidden">
-        <summary className="min-h-11 cursor-pointer px-5 py-4 text-sm font-semibold text-ink">{queue.interventions.length ? `${TERMS.followUpPlans} · ${queue.summary.active_intervention_count} active${queue.summary.due_follow_up_count ? ` · ${queue.summary.due_follow_up_count} due` : ""}` : "No open follow-up plans"}</summary>
-        <div className="flex flex-wrap items-end justify-between gap-3 border-b border-line px-5 py-4 sm:px-6"><div className="min-w-0"><p className="text-xs font-semibold text-ink-muted">Assigned to staff</p><h2 id="interventions-heading" className="mt-1 text-lg font-bold text-ink">{TERMS.followUpPlans}</h2><p className="mt-1 text-sm text-ink-muted">Every active plan has an owner, a next step, and a follow-up date.</p></div><Badge className="tabular-nums">{queue.summary.active_intervention_count} active</Badge></div>
-        {queue.interventions.length === 0 ? <p className="px-6 py-8 text-center text-sm text-ink-muted">No active follow-up plans. Start one from a student under Needs attention.</p> : <div className="divide-y divide-line">{queue.interventions.map((intervention) => <Link key={intervention.id} to={interventionPath(intervention.id, returnTo)} className={`group pressable grid min-h-11 gap-3 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_minmax(160px,0.6fr)_minmax(160px,0.7fr)_auto] sm:items-center sm:px-6 ${intervention.follow_up_due ? 'bg-warning-soft hover:bg-warning-soft' : 'hover:bg-surface-sunken'}`}><div className="flex min-w-0 items-center gap-3"><Avatar name={intervention.enrollment.student.full_name} size="sm" /><div className="min-w-0"><div className="flex min-w-0 flex-wrap items-center gap-2"><p className="min-w-0 max-w-full truncate font-semibold text-ink group-hover:underline" title={intervention.enrollment.student.full_name}>{intervention.enrollment.student.full_name}</p>{intervention.severity === 'urgent' && <Badge tone="danger">Urgent</Badge>}</div><p className="mt-0.5 truncate text-xs text-ink-muted" title={`${intervention.enrollment.cohort.name} · ${followUpLabel(intervention.trigger_type)}`}>{intervention.enrollment.cohort.name} · {followUpLabel(intervention.trigger_type)}</p></div></div><div className="min-w-0"><p className="text-xs font-semibold text-ink-muted">Owner</p><p className="mt-1 truncate text-sm font-semibold text-ink-secondary" title={intervention.owner.full_name}>{intervention.owner.full_name}</p></div><div>{intervention.follow_up_due ? <Badge tone="warning" icon={<CalendarClock className="h-3.5 w-3.5" aria-hidden="true" />}>Follow-up due</Badge> : <p className="text-xs font-semibold text-ink-muted">Next follow-up</p>}<p className="mt-1 text-sm font-semibold tabular-nums text-ink-secondary">{formatShortDateTime(intervention.next_follow_up_at)}</p></div><ArrowRight className="hidden h-4 w-4 text-ink-muted transition-colors duration-150 group-hover:text-ink sm:block" aria-hidden="true" /></Link>)}</div>}
+      {interventionsEnabled && <details key={queue.summary.due_follow_up_count > 0 ? "due" : "quiet"} open={queue.summary.due_follow_up_count > 0} aria-label="Follow-up plans" className="group app-surface overflow-hidden">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-sm font-semibold text-ink transition-colors duration-150 hover:bg-surface-sunken sm:px-6">
+          <span>{queue.interventions.length ? `${TERMS.followUpPlans} · ${queue.summary.active_intervention_count} active${queue.summary.due_follow_up_count ? ` · ${queue.summary.due_follow_up_count} due` : ""}` : "No open follow-up plans"}</span>
+          <ChevronDown className="h-4 w-4 shrink-0 text-ink-muted transition-transform duration-150 group-open:rotate-180" aria-hidden="true" />
+        </summary>
+        {queue.interventions.length === 0 ? <p className="border-t border-line px-6 py-8 text-center text-sm text-ink-muted">No active follow-up plans. Start one from a student under Needs attention.</p> : <>
+          <p className="border-y border-line bg-surface-sunken/50 px-5 py-2.5 text-xs text-ink-muted sm:px-6">Every active plan has an owner, a next step, and a follow-up date.</p>
+          <div className="divide-y divide-line">{queue.interventions.map((intervention) => <Link key={intervention.id} to={interventionPath(intervention.id, returnTo)} className={`group/row pressable grid min-h-11 gap-3 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_minmax(160px,0.6fr)_minmax(160px,0.7fr)_auto] sm:items-center sm:px-6 ${intervention.follow_up_due ? 'bg-warning-soft hover:bg-warning-soft' : 'hover:bg-surface-sunken'}`}><div className="flex min-w-0 items-center gap-3"><Avatar name={intervention.enrollment.student.full_name} size="sm" /><div className="min-w-0"><div className="flex min-w-0 flex-wrap items-center gap-2"><p className="min-w-0 max-w-full truncate font-semibold text-ink group-hover/row:underline" title={intervention.enrollment.student.full_name}>{intervention.enrollment.student.full_name}</p>{intervention.severity === 'urgent' && <Badge tone="danger">Urgent</Badge>}</div><p className="mt-0.5 truncate text-xs text-ink-muted" title={`${intervention.enrollment.cohort.name} · ${followUpLabel(intervention.trigger_type)}`}>{intervention.enrollment.cohort.name} · {followUpLabel(intervention.trigger_type)}</p></div></div><div className="min-w-0"><p className="text-xs font-semibold text-ink-muted">Owner</p><p className="mt-1 truncate text-sm font-semibold text-ink-secondary" title={intervention.owner.full_name}>{intervention.owner.full_name}</p></div><div>{intervention.follow_up_due ? <Badge tone="warning" icon={<CalendarClock className="h-3.5 w-3.5" aria-hidden="true" />}>Follow-up due</Badge> : <p className="text-xs font-semibold text-ink-muted">Next follow-up</p>}<p className="mt-1 text-sm font-semibold tabular-nums text-ink-secondary">{formatShortDateTime(intervention.next_follow_up_at)}</p></div><ArrowRight className="hidden h-4 w-4 text-ink-muted transition-colors duration-150 group-hover/row:text-ink sm:block" aria-hidden="true" /></Link>)}</div>
+        </>}
       </details>}
 
-      {interventionsEnabled && <details key={queue.summary.due_recovery_check_in_count > 0 ? 'recovery-due' : 'recovery-quiet'} open={queue.summary.due_recovery_check_in_count > 0} className="app-surface overflow-hidden">
-        <summary className="min-h-11 cursor-pointer px-5 py-4 text-sm font-semibold text-ink">{queue.recovery_plans.length ? `Return plans · ${queue.recovery_plans.length}${queue.summary.due_recovery_check_in_count ? ` · ${queue.summary.due_recovery_check_in_count} follow-ups due` : ''}` : 'No active return plans'}</summary>
-        <div className="divide-y divide-line">{queue.recovery_plans.map((plan) => <Link key={plan.id} to={plan.intervention_id ? interventionPath(plan.intervention_id, returnTo) : cohortStudentPath(plan.enrollment.cohort.id, plan.enrollment.student.id, 'support')} state={{ returnTo, returnLabel: 'Support' }} className={`flex min-h-11 flex-wrap items-center justify-between gap-3 px-5 py-4 ${plan.check_in_due ? 'bg-warning-soft' : ''}`}><span className="font-semibold text-ink">{plan.enrollment.student.full_name} · {plan.target_pace}</span><span className="text-sm text-ink-secondary">{plan.check_in_due ? 'Follow-up due · ' : 'Next follow-up · '}{formatShortDateTime(plan.next_check_in_at)}</span></Link>)}</div>
+      {interventionsEnabled && <details key={queue.summary.due_recovery_check_in_count > 0 ? 'recovery-due' : 'recovery-quiet'} open={queue.summary.due_recovery_check_in_count > 0} className="group app-surface overflow-hidden">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-sm font-semibold text-ink transition-colors duration-150 hover:bg-surface-sunken sm:px-6">
+          <span>{queue.recovery_plans.length ? `Return plans · ${queue.recovery_plans.length}${queue.summary.due_recovery_check_in_count ? ` · ${queue.summary.due_recovery_check_in_count} follow-ups due` : ''}` : 'No active return plans'}</span>
+          <ChevronDown className="h-4 w-4 shrink-0 text-ink-muted transition-transform duration-150 group-open:rotate-180" aria-hidden="true" />
+        </summary>
+        {queue.recovery_plans.length === 0 ? <p className="border-t border-line px-6 py-8 text-center text-sm text-ink-muted">No active return plans right now.</p> : <div className="divide-y divide-line border-t border-line">{queue.recovery_plans.map((plan) => <Link key={plan.id} to={plan.intervention_id ? interventionPath(plan.intervention_id, returnTo) : cohortStudentPath(plan.enrollment.cohort.id, plan.enrollment.student.id, 'support')} state={{ returnTo, returnLabel: 'Support' }} className={`flex min-h-11 flex-wrap items-center justify-between gap-3 px-5 py-4 transition-colors duration-150 hover:bg-surface-sunken sm:px-6 ${plan.check_in_due ? 'bg-warning-soft' : ''}`}><span className="font-semibold text-ink">{plan.enrollment.student.full_name} · {plan.target_pace}</span><span className="text-sm tabular-nums text-ink-secondary">{plan.check_in_due ? 'Follow-up due · ' : 'Next follow-up · '}{formatShortDateTime(plan.next_check_in_at)}</span></Link>)}</div>}
       </details>}
 
       <section aria-labelledby="requests-heading" className="space-y-3">
@@ -221,7 +229,7 @@ export function SupportQueue() {
           </div>
         ) : filteredRequests.map((request) => (
           <article key={request.id} className={`overflow-hidden rounded-2xl border bg-surface-raised shadow-raised ${request.urgency === 'urgent' ? 'border-danger-line' : 'border-line'}`}>
-            <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start lg:p-6">
+            <div className="p-5 lg:p-6">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   {request.urgency === 'urgent' && <Badge tone="danger" icon={<ShieldAlert className="h-3.5 w-3.5" aria-hidden="true" />}>Urgent</Badge>}
@@ -257,12 +265,12 @@ export function SupportQueue() {
                   </div>
                 )}
               </div>
-              <div className="flex flex-wrap gap-2 lg:w-44 lg:flex-col">
-                {/* Reply, Reply & resolve, I'm on it (while still open), the request, and its lesson above. */}
-                <Button fullWidth onClick={() => void openReply(request, 'reply')} disabled={savingId === request.id} aria-expanded={replying?.id === request.id}><MessageSquareReply className="h-4 w-4" aria-hidden="true" />Reply</Button>
-                <Button variant="secondary" fullWidth onClick={() => void openReply(request, 'resolve')} disabled={savingId === request.id}><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Reply & resolve</Button>
-                {request.status === 'open' && <Button variant="secondary" fullWidth onClick={() => void acknowledge(request)} disabled={acknowledging.has(request.id) || savingId === request.id} aria-label={`I'm on it: let ${request.student?.full_name || 'the student'} know you are looking`}><UserRoundCheck className="h-4 w-4" aria-hidden="true" />{acknowledging.has(request.id) ? 'Marking…' : "I'm on it"}</Button>}
-                <LinkButton to={helpRequestPath(request.id, returnTo)} variant="quiet" fullWidth>Open request <ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>
+              <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-4">
+                {/* Reply, Reply & resolve, I'm on it (while still open), and Open request. */}
+                <Button size="sm" onClick={() => void openReply(request, 'reply')} disabled={savingId === request.id} aria-expanded={replying?.id === request.id}><MessageSquareReply className="h-4 w-4" aria-hidden="true" />Reply</Button>
+                <Button variant="secondary" size="sm" onClick={() => void openReply(request, 'resolve')} disabled={savingId === request.id}><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Reply & resolve</Button>
+                {request.status === 'open' && <Button variant="secondary" size="sm" onClick={() => void acknowledge(request)} disabled={acknowledging.has(request.id) || savingId === request.id} aria-label={`I'm on it: let ${request.student?.full_name || 'the student'} know you are looking`}><UserRoundCheck className="h-4 w-4" aria-hidden="true" />{acknowledging.has(request.id) ? 'Marking…' : "I'm on it"}</Button>}
+                <LinkButton to={helpRequestPath(request.id, returnTo)} variant="quiet" size="sm" className="sm:ml-auto">Open request <ArrowRight className="h-4 w-4" aria-hidden="true" /></LinkButton>
               </div>
             </div>
           </article>
@@ -283,8 +291,11 @@ export function SupportQueue() {
       </section>
 
       {view === 'active' && queue.recently_resolved.length > 0 && (
-        <details className="app-surface overflow-hidden">
-          <summary className="min-h-11 cursor-pointer px-5 py-4 text-sm font-semibold tabular-nums text-ink transition-colors duration-150 hover:bg-surface-sunken sm:px-6">Recently resolved · {queue.recently_resolved.length}</summary>
+        <details className="group app-surface overflow-hidden">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-sm font-semibold tabular-nums text-ink transition-colors duration-150 hover:bg-surface-sunken sm:px-6">
+            <span>Recently resolved · {queue.recently_resolved.length}</span>
+            <ChevronDown className="h-4 w-4 shrink-0 text-ink-muted transition-transform duration-150 group-open:rotate-180" aria-hidden="true" />
+          </summary>
           <div className="divide-y divide-line border-t border-line">
             {queue.recently_resolved.map((request) => (
               <Link to={helpRequestPath(request.id, returnTo)} key={request.id} className="pressable grid min-h-11 gap-2 px-5 py-4 text-sm hover:bg-surface-sunken sm:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_auto] sm:px-6">
