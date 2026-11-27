@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getNetworkStateAsync } from 'expo-network';
 import { useRouter, type Href } from 'expo-router';
 import { Calendar, ExternalLink, Link2, MessageSquare, Video, XCircle } from 'lucide-react-native';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Linking, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { MeetingButton } from '@/components/private-meetings';
@@ -57,6 +57,22 @@ export function StaffPrivateMeetings({
   const [editingBooking, setEditingBooking] = useState<StaffMeetingBooking | null>(null);
   const [zoomDraft, setZoomDraft] = useState('');
   const [messagingId, setMessagingId] = useState<number | null>(null);
+  const [openingEditorId, setOpeningEditorId] = useState<number | null>(null);
+  const [savingZoom, setSavingZoom] = useState(false);
+  const [cancelingId, setCancelingId] = useState<number | null>(null);
+
+  const mountedRef = useRef(true);
+  const openingEditorRef = useRef(false);
+  const savingZoomRef = useRef(false);
+  const cancelingRef = useRef(false);
+  const messagingRef = useRef(false);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const updateMutation = useMutation({
     mutationFn: ({ bookingId, input }: { bookingId: number; input: { zoom_url?: string | null; status?: 'canceled' } }) =>
@@ -101,25 +117,46 @@ export function StaffPrivateMeetings({
     return true;
   };
 
-  const openZoomEditor = (booking: StaffMeetingBooking) => {
-    if (!connected) return;
-    setEditingBooking(booking);
-    setZoomDraft(booking.zoom_url || '');
+  const sheetBusy = savingZoom || updateMutation.isPending;
+  const actionBusy = !connected || sheetBusy || cancelingId !== null || openingEditorId !== null;
+
+  const openZoomEditor = async (booking: StaffMeetingBooking) => {
+    if (openingEditorRef.current || savingZoomRef.current || cancelingRef.current || updateMutation.isPending) return;
+    openingEditorRef.current = true;
+    setOpeningEditorId(booking.id);
+    try {
+      if (!(await ensureOnline()) || !mountedRef.current) return;
+      setEditingBooking(booking);
+      setZoomDraft(booking.zoom_url || '');
+    } finally {
+      openingEditorRef.current = false;
+      if (mountedRef.current) setOpeningEditorId(null);
+    }
   };
 
   const saveZoom = async () => {
-    if (!editingBooking || updateMutation.isPending) return;
+    const booking = editingBooking;
+    if (!booking || savingZoomRef.current || updateMutation.isPending) return;
     const trimmed = zoomDraft.trim();
     if (trimmed && !safeExternalUrl(trimmed)) {
       Alert.alert('Invalid link', 'Enter an https:// meeting URL, or leave it blank to clear the link.');
       return;
     }
-    if (!(await ensureOnline())) return;
-    updateMutation.mutate({ bookingId: editingBooking.id, input: { zoom_url: trimmed || null } });
+    savingZoomRef.current = true;
+    setSavingZoom(true);
+    try {
+      if (!(await ensureOnline()) || !mountedRef.current) return;
+      await updateMutation.mutateAsync({ bookingId: booking.id, input: { zoom_url: trimmed || null } });
+    } catch {
+      // Alert is handled by updateMutation.onError.
+    } finally {
+      savingZoomRef.current = false;
+      if (mountedRef.current) setSavingZoom(false);
+    }
   };
 
   const confirmCancel = (booking: StaffMeetingBooking) => {
-    if (!connected) return;
+    if (!connected || cancelingRef.current || savingZoomRef.current || updateMutation.isPending) return;
     Alert.alert(
       `Cancel meeting with ${booking.student_name}?`,
       'The learner will be notified and their slot will be released.',
@@ -130,9 +167,19 @@ export function StaffPrivateMeetings({
           style: 'destructive',
           onPress: () => {
             void (async () => {
-              if (!(await ensureOnline())) return;
-              haptic('destructive');
-              updateMutation.mutate({ bookingId: booking.id, input: { status: 'canceled' } });
+              if (cancelingRef.current || savingZoomRef.current || updateMutation.isPending) return;
+              cancelingRef.current = true;
+              setCancelingId(booking.id);
+              try {
+                if (!(await ensureOnline()) || !mountedRef.current) return;
+                haptic('destructive');
+                await updateMutation.mutateAsync({ bookingId: booking.id, input: { status: 'canceled' } });
+              } catch {
+                // Alert is handled by updateMutation.onError.
+              } finally {
+                cancelingRef.current = false;
+                if (mountedRef.current) setCancelingId(null);
+              }
             })();
           },
         },
@@ -141,16 +188,21 @@ export function StaffPrivateMeetings({
   };
 
   const messageStudent = async (booking: StaffMeetingBooking) => {
-    if (messagingId !== null) return;
-    if (!(await ensureOnline())) return;
+    if (messagingRef.current) return;
+    messagingRef.current = true;
     setMessagingId(booking.id);
     try {
+      if (!(await ensureOnline()) || !mountedRef.current) return;
       const response = await api.createCohortDm(booking.cohort_id, [booking.student_id]);
+      if (!mountedRef.current) return;
       router.push(`/conversation/dm/${response.direct_conversation.id}` as Href);
     } catch (error) {
-      Alert.alert('Could not open conversation', (error as Error).message || 'Try again.');
+      if (mountedRef.current) {
+        Alert.alert('Could not open conversation', (error as Error).message || 'Try again.');
+      }
     } finally {
-      setMessagingId(null);
+      messagingRef.current = false;
+      if (mountedRef.current) setMessagingId(null);
     }
   };
 
@@ -192,9 +244,9 @@ export function StaffPrivateMeetings({
           cohort={cohort}
           targetBookingId={targetBookingId}
           connected={connected}
-          busy={updateMutation.isPending || !connected}
+          busy={actionBusy}
           messagingId={messagingId}
-          onEditZoom={openZoomEditor}
+          onEditZoom={(booking) => void openZoomEditor(booking)}
           onCancel={confirmCancel}
           onMessage={(booking) => void messageStudent(booking)}
         />
@@ -239,7 +291,7 @@ export function StaffPrivateMeetings({
         title="Meeting link"
         subtitle={editingBooking ? `${editingBooking.student_name} · Week ${editingBooking.week_number}` : undefined}
         onClose={() => {
-          if (!updateMutation.isPending) setEditingBooking(null);
+          if (!sheetBusy) setEditingBooking(null);
         }}
       >
         <View style={styles.sheetBody}>
@@ -247,6 +299,7 @@ export function StaffPrivateMeetings({
           <TextInput
             keyboardAppearance={scheme}
             accessibilityLabel="Meeting URL"
+            editable={!sheetBusy}
             value={zoomDraft}
             onChangeText={setZoomDraft}
             autoCapitalize="none"
@@ -260,14 +313,14 @@ export function StaffPrivateMeetings({
             <Button
               variant="secondary"
               label="Cancel"
-              disabled={updateMutation.isPending}
+              disabled={sheetBusy}
               onPress={() => setEditingBooking(null)}
               style={styles.sheetButton}
             />
             <Button
               variant="primary"
-              label={updateMutation.isPending ? 'Saving…' : 'Save link'}
-              disabled={!connected || updateMutation.isPending}
+              label={sheetBusy ? 'Saving…' : 'Save link'}
+              disabled={!connected || sheetBusy}
               onPress={() => void saveZoom()}
               style={styles.sheetButton}
             />
@@ -372,7 +425,7 @@ function StaffCohortSection({
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={`Message ${booking.student_name}`}
-                  disabled={!connected || messagingId === booking.id}
+                  disabled={!connected || messagingId !== null}
                   onPress={() => onMessage(booking)}
                   style={styles.actionChip}
                 >

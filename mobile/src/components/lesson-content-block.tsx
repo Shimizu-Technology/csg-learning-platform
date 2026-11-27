@@ -375,7 +375,7 @@ function LessonVideo({ block, lesson, writesPaused }: { block: LessonContentBloc
 
   return (
     <LessonVideoPlayer
-      key={activeSource ?? activeVersionId ?? block.video_url ?? block.id}
+      key={`${block.id}:${activeVersionId ?? 'default'}:${activeSource ?? block.video_url ?? ''}`}
       block={block}
       lesson={lesson}
       writesPaused={writesPaused}

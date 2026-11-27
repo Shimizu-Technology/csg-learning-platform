@@ -1,8 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { getNetworkStateAsync } from 'expo-network';
 import type { ReactElement } from 'react';
 
 import { StaffPrivateMeetings } from '@/components/staff-private-meetings';
+import { sendsAboutLabel } from '@/lib/scheduled-updates';
 import { videoVersions } from '@/lib/video-versions';
 import { useCsgAuth } from '@/providers/auth-provider';
 import { useSession } from '@/providers/session-provider';
@@ -127,7 +129,8 @@ describe('Slice 4B high-value parity', () => {
     expect(screen.getByText('Meeting from your update')).toBeTruthy();
 
     fireEvent.press(screen.getByRole('button', { name: 'Edit link for Maya Cruz' }));
-    fireEvent.changeText(screen.getByLabelText('Meeting URL'), 'https://zoom.us/j/999');
+    const meetingUrlInput = await screen.findByLabelText('Meeting URL');
+    fireEvent.changeText(meetingUrlInput, 'https://zoom.us/j/999');
     fireEvent.press(screen.getByRole('button', { name: 'Save link' }));
 
     await waitFor(() =>
@@ -137,6 +140,69 @@ describe('Slice 4B high-value parity', () => {
     fireEvent.press(screen.getByRole('button', { name: 'Message Maya Cruz' }));
     await waitFor(() => expect(createCohortDm).toHaveBeenCalledWith(5, [21]));
     expect(mockPush).toHaveBeenCalledWith('/conversation/dm/88');
+  });
+
+  it('blocks Edit link when the live network check reports offline and formats scheduled preview in target zone', async () => {
+    expect(sendsAboutLabel('2030-01-15T17:00:00Z', 'America/Los_Angeles')).toContain('9:00 AM');
+    expect(sendsAboutLabel('2030-01-15T17:00:00Z', 'Pacific/Guam')).toContain('3:00 AM ChST');
+
+    const staffPrivateMeetings = jest.fn().mockResolvedValue({
+      cohorts: [
+        {
+          id: 5,
+          name: 'Fall Bootcamp',
+          start_date: '2026-10-01',
+          end_date: '2026-12-20',
+          instructor_id: 1,
+          instructor_name: 'Leon Shimizu',
+          weeks: 12,
+          timezone: 'Pacific/Guam',
+          reschedule_cutoff_hours: 24,
+          max_student_changes: 1,
+          slots: [],
+          bookings: [
+            {
+              id: 77,
+              cohort_id: 5,
+              instructor_name: 'Leon Shimizu',
+              starts_at: '2026-12-01T00:00:00Z',
+              ends_at: '2026-12-01T01:00:00Z',
+              zoom_url: 'https://zoom.us/j/111',
+              status: 'confirmed',
+              week_number: 4,
+              reschedule_count: 0,
+              student_name: 'Maya Cruz',
+              student_id: 21,
+            },
+          ],
+        },
+      ],
+      other_cohorts: [],
+      admin_contacts: [],
+    });
+
+    jest.mocked(useSession).mockReturnValue({
+      user: { id: 1, is_staff: true, full_name: 'Leon Shimizu' },
+      api: { staffPrivateMeetings, updateStaffPrivateMeeting: jest.fn(), createCohortDm: jest.fn() },
+    } as unknown as ReturnType<typeof useSession>);
+    jest.mocked(getNetworkStateAsync).mockResolvedValueOnce({ isConnected: false, isInternetReachable: false } as never);
+
+    const screen = mount(
+      <StaffPrivateMeetings
+        cohortId={null}
+        targetBookingId={null}
+        targetWeek={null}
+        connected
+        busy={false}
+        onOpenWeb={jest.fn()}
+        writeError={null}
+      />,
+    );
+
+    expect(await screen.findByText('Maya Cruz')).toBeTruthy();
+    fireEvent.press(screen.getByRole('button', { name: 'Edit link for Maya Cruz' }));
+    await waitFor(() => expect(getNetworkStateAsync).toHaveBeenCalledTimes(1));
+    expect(screen.queryByLabelText('Meeting URL')).toBeNull();
   });
 
   it('displays and creates private staff notes on an intervention', async () => {

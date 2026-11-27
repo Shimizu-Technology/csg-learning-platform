@@ -14,6 +14,6 @@ export function sendsAbout(scheduledFor: string) {
 }
 
 /** "Sends about Jan 15, 2030, 9:00 AM ChST". */
-export function sendsAboutLabel(scheduledFor: string) {
-  return `Sends about ${formatCourseDateTime(sendsAbout(scheduledFor), { withYear: true })}`;
+export function sendsAboutLabel(scheduledFor: string, timeZone?: string | null) {
+  return `Sends about ${formatCourseDateTime(sendsAbout(scheduledFor), { withYear: true, timeZone })}`;
 }
