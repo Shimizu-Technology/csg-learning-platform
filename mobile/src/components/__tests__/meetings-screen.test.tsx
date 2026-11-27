@@ -137,6 +137,8 @@ it.each([false, true])('preserves exact staff meeting context in authenticated w
   mockStaff = true; mockParams = { cohort_id: '4', booking_id: '81', week: '3' };
   const { screen } = show();
   expect(screen.queryByText(/Booking 81/)).toBeNull();
+  expect(screen.getByText('Your meeting update · Week 3')).toBeTruthy();
+  fireEvent.press(screen.getByText('Manage on web'));
   await waitFor(() => expect(mockHandoff).toHaveBeenCalledWith(mockApi, '/admin/meetings?cohort_id=4&booking_id=81&week=3'));
 });
 it('opens the notified past week and identifies the booking', async () => {

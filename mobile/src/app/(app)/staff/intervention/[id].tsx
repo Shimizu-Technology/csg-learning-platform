@@ -5,7 +5,7 @@ import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { CalendarClock, CheckCircle2, ExternalLink, History, MessageSquareText, ShieldAlert, UserRound, UserRoundCheck, X } from 'lucide-react-native';
+import { CalendarClock, CheckCircle2, ExternalLink, History, MessageSquareText, Plus, ShieldAlert, StickyNote, UserRound, UserRoundCheck, X } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -38,6 +38,7 @@ export default function StaffInterventionScreen() {
   const [resolveOpen, setResolveOpen] = useState(false);
   const [outcome, setOutcome] = useState<InterventionOutcome>('re_engaged');
   const [resolution, setResolution] = useState('');
+  const [noteDraft, setNoteDraft] = useState('');
   const queryKey = learningKeys.intervention(user?.id || 0, interventionId);
   const query = useQuery({
     queryKey,
@@ -61,6 +62,30 @@ export default function StaffInterventionScreen() {
       if (!auth.demo) await queryClient.invalidateQueries({ predicate: (query) => isStaffAttentionQuery(query.queryKey, user?.id || 0) });
     },
     onError: (error) => Alert.alert('Could not update the follow-up plan', (error as Error).message),
+  });
+
+  const noteMutation = useMutation({
+    mutationFn: (body: string) =>
+      auth.demo
+        ? Promise.resolve({
+            note: {
+              id: Date.now(),
+              body,
+              author: { id: user?.id || 0, full_name: user?.full_name || 'Instructor' },
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            },
+          })
+        : api.createInterventionNote(interventionId, body),
+    onSuccess: (result) => {
+      setNoteDraft('');
+      queryClient.setQueryData<{ intervention: Intervention }>(queryKey, (current) => {
+        if (!current) return current;
+        const existing = current.intervention.notes ?? [];
+        return { intervention: { ...current.intervention, notes: [result.note, ...existing] } };
+      });
+    },
+    onError: (error) => Alert.alert('Could not save private note', (error as Error).message),
   });
 
   useEffect(() => {
@@ -119,7 +144,47 @@ export default function StaffInterventionScreen() {
 
       {active && <View style={styles.card}><Text style={styles.label}>QUICK UPDATE</Text>{intervention.status === 'open' && <ActionButton icon={UserRoundCheck} label="Mark contacted" onPress={() => mutation.mutate({ status: 'contacted' })} disabled={mutation.isPending} />}<View style={styles.actionRow}><SmallAction label="Waiting on student" onPress={() => mutation.mutate({ status: 'waiting_on_student' })} disabled={mutation.isPending} /><SmallAction label="Monitor" onPress={() => mutation.mutate({ status: 'monitoring' })} disabled={mutation.isPending} /></View><ActionButton icon={CalendarClock} label="Schedule follow-up in 7 days" onPress={() => mutation.mutate({ status: 'monitoring', next_follow_up_at: new Date(Date.now() + 7 * 86_400_000).toISOString() })} disabled={mutation.isPending} /><ActionButton icon={CheckCircle2} label="Resolve with outcome" onPress={() => setResolveOpen(true)} disabled={mutation.isPending} primary /></View>}
       {!active && <View style={styles.resolvedCard}><CheckCircle2 color={c.status.success.fg} size={20} /><Text style={styles.label}>OUTCOME · {humanize(intervention.outcome, FOLLOW_UP_OUTCOME_LABELS).toUpperCase()}</Text><Text style={styles.resolvedBody}>{intervention.resolution_summary}</Text></View>}
-      <Pressable accessibilityRole="button" onPress={() => void openAuthenticatedWebPage(api, `/admin/interventions/${intervention.id}`).catch((error) => Alert.alert('Could not open full history', (error as Error).message))} style={styles.handoff}><History color={c.status.warning.fg} size={19} /><View style={styles.flex}><Text style={styles.handoffTitle}>Open full history on the web</Text><Text style={styles.handoffCopy}>Private notes, the return plan, follow-up notes, evidence, and next steps</Text></View><ExternalLink color={c.text.muted} size={17} /></Pressable>
+      <View style={styles.card}>
+        <View style={styles.notesHeader}>
+          <StickyNote color={c.text.muted} size={16} />
+          <Text style={styles.label}>PRIVATE STAFF NOTES</Text>
+        </View>
+        <TextInput
+          keyboardAppearance={scheme}
+          accessibilityLabel="Add private staff note"
+          value={noteDraft}
+          onChangeText={setNoteDraft}
+          multiline
+          maxLength={2000}
+          placeholder="Add an internal note (students never see this)…"
+          placeholderTextColor={c.text.muted}
+          style={styles.noteInput}
+        />
+        <Button
+          variant="secondary"
+          accessibilityLabel="Save private note"
+          disabled={!noteDraft.trim() || noteMutation.isPending}
+          onPress={() => {
+            const trimmed = noteDraft.trim();
+            if (trimmed) noteMutation.mutate(trimmed);
+          }}
+          style={styles.noteButton}
+        >
+          <Plus color={c.text.strong} size={16} />
+          <Text style={styles.smallText}>{noteMutation.isPending ? 'Saving note…' : 'Add private note'}</Text>
+        </Button>
+        {(intervention.notes ?? []).length > 0 ? (
+          (intervention.notes ?? []).map((note) => (
+            <View key={note.id} style={styles.noteItem}>
+              <Text style={styles.noteMeta}>{note.author.full_name} · {formatDate(note.created_at)}</Text>
+              <Text style={styles.noteBody}>{note.body}</Text>
+            </View>
+          ))
+        ) : (
+          <Text style={styles.noteEmpty}>No private notes yet.</Text>
+        )}
+      </View>
+      <Pressable accessibilityRole="button" onPress={() => void openAuthenticatedWebPage(api, `/admin/interventions/${intervention.id}`).catch((error) => Alert.alert('Could not open full history', (error as Error).message))} style={styles.handoff}><History color={c.status.warning.fg} size={19} /><View style={styles.flex}><Text style={styles.handoffTitle}>Open full history on the web</Text><Text style={styles.handoffCopy}>The return plan, follow-up history, evidence, and next steps</Text></View><ExternalLink color={c.text.muted} size={17} /></Pressable>
     </ScrollView>
 
     <Modal visible={resolveOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => { if (!mutation.isPending) setResolveOpen(false); }}><SafeAreaView style={styles.safe}><View style={styles.modalHeader}><Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={() => setResolveOpen(false)} style={styles.iconButton}><X color={c.text.body} size={21} /></Pressable><Text style={styles.modalTitle}>Resolve follow-up plan</Text><View style={styles.iconButton} /></View><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.modalContent}><Text style={styles.label}>OUTCOME</Text><View accessibilityRole="radiogroup" accessibilityLabel="Follow-up plan outcome" style={styles.outcomes}>{outcomes.map((item) => <Pressable key={item.value} testID={`follow-up-outcome-${item.value}`} accessibilityRole="radio" accessibilityState={{ checked: outcome === item.value }} onPress={() => setOutcome(item.value)} style={[styles.outcome, styles.outcomeTouch, outcome === item.value && styles.outcomeSelected]}><Text style={[styles.outcomeText, outcome === item.value && styles.outcomeTextSelected]}>{item.label}</Text></Pressable>)}</View><Text style={styles.fieldLabel}>RESOLUTION SUMMARY</Text><TextInput keyboardAppearance={scheme} accessibilityLabel="Resolution summary input" value={resolution} onChangeText={setResolution} multiline maxLength={2000} placeholder="What changed, and what should staff know next?" placeholderTextColor={c.text.body} style={styles.input} /><Pressable accessibilityRole="button" accessibilityLabel="Confirm resolve follow-up plan" disabled={!resolution.trim() || mutation.isPending} onPress={resolve} style={[styles.resolveButton, (!resolution.trim() || mutation.isPending) && styles.disabled]}><CheckCircle2 color={c.text.strong} size={17} /><Text style={styles.primaryText}>{mutation.isPending ? 'Saving…' : 'Resolve follow-up plan'}</Text></Pressable></ScrollView></SafeAreaView></Modal>
@@ -143,5 +208,12 @@ const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   ownerWarningTitle: { color: c.status.warning.fg, fontFamily: fonts.bold, fontSize: 14, lineHeight: 21 },
   ownerWarningCopy: { color: c.status.warning.fg, fontFamily: fonts.regular, fontSize: 13, lineHeight: 20 },
   outcomeTouch: { minHeight: 44 },
-  safe: { flex: 1, backgroundColor: c.surface.page }, header: { minHeight: 70, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border.subtle, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }, iconButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }, flex: { flex: 1, minWidth: 0 }, kicker: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 1.1 }, headerTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 16, marginTop: 2 }, content: { padding: 20, paddingBottom: 90, gap: 14 }, pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 }, pill: { fontFamily: fonts.bold, fontSize: 12, borderRadius: 9, overflow: 'hidden', backgroundColor: c.surface.sunken, paddingHorizontal: 8, paddingVertical: 5 }, title: { color: c.text.strong, fontFamily: fonts.extraBold, fontSize: 27, lineHeight: 34, marginTop: 4 }, context: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 18 }, relationshipRow: { flexDirection: 'row', gap: 8 }, relationshipButton: { flex: 1, minHeight: 52, borderRadius: 15, borderWidth: 1, borderColor: c.border.strong, backgroundColor: c.surface.sunken, paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 }, relationshipText: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 12 }, followCard: { borderRadius: 18, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, padding: 15, flexDirection: 'row', alignItems: 'center', gap: 11 }, followDue: { borderColor: c.status.warning.border, backgroundColor: c.status.warning.bg}, followTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 13 }, dueText: { color: c.status.warning.fg}, followCopy: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, marginTop: 3 }, card: { borderRadius: 20, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, padding: 16, gap: 10 }, label: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 1 }, body: { color: c.text.body, fontFamily: fonts.regular, fontSize: 14, lineHeight: 22 }, evidenceRow: { minHeight: 38, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border.subtle, flexDirection: 'row', alignItems: 'center', gap: 10 }, evidenceLabel: { width: 120, color: c.text.body, fontFamily: fonts.bold, fontSize: 12, textTransform: 'uppercase' }, evidenceValue: { flex: 1, color: c.text.strong, fontFamily: fonts.medium, fontSize: 12, textAlign: 'right' }, actionButton: { minHeight: 48, borderRadius: 14, borderWidth: 1, borderColor: c.border.subtle, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, actionPrimary: { backgroundColor: c.action.primary, borderColor: c.action.primary }, actionText: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 12 }, actionRow: { flexDirection: 'row', gap: 8 }, smallAction: { flex: 1, minHeight: 46, borderRadius: 14, borderWidth: 1, borderColor: c.border.subtle, alignItems: 'center', justifyContent: 'center' }, smallText: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 12 }, resolvedCard: { borderRadius: 20, borderWidth: 1, borderColor: c.border.strong, backgroundColor: c.surface.sunken, padding: 16, gap: 9 }, resolvedBody: { color: c.text.body, fontFamily: fonts.regular, fontSize: 14, lineHeight: 22 }, handoff: { minHeight: 82, borderRadius: 18, borderWidth: 1, borderColor: c.border.strong, backgroundColor: c.surface.sunken, padding: 15, flexDirection: 'row', alignItems: 'center', gap: 11 }, handoffTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 12 }, handoffCopy: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 16, marginTop: 3 }, modalHeader: { minHeight: 68, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border.subtle, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, modalTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 16 }, modalContent: { padding: 20, paddingBottom: 60 }, outcomes: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }, outcome: { minHeight: 42, borderRadius: 13, borderWidth: 1, borderColor: c.border.subtle, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' }, outcomeSelected: { borderColor: c.selection.indicator, backgroundColor: c.selection.bg }, outcomeText: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12 }, outcomeTextSelected: { color: c.text.strong }, fieldLabel: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 1, marginTop: 24, marginBottom: 8 }, input: { minHeight: 150, borderRadius: 16, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, color: c.text.strong, fontFamily: fonts.regular, fontSize: 13, lineHeight: 21, padding: 13, textAlignVertical: 'top' }, resolveButton: { minHeight: 50, borderRadius: 15, backgroundColor: c.selection.bg, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 18 }, primaryText: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 12 }, disabled: { opacity: 0.45 },
+  safe: { flex: 1, backgroundColor: c.surface.page }, header: { minHeight: 70, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border.subtle, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }, iconButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }, flex: { flex: 1, minWidth: 0 }, kicker: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 1.1 }, headerTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 16, marginTop: 2 }, content: { padding: 20, paddingBottom: 90, gap: 14 }, pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 }, pill: { fontFamily: fonts.bold, fontSize: 12, borderRadius: 9, overflow: 'hidden', backgroundColor: c.surface.sunken, paddingHorizontal: 8, paddingVertical: 5 }, title: { color: c.text.strong, fontFamily: fonts.extraBold, fontSize: 27, lineHeight: 34, marginTop: 4 }, context: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 18 }, relationshipRow: { flexDirection: 'row', gap: 8 }, relationshipButton: { flex: 1, minHeight: 52, borderRadius: 15, borderWidth: 1, borderColor: c.border.strong, backgroundColor: c.surface.sunken, paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 }, relationshipText: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 12 }, followCard: { borderRadius: 18, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, padding: 15, flexDirection: 'row', alignItems: 'center', gap: 11 }, followDue: { borderColor: c.status.warning.border, backgroundColor: c.status.warning.bg}, followTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 13 }, dueText: { color: c.status.warning.fg}, followCopy: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, marginTop: 3 }, card: { borderRadius: 20, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, padding: 16, gap: 10 }, label: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 1 }, body: { color: c.text.body, fontFamily: fonts.regular, fontSize: 14, lineHeight: 22 }, evidenceRow: { minHeight: 38, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border.subtle, flexDirection: 'row', alignItems: 'center', gap: 10 }, evidenceLabel: { width: 120, color: c.text.body, fontFamily: fonts.bold, fontSize: 12, textTransform: 'uppercase' }, evidenceValue: { flex: 1, color: c.text.strong, fontFamily: fonts.medium, fontSize: 12, textAlign: 'right' }, actionButton: { minHeight: 48, borderRadius: 14, borderWidth: 1, borderColor: c.border.subtle, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, actionPrimary: { backgroundColor: c.action.primary, borderColor: c.action.primary }, actionText: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 12 }, actionRow: { flexDirection: 'row', gap: 8 }, smallAction: { flex: 1, minHeight: 46, borderRadius: 14, borderWidth: 1, borderColor: c.border.subtle, alignItems: 'center', justifyContent: 'center' }, smallText: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 12 }, resolvedCard: { borderRadius: 20, borderWidth: 1, borderColor: c.border.strong, backgroundColor: c.surface.sunken, padding: 16, gap: 9 }, resolvedBody: { color: c.text.body, fontFamily: fonts.regular, fontSize: 14, lineHeight: 22 }, handoff: { minHeight: 82, borderRadius: 18, borderWidth: 1, borderColor: c.border.strong, backgroundColor: c.surface.sunken, padding: 15, flexDirection: 'row', alignItems: 'center', gap: 11 }, handoffTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 12 }, handoffCopy: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 16, marginTop: 3 }, modalHeader: { minHeight: 68, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border.subtle, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, modalTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 16 }, modalContent: { padding: 20, paddingBottom: 60 }, outcomes: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }, outcome: { minHeight: 42, borderRadius: 13, borderWidth: 1, borderColor: c.border.subtle, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' }, outcomeSelected: { borderColor: c.selection.indicator, backgroundColor: c.selection.bg }, outcomeText: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12 }, outcomeTextSelected: { color: c.text.strong }, fieldLabel: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 1, marginTop: 24, marginBottom: 8 }, input: { minHeight: 150, borderRadius: 16, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, color: c.text.strong, fontFamily: fonts.regular, fontSize: 13, lineHeight: 21, padding: 13, textAlignVertical: 'top' }, resolveButton: { minHeight: 50, borderRadius: 15, backgroundColor: c.selection.bg, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 18 },   primaryText: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 12 }, disabled: { opacity: 0.45 },
+  notesHeader: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  noteInput: { minHeight: 84, borderRadius: 14, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.sunken, color: c.text.strong, fontFamily: fonts.regular, fontSize: 14, lineHeight: 20, padding: 12, textAlignVertical: 'top' },
+  noteButton: { minHeight: 44, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  noteItem: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border.subtle, paddingTop: 10, gap: 4 },
+  noteMeta: { color: c.text.muted, fontFamily: fonts.semibold, fontSize: 12 },
+  noteBody: { color: c.text.body, fontFamily: fonts.regular, fontSize: 14, lineHeight: 20 },
+  noteEmpty: { color: c.text.muted, fontFamily: fonts.regular, fontSize: 13 },
 }));

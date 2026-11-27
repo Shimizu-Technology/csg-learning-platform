@@ -1,13 +1,18 @@
 import { BackButton } from '@/components/back-button';
+import { BottomSheet } from '@/components/ui/bottom-sheet';
+import { Button } from '@/components/ui/button';
+import { PressableScale as Pressable } from '@/components/ui/pressable-scale';
+import { themedAlert as Alert } from '@/lib/alerts';
+import { haptic } from '@/lib/haptics';
 import { brand } from '../../../lib/brand'
 import { LEARN_WEB_ORIGIN } from '@/lib/hafa-starter-links';
 import { webRecordingUrl } from '@/lib/learning-destination';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useLocalSearchParams } from 'expo-router';
-import { CalendarDays, ShieldCheck } from 'lucide-react-native';
-import { useCallback, useMemo } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { CalendarDays, Pencil, ShieldCheck, Trash2 } from 'lucide-react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { RecordingPublishPanel } from '@/components/recording-publish-panel';
@@ -33,11 +38,16 @@ function updateProgress(payload: RecordingsPayload | undefined, itemKey: string,
 
 export default function RecordingDetailScreen() {
   const styles = useStyles();
-  const { colors: c } = useTheme();
+  const { colors: c, scheme } = useTheme();
   const { id, cohort_id } = useLocalSearchParams<{ id: string; cohort_id?: string }>();
+  const router = useRouter();
   const auth = useCsgAuth();
   const { api, user } = useSession();
   const queryClient = useQueryClient();
+  const [editOpen, setEditOpen] = useState(false);
+  const [titleDraft, setTitleDraft] = useState('');
+  const [descriptionDraft, setDescriptionDraft] = useState('');
+  const [dateDraft, setDateDraft] = useState('');
   const key = learningKeys.recordings(user?.id ?? 0, Number(cohort_id) || null);
   const query = useQuery({ queryKey: key, queryFn: ({ signal }) => auth.demo ? Promise.resolve({ recordings: [], s3_recordings: [], items: demoRecordings }) : api.recordings(signal, Number(cohort_id) || null), enabled: Boolean(user) });
   const item = useMemo(() => query.data?.items.find((recording) => (!cohort_id || String(recording.cohort_id) === cohort_id) && (recording.item_key === id || recording.legacy_item_key === id || String(recording.id) === id)), [id, cohort_id, query.data?.items]);
@@ -68,11 +78,91 @@ export default function RecordingDetailScreen() {
     queryClient.setQueriesData<RecordingsPayload>({ queryKey: learningKeys.recordings(user?.id ?? 0) }, (current) => updateProgress(current, itemKey, response.watch_progress));
   }, [api, auth.demo, itemKey, queryClient, recordingId, trackProgress, user?.id]);
 
+  const updateMutation = useMutation({
+    mutationFn: () => {
+      if (cohortId === null || recordingId === null) throw new Error('Recording cannot be edited.');
+      const trimmedTitle = titleDraft.trim();
+      if (!trimmedTitle) throw new Error('Enter a title.');
+      const trimmedDate = dateDraft.trim();
+      if (trimmedDate && !/^\d{4}-\d{2}-\d{2}$/.test(trimmedDate)) {
+        throw new Error('Use YYYY-MM-DD for the recording date, or leave it blank.');
+      }
+      return api.updateRecording(cohortId, recordingId, {
+        title: trimmedTitle,
+        description: descriptionDraft.trim() || null,
+        recorded_date: trimmedDate || null,
+      });
+    },
+    onSuccess: (response) => {
+      haptic('success');
+      if (user) {
+        queryClient.setQueriesData<RecordingsPayload>({ queryKey: learningKeys.recordings(user.id) }, (current) => {
+          if (!current) return current;
+          const update = (row: RecordingItem) => row.id === recordingId && row.cohort_id === cohortId ? { ...row, ...response.recording } : row;
+          return { ...current, items: current.items.map(update), recordings: current.recordings.map(update), s3_recordings: current.s3_recordings.map(update) };
+        });
+        void queryClient.invalidateQueries({ queryKey: learningKeys.recordings(user.id) });
+      }
+      setEditOpen(false);
+    },
+    onError: (error) => {
+      haptic('error');
+      Alert.alert('Could not update recording', (error as Error).message || 'Try again.');
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => {
+      if (cohortId === null || recordingId === null) throw new Error('Recording cannot be deleted.');
+      return api.deleteRecording(cohortId, recordingId);
+    },
+    onSuccess: () => {
+      haptic('success');
+      setEditOpen(false);
+      if (user) {
+        queryClient.setQueriesData<RecordingsPayload>({ queryKey: learningKeys.recordings(user.id) }, (current) => {
+          if (!current) return current;
+          const keep = (row: RecordingItem) => !(row.id === recordingId && row.cohort_id === cohortId);
+          return { ...current, items: current.items.filter(keep), recordings: current.recordings.filter(keep), s3_recordings: current.s3_recordings.filter(keep) };
+        });
+        void queryClient.invalidateQueries({ queryKey: learningKeys.recordings(user.id) });
+      }
+      if (router.canGoBack()) router.back();
+      else router.replace('/recordings');
+    },
+    onError: (error) => {
+      haptic('error');
+      Alert.alert('Could not delete recording', (error as Error).message || 'Try again.');
+    },
+  });
+
+  const openEditor = () => {
+    if (!item) return;
+    setTitleDraft(item.title || '');
+    setDescriptionDraft(item.description || '');
+    setDateDraft(item.recorded_date || '');
+    setEditOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (!item || deleteMutation.isPending) return;
+    Alert.alert(
+      `Delete "${item.title}"?`,
+      'Students will immediately lose access to this recording.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => { haptic('destructive'); deleteMutation.mutate(); } },
+      ],
+    );
+  };
+
   if (query.isPending && !query.data) return <SafeAreaView style={styles.safe}><LoadingState label="Opening recording" /></SafeAreaView>;
   if (query.error && !query.data) return <SafeAreaView style={styles.safe}><View style={styles.backRow}><BackButton style={styles.back} /></View><ErrorState message={(query.error as Error).message} retry={() => void query.refetch()} /></SafeAreaView>;
   if (!item) return <SafeAreaView style={styles.safe}><View style={styles.backRow}><BackButton style={styles.back} /></View><ErrorState message="This recording is no longer available to this account." retry={() => void query.refetch()} /></SafeAreaView>;
 
-  return <SafeAreaView edges={['top']} style={styles.safe}><View style={styles.header}><BackButton style={styles.back} /><View style={styles.flex}><Text style={styles.kicker}>CLASS RECORDING</Text><Text numberOfLines={1} style={styles.headerTitle}>{item.cohort_name}</Text></View></View><ScrollView contentContainerStyle={styles.content}>
+  const canManageRecording = !auth.demo && Boolean(user?.is_staff) && recordingId !== null && cohortId !== null;
+
+  return <SafeAreaView edges={['top']} style={styles.safe}><View style={styles.header}><BackButton style={styles.back} /><View style={styles.flex}><Text style={styles.kicker}>CLASS RECORDING</Text><Text numberOfLines={1} style={styles.headerTitle}>{item.cohort_name}</Text></View>{canManageRecording && <Pressable accessibilityRole="button" accessibilityLabel="Edit recording" onPress={openEditor} style={styles.back}><Pencil color={c.text.strong} size={19} /></Pressable>}</View><ScrollView contentContainerStyle={styles.content}>
     <StatusPill label={item.status === 'draft' ? 'Draft' : 'Published'} completed={item.status !== 'draft'} /><View><Text style={styles.source}>{item.source === 'uploaded' ? `SECURE ${brand.schoolAbbreviation} VIDEO` : item.source.toUpperCase()}</Text><Text style={styles.title}>{item.title}</Text><View style={styles.meta}><CalendarDays color={c.text.muted} size={14} /><Text style={styles.metaText}>{item.recorded_date || 'Recording date not set'}{item.duration_display ? ` · ${item.duration_display}` : ''}</Text></View></View>
     {item.source === 'uploaded' ? <NativeVideoPlayer fetchStream={fetchStream} initialPosition={item.watch_progress?.last_position_seconds || 0} initialTotalWatched={item.watch_progress?.total_watched_seconds || 0} saveProgress={saveProgress} title={item.title} trackProgress={trackProgress} /> : item.url ? <InAppMediaPlayer initialPosition={item.watch_progress?.last_position_seconds || 0} initialTotalWatched={item.watch_progress?.total_watched_seconds || 0} saveProgress={saveProgress} title={item.title} trackProgress={trackProgress && recordingId !== null} url={item.url} /> : null}
     {!auth.demo && user?.is_staff && item.status === 'draft' && <RecordingPublishPanel key={item.item_key} item={item} onPublished={(recording) => {
@@ -87,9 +177,29 @@ export default function RecordingDetailScreen() {
     {helpContext && <View style={styles.help}><ContextualHelp cohortId={item.cohort_id} contextType="recording" contextSource={helpContext.source} contextId={helpContext.id} contextLabel={item.title} capabilities={capabilities} contextPath={item.destination_path ? `${LEARN_WEB_ORIGIN}${item.destination_path}` : webRecordingUrl(item.cohort_id, helpContext.id, helpContext.source) ?? undefined} /></View>}
     {capabilities?.read_only && <Text style={styles.securityCopy}>Past course · review only</Text>}
     <View style={styles.security}><ShieldCheck color={c.status.success.fg} size={19} /><View style={styles.flex}><Text style={styles.securityTitle}>Private cohort access</Text><Text style={styles.securityCopy}>{user?.is_staff ? 'Staff preview is read-only and never changes student progress.' : recordingId !== null ? 'Your place and watch progress sync with the web app.' : 'This older link plays in the official hosted player when the provider supports it.'}</Text></View></View>
-  </ScrollView></SafeAreaView>;
+  </ScrollView>
+  <BottomSheet visible={editOpen} title="Edit recording" subtitle={item.cohort_name} onClose={() => { if (!updateMutation.isPending && !deleteMutation.isPending) setEditOpen(false); }}>
+    <View style={styles.sheetBody}>
+      <Text style={styles.fieldLabel}>TITLE</Text>
+      <TextInput keyboardAppearance={scheme} accessibilityLabel="Recording title" value={titleDraft} onChangeText={setTitleDraft} placeholder="Class recording title" placeholderTextColor={c.text.muted} style={styles.input} />
+      <Text style={styles.fieldLabel}>RECORDED DATE (OPTIONAL)</Text>
+      <TextInput keyboardAppearance={scheme} accessibilityLabel="Recording date" value={dateDraft} onChangeText={setDateDraft} placeholder="YYYY-MM-DD" placeholderTextColor={c.text.muted} autoCapitalize="none" autoCorrect={false} style={styles.input} />
+      <Text style={styles.fieldLabel}>DESCRIPTION (OPTIONAL)</Text>
+      <TextInput keyboardAppearance={scheme} accessibilityLabel="Recording description" value={descriptionDraft} onChangeText={setDescriptionDraft} placeholder="Topics covered in this class…" placeholderTextColor={c.text.muted} multiline style={[styles.input, styles.multilineInput]} />
+      <View style={styles.sheetActions}>
+        <Button variant="secondary" label="Cancel" disabled={updateMutation.isPending || deleteMutation.isPending} onPress={() => setEditOpen(false)} style={styles.sheetButton} />
+        <Button variant="primary" label={updateMutation.isPending ? 'Saving…' : 'Save changes'} disabled={!titleDraft.trim() || updateMutation.isPending || deleteMutation.isPending} onPress={() => updateMutation.mutate()} style={styles.sheetButton} />
+      </View>
+      <Pressable accessibilityRole="button" accessibilityLabel="Delete recording" disabled={updateMutation.isPending || deleteMutation.isPending} onPress={confirmDelete} style={styles.deleteButton}>
+        <Trash2 color={c.status.danger.fg} size={16} />
+        <Text style={styles.deleteButtonText}>{deleteMutation.isPending ? 'Deleting…' : 'Delete recording'}</Text>
+      </Pressable>
+    </View>
+  </BottomSheet>
+  </SafeAreaView>;
 }
 
 const useStyles = makeStyles(({ colors: c }) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: c.surface.page }, header: { minHeight: 68, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border.subtle, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 7 }, backRow: { minHeight: 68, paddingHorizontal: 10, justifyContent: 'center' }, back: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' }, flex: { flex: 1, minWidth: 0 }, kicker: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 1 }, headerTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 16, marginTop: 2 }, content: { padding: 20, paddingBottom: 100, gap: 18 }, source: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 1.2 }, title: { color: c.text.strong, fontFamily: fonts.extraBold, fontSize: 27, lineHeight: 34, letterSpacing: -0.8, marginTop: 6 }, meta: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 10 }, metaText: { color: c.text.body, fontFamily: fonts.medium, fontSize: 12 }, description: { borderRadius: 18, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.raised, padding: 16 }, sectionKicker: { color: c.text.body, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 1 }, descriptionText: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 20, marginTop: 8 }, help: { alignItems: 'flex-start' }, security: { borderRadius: 17, backgroundColor: c.surface.sunken, padding: 14, flexDirection: 'row', gap: 11 }, securityTitle: { color: c.text.strong, fontFamily: fonts.bold, fontSize: 12 }, securityCopy: { color: c.text.body, fontFamily: fonts.regular, fontSize: 12, lineHeight: 16, marginTop: 3 },
+  sheetBody: { gap: 10, paddingTop: 4 }, fieldLabel: { color: c.text.muted, fontFamily: fonts.bold, fontSize: 12, letterSpacing: 0.8, marginTop: 4 }, input: { minHeight: 48, borderRadius: 14, borderWidth: 1, borderColor: c.border.subtle, backgroundColor: c.surface.sunken, color: c.text.strong, fontFamily: fonts.regular, fontSize: 15, paddingHorizontal: 14, paddingVertical: 10 }, multilineInput: { minHeight: 96, textAlignVertical: 'top' }, sheetActions: { flexDirection: 'row', gap: 10, marginTop: 8 }, sheetButton: { flex: 1 }, deleteButton: { minHeight: 46, borderRadius: 14, borderWidth: 1, borderColor: c.status.danger.border, backgroundColor: c.status.danger.bg, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 6 }, deleteButtonText: { color: c.status.danger.fg, fontFamily: fonts.bold, fontSize: 14 },
 }));
