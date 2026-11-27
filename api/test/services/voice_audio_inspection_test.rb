@@ -18,40 +18,61 @@ class VoiceAudioInspectionTest < ActiveSupport::TestCase
     end
   end
 
-  test "accepts webm with container duration and rejects overlong container duration" do
-    with_upload(webm_bytes(duration_seconds: 14.6), content_type: "audio/webm;codecs=opus", filename: "voice.webm") do |upload|
+  test "accepts webm with container duration and rejects overlong or trackless webm" do
+    with_upload(webm_bytes(duration_seconds: 14.6, cluster_timestamps_ms: [ 0 ]), content_type: "audio/webm;codecs=opus", filename: "voice.webm") do |upload|
       result = VoiceAudioInspection.call(upload, duration_seconds: 500)
       assert_equal 14.6, result.fetch(:duration_seconds)
       assert_equal "audio/webm", result.fetch(:content_type)
       assert_equal "webm", result.fetch(:extension)
     end
 
-    with_upload(webm_bytes(duration_seconds: 301.0), content_type: "audio/webm", filename: "voice.webm") do |upload|
+    # Info.Duration alone without an audio track and audio blocks must be rejected.
+    with_upload(webm_bytes(duration_seconds: 14.6, cluster_timestamps_ms: []), content_type: "audio/webm", filename: "voice.webm") do |upload|
+      error = assert_raises(VoiceAudioInspection::InvalidAudio) { VoiceAudioInspection.call(upload) }
+      assert_equal "The recording is not a valid WebM file.", error.message
+    end
+
+    # Under-reported Info.Duration cannot hide an overlong cluster timeline.
+    with_upload(webm_bytes(duration_seconds: 10.0, cluster_timestamps_ms: [ 0, 301_000 ]), content_type: "audio/webm", filename: "voice.webm") do |upload|
+      error = assert_raises(VoiceAudioInspection::InvalidAudio) { VoiceAudioInspection.call(upload) }
+      assert_equal "Recordings must be 5 minutes or shorter.", error.message
+    end
+
+    # Malformed trailing data after Info.Duration must be rejected.
+    corrupt_trailing = webm_bytes(duration_seconds: 14.6, cluster_timestamps_ms: [ 0 ]) + "\xFF\xFF".b
+    with_upload(corrupt_trailing, content_type: "audio/webm", filename: "voice.webm") do |upload|
+      error = assert_raises(VoiceAudioInspection::InvalidAudio) { VoiceAudioInspection.call(upload) }
+      assert_equal "The recording is not a valid WebM file.", error.message
+    end
+
+    with_upload(webm_bytes(duration_seconds: 301.0, cluster_timestamps_ms: [ 0 ]), content_type: "audio/webm", filename: "voice.webm") do |upload|
       error = assert_raises(VoiceAudioInspection::InvalidAudio) { VoiceAudioInspection.call(upload, duration_seconds: 10) }
       assert_equal "Recordings must be 5 minutes or shorter.", error.message
     end
   end
 
-  test "derives duration from webm cluster timeline when info duration is omitted and ignores client claims" do
+  test "derives duration from webm cluster timeline including final block duration and rejects truncated streams" do
     streamed = webm_bytes(duration_seconds: nil, cluster_timestamps_ms: [ 0, 9_000, 18_240 ])
 
     with_upload(streamed, content_type: "audio/webm;codecs=opus", filename: "voice.webm") do |upload|
       result = VoiceAudioInspection.call(upload, duration_seconds: "999")
-      assert_equal 18.2, result.fetch(:duration_seconds)
+      # 18_240ms + 20ms final Opus frame = 18.26s -> 18.3s
+      assert_equal 18.3, result.fetch(:duration_seconds)
       assert_equal "audio/webm", result.fetch(:content_type)
       assert_equal "webm", result.fetch(:extension)
     end
 
-    overlong_streamed = webm_bytes(duration_seconds: nil, cluster_timestamps_ms: [ 0, 301_000 ])
-    with_upload(overlong_streamed, content_type: "audio/webm", filename: "voice.webm") do |upload|
+    # Final block duration counts toward the 5-minute ceiling (config 3 = 60ms -> 300.54s > 300.5s).
+    overlong_by_final_block = webm_bytes(duration_seconds: nil, cluster_timestamps_ms: [ 0, 300_480 ], opus_toc: 0x18)
+    with_upload(overlong_by_final_block, content_type: "audio/webm", filename: "voice.webm") do |upload|
       error = assert_raises(VoiceAudioInspection::InvalidAudio) { VoiceAudioInspection.call(upload, duration_seconds: "10") }
       assert_equal "Recordings must be 5 minutes or shorter.", error.message
     end
 
-    no_timeline = webm_bytes(duration_seconds: nil, cluster_timestamps_ms: [])
-    with_upload(no_timeline, content_type: "audio/webm", filename: "voice.webm") do |upload|
+    no_blocks = webm_bytes(duration_seconds: nil, cluster_timestamps_ms: [])
+    with_upload(no_blocks, content_type: "audio/webm", filename: "voice.webm") do |upload|
       error = assert_raises(VoiceAudioInspection::InvalidAudio) { VoiceAudioInspection.call(upload, duration_seconds: "10") }
-      assert_equal "The recording duration could not be verified.", error.message
+      assert_equal "The recording is not a valid WebM file.", error.message
     end
 
     malformed = "\x1A\x45\xDF\xA3\x84\x42\x82\x84webm\xFF\xFF".b
@@ -61,7 +82,7 @@ class VoiceAudioInspectionTest < ActiveSupport::TestCase
     end
   end
 
-  test "validates ogg container pages and granule timeline and rejects truncated or overlong ogg" do
+  test "validates ogg crc, headers, single logical stream, and granule timeline" do
     valid_ogg = ogg_opus_bytes(duration_seconds: 22.5)
 
     with_upload(valid_ogg, content_type: "audio/ogg;codecs=opus", filename: "voice.ogg") do |upload|
@@ -75,6 +96,29 @@ class VoiceAudioInspectionTest < ActiveSupport::TestCase
     with_upload(overlong_ogg, content_type: "audio/ogg", filename: "voice.ogg") do |upload|
       error = assert_raises(VoiceAudioInspection::InvalidAudio) { VoiceAudioInspection.call(upload, duration_seconds: 5) }
       assert_equal "Recordings must be 5 minutes or shorter.", error.message
+    end
+
+    # Chained logical streams must be rejected explicitly.
+    chained_ogg = ogg_opus_bytes(duration_seconds: 200.0, serial: 1) + ogg_opus_bytes(duration_seconds: 200.0, serial: 2)
+    with_upload(chained_ogg, content_type: "audio/ogg", filename: "voice.ogg") do |upload|
+      error = assert_raises(VoiceAudioInspection::InvalidAudio) { VoiceAudioInspection.call(upload, duration_seconds: 10) }
+      assert_equal "The recording is not a valid Ogg file.", error.message
+    end
+
+    # Corrupted CRC checksum must be rejected.
+    bad_crc_ogg = valid_ogg.dup
+    bad_crc_ogg.setbyte(22, bad_crc_ogg.getbyte(22) ^ 0xFF)
+    with_upload(bad_crc_ogg, content_type: "audio/ogg", filename: "voice.ogg") do |upload|
+      error = assert_raises(VoiceAudioInspection::InvalidAudio) { VoiceAudioInspection.call(upload, duration_seconds: 5) }
+      assert_equal "The recording is not a valid Ogg file.", error.message
+    end
+
+    # Missing OpusTags comment header must be rejected.
+    missing_tags = ogg_page(header_type: 0x02, granule: 0, serial: 1, sequence: 0, payload: opus_head_payload(312)) +
+      ogg_page(header_type: 0x04, granule: 48_312, serial: 1, sequence: 1, payload: "\xFC\x01\x02\x03".b)
+    with_upload(missing_tags, content_type: "audio/ogg", filename: "voice.ogg") do |upload|
+      error = assert_raises(VoiceAudioInspection::InvalidAudio) { VoiceAudioInspection.call(upload, duration_seconds: 5) }
+      assert_equal "The recording is not a valid Ogg file.", error.message
     end
 
     truncated_ogg = "OggS\x00\x02\x00\x00\x00\x00\x00\x00\x00\x00".b
@@ -140,7 +184,7 @@ class VoiceAudioInspectionTest < ActiveSupport::TestCase
     box("ftyp", "M4A \0\0\0\0M4A isom") + box("moov", box("mvhd", mvhd_payload))
   end
 
-  def webm_bytes(duration_seconds:, timecode_scale: 1_000_000, cluster_timestamps_ms: [])
+  def webm_bytes(duration_seconds:, timecode_scale: 1_000_000, cluster_timestamps_ms: [], opus_toc: 0xFC)
     ebml_header = ebml_element("\x1A\x45\xDF\xA3".b, ebml_element("\x42\x82".b, "webm".b))
     info_children = ebml_element("\x2A\xD7\xB1".b, [ timecode_scale ].pack("N"))
     if duration_seconds
@@ -148,26 +192,52 @@ class VoiceAudioInspectionTest < ActiveSupport::TestCase
       info_children += ebml_element("\x44\x89".b, [ ticks ].pack("G"))
     end
     info = ebml_element("\x15\x49\xA9\x66".b, info_children)
+    track_entry = ebml_element(
+      "\xAE".b,
+      ebml_element("\xD7".b, "\x01".b) +
+        ebml_element("\x83".b, "\x02".b) +
+        ebml_element("\x86".b, "A_OPUS".b)
+    )
+    tracks = ebml_element("\x16\x54\xAE\x6B".b, track_entry)
     clusters = cluster_timestamps_ms.map do |ts_ms|
       ts_el = ebml_element("\xE7".b, [ ts_ms ].pack("N"))
-      simple_block = ebml_element("\xA3".b, "\x81\x00\x00\x80\x01".b)
+      simple_block = ebml_element("\xA3".b, "\x81\x00\x00\x80".b + [ opus_toc, 0x01 ].pack("CC"))
       ebml_element("\x1F\x43\xB6\x75".b, ts_el + simple_block)
     end.join.b
-    segment = "\x18\x53\x80\x67".b + "\x01\xFF\xFF\xFF\xFF\xFF\xFF\xFF".b + info + clusters
+    segment = "\x18\x53\x80\x67".b + "\x01\xFF\xFF\xFF\xFF\xFF\xFF\xFF".b + info + tracks + clusters
     ebml_header + segment
   end
 
-  def ogg_opus_bytes(duration_seconds:, pre_skip: 312)
-    opus_head = "OpusHead".b + [ 1, 1, pre_skip, 48_000, 0, 0 ].pack("CCvVvC")
+  def opus_head_payload(pre_skip)
+    "OpusHead".b + [ 1, 1, pre_skip, 48_000, 0, 0 ].pack("CCvVvC")
+  end
+
+  def opus_tags_payload
+    "OpusTags".b + [ 3 ].pack("V") + "csg".b + [ 0 ].pack("V")
+  end
+
+  def ogg_opus_bytes(duration_seconds:, pre_skip: 312, serial: 1)
     granule = pre_skip + (duration_seconds.to_f * 48_000).round
-    ogg_page(header_type: 0x02, granule: 0, serial: 1, sequence: 0, payload: opus_head) +
-      ogg_page(header_type: 0x04, granule: granule, serial: 1, sequence: 1, payload: "\xFC\x01\x02\x03".b)
+    ogg_page(header_type: 0x02, granule: 0, serial: serial, sequence: 0, payload: opus_head_payload(pre_skip)) +
+      ogg_page(header_type: 0x00, granule: 0, serial: serial, sequence: 1, payload: opus_tags_payload) +
+      ogg_page(header_type: 0x04, granule: granule, serial: serial, sequence: 2, payload: "\xFC\x01\x02\x03".b)
   end
 
   def ogg_page(header_type:, granule:, serial:, sequence:, payload:)
-    "OggS".b +
+    raw = "OggS".b +
       [ 0, header_type, granule, serial, sequence, 0, 1, payload.bytesize ].pack("CCq<VVVCC") +
       payload
+    crc = ogg_crc(raw)
+    raw[22, 4] = [ crc ].pack("V")
+    raw
+  end
+
+  def ogg_crc(bytes)
+    crc = 0
+    bytes.each_byte do |byte|
+      crc = ((crc << 8) & 0xFFFFFFFF) ^ VoiceAudioInspection::OGG_CRC_TABLE[((crc >> 24) ^ byte) & 0xFF]
+    end
+    crc
   end
 
   def ebml_element(id_bytes, payload)

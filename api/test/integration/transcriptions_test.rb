@@ -158,20 +158,29 @@ class TranscriptionsTest < ActionDispatch::IntegrationTest
   def webm_stream_bytes(cluster_timestamps_ms:)
     ebml_header = ebml_el("\x1A\x45\xDF\xA3".b, ebml_el("\x42\x82".b, "webm".b))
     info = ebml_el("\x15\x49\xA9\x66".b, ebml_el("\x2A\xD7\xB1".b, [ 1_000_000 ].pack("N")))
+    tracks = ebml_el(
+      "\x16\x54\xAE\x6B".b,
+      ebml_el("\xAE".b, ebml_el("\xD7".b, "\x01".b) + ebml_el("\x83".b, "\x02".b) + ebml_el("\x86".b, "A_OPUS".b))
+    )
     clusters = cluster_timestamps_ms.map do |ts|
-      ebml_el("\x1F\x43\xB6\x75".b, ebml_el("\xE7".b, [ ts ].pack("N")) + ebml_el("\xA3".b, "\x81\x00\x00\x80\x01".b))
+      ebml_el("\x1F\x43\xB6\x75".b, ebml_el("\xE7".b, [ ts ].pack("N")) + ebml_el("\xA3".b, "\x81\x00\x00\x80\xFC\x01".b))
     end.join.b
-    ebml_header + "\x18\x53\x80\x67\x01\xFF\xFF\xFF\xFF\xFF\xFF\xFF".b + info + clusters
+    ebml_header + "\x18\x53\x80\x67\x01\xFF\xFF\xFF\xFF\xFF\xFF\xFF".b + info + tracks + clusters
   end
 
   def ogg_opus_bytes(duration_seconds:, pre_skip: 312)
     opus_head = "OpusHead".b + [ 1, 1, pre_skip, 48_000, 0, 0 ].pack("CCvVvC")
+    opus_tags = "OpusTags".b + [ 3 ].pack("V") + "csg".b + [ 0 ].pack("V")
     granule = pre_skip + (duration_seconds.to_f * 48_000).round
-    ogg_page(0x02, 0, 0, opus_head) + ogg_page(0x04, granule, 1, "\xFC\x01\x02\x03".b)
+    ogg_page(0x02, 0, 0, opus_head) + ogg_page(0x00, 0, 1, opus_tags) + ogg_page(0x04, granule, 2, "\xFC\x01\x02\x03".b)
   end
 
   def ogg_page(header_type, granule, seq, payload)
-    "OggS".b + [ 0, header_type, granule, 1, seq, 0, 1, payload.bytesize ].pack("CCq<VVVCC") + payload
+    raw = "OggS".b + [ 0, header_type, granule, 1, seq, 0, 1, payload.bytesize ].pack("CCq<VVVCC") + payload
+    crc = 0
+    raw.each_byte { |b| crc = ((crc << 8) & 0xFFFFFFFF) ^ VoiceAudioInspection::OGG_CRC_TABLE[((crc >> 24) ^ b) & 0xFF] }
+    raw[22, 4] = [ crc ].pack("V")
+    raw
   end
 
   def ebml_el(id, payload)

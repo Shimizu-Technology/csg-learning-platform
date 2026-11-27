@@ -3,7 +3,7 @@ import { act, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useVoiceDraft } from '../../hooks/useVoiceDraft'
-import { api } from '../../lib/api'
+import { api, setAuthTokenGetter } from '../../lib/api'
 import { VoiceDraftButton, VoiceDraftPanel } from './VoiceDraftControls'
 
 ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -348,5 +348,38 @@ describe('useVoiceDraft browser workflow', () => {
     // Second recording stays active and its tracks are NOT stopped.
     expect(container.querySelector('[data-voice-panel="recording"]')).not.toBeNull()
     expect(secondTrackStop).not.toHaveBeenCalled()
+  })
+
+  it('interrupts stalled token acquisition and preserves abort errors during non-2xx response parsing', async () => {
+    const tokenController = new AbortController()
+    setAuthTokenGetter(() => new Promise<string | null>(() => {}))
+    const pendingAuth = api.transcribeVoice(new Blob(['a'], { type: 'audio/webm' }), 'voice.webm', 'message', 3, tokenController.signal)
+    tokenController.abort()
+    const authResult = await pendingAuth
+    expect(authResult.data).toBeNull()
+    expect(authResult.error).toBe('Request canceled')
+
+    setAuthTokenGetter(async () => 'valid-token')
+    const bodyController = new AbortController()
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: () => Promise.reject(new DOMException('Aborted', 'AbortError')),
+    }))
+    bodyController.abort()
+    // Test abort firing during response.json() on an in-flight non-2xx response
+    const bodyController2 = new AbortController()
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: () => {
+        bodyController2.abort()
+        return Promise.reject(new DOMException('Aborted', 'AbortError'))
+      },
+    }))
+    const bodyResult = await api.transcribeVoice(new Blob(['a'], { type: 'audio/webm' }), 'voice.webm', 'message', 3, bodyController2.signal)
+    expect(bodyResult.data).toBeNull()
+    expect(bodyResult.error).toBe('Request canceled')
+    setAuthTokenGetter(async () => null)
   })
 })

@@ -1606,7 +1606,23 @@ export const api = {
       try {
         const headers: Record<string, string> = {};
         if (getAuthToken) {
-          const token = await getAuthToken(attempt > 1);
+          const token = await new Promise<string | null>((resolve, reject) => {
+            if (controller.signal.aborted) {
+              reject(new DOMException('Aborted', 'AbortError'));
+              return;
+            }
+            const onAbort = () => reject(new DOMException('Aborted', 'AbortError'));
+            controller.signal.addEventListener('abort', onAbort, { once: true });
+            getAuthToken!(attempt > 1)
+              .then((value) => {
+                controller.signal.removeEventListener('abort', onAbort);
+                resolve(value);
+              })
+              .catch((error) => {
+                controller.signal.removeEventListener('abort', onAbort);
+                reject(error);
+              });
+          });
           if (signal?.aborted) {
             return { data: null, error: 'Request canceled', errorKind: 'unknown' };
           }
@@ -1637,7 +1653,12 @@ export const api = {
 
         if (response.status === 401 && attempt === 1) continue;
         if (!response.ok) {
-          const errorBody = await response.json().catch(() => ({}));
+          let errorBody: Record<string, unknown> = {};
+          try {
+            errorBody = (await response.json()) as Record<string, unknown>;
+          } catch (parseErr) {
+            if (signal?.aborted || controller.signal.aborted) throw parseErr;
+          }
           return {
             data: null,
             error: errorMessage(errorBody, response.status),
