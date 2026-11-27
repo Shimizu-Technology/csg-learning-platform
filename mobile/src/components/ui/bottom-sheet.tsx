@@ -1,11 +1,13 @@
-import { useContext, type ReactNode } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { createContext, useContext, type ReactNode } from 'react';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
 import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
 import { X } from 'lucide-react-native';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { fonts } from '@/constants/csg-theme';
 import { makeStyles, useTheme } from '@/providers/theme-provider';
+
+const FALLBACK_INSETS_CONTEXT = createContext<{ bottom: number } | null>(null);
 
 interface BottomSheetProps {
   visible: boolean;
@@ -35,7 +37,7 @@ export function BottomSheet({
   const styles = useStyles();
   const { colors: c } = useTheme();
   const reducedMotion = useReducedMotion();
-  const insets = useContext(SafeAreaInsetsContext);
+  const insets = useContext(SafeAreaInsetsContext ?? FALLBACK_INSETS_CONTEXT);
   const bottomPad = Math.max(insets?.bottom ?? 0, 16);
 
   const handleClose = () => {
@@ -44,7 +46,7 @@ export function BottomSheet({
 
   return (
     <Modal visible={visible} transparent animationType={reducedMotion ? 'none' : 'slide'} onRequestClose={handleClose}>
-      <View style={styles.root}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.root}>
         <Pressable
           accessible={false}
           style={StyleSheet.absoluteFill}
@@ -82,7 +84,7 @@ export function BottomSheet({
           )}
           {footer ? <View style={styles.footer}>{footer}</View> : null}
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

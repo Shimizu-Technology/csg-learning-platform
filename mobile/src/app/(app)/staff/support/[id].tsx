@@ -93,7 +93,7 @@ export default function StaffHelpRequestScreen() {
     onDraftChange: setResponse,
     onSelectionChange: setResponseSelection,
   });
-  const voiceActive = voiceDraft.state === 'recording' || voiceDraft.state === 'transcribing';
+  const voiceActive = voiceDraft.state === 'preparing' || voiceDraft.state === 'recording' || voiceDraft.state === 'transcribing';
   const sendBlocked = !response.trim() || busy || voiceActive;
   const cancelVoiceRef = useRef(voiceDraft.cancel);
   useEffect(() => {
