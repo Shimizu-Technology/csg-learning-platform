@@ -278,7 +278,7 @@ export function Layout({ children }: LayoutProps) {
     return () => globalThis.clearTimeout(timeoutId)
   }, [navItems])
 
-  const [collapsedTooltip, setCollapsedTooltip] = useState<{ label: string; top: number; left: number } | null>(null)
+  const [collapsedTooltip, setCollapsedTooltip] = useState<{ target: { kind: 'nav'; to: string } | { kind: 'static'; label: string }; top: number; left: number } | null>(null)
   const tooltipTriggerRef = useRef<HTMLElement | null>(null)
   const tooltipHideTimerRef = useRef<number | null>(null)
   const cancelCollapsedTooltipHide = useCallback(() => {
@@ -287,12 +287,12 @@ export function Layout({ children }: LayoutProps) {
       tooltipHideTimerRef.current = null
     }
   }, [])
-  const showCollapsedTooltip = useCallback((label: string, element: HTMLElement) => {
+  const showCollapsedTooltip = useCallback((target: { kind: 'nav'; to: string } | { kind: 'static'; label: string }, element: HTMLElement) => {
     if (!collapsed) return
     cancelCollapsedTooltipHide()
     tooltipTriggerRef.current = element
     const rect = element.getBoundingClientRect()
-    setCollapsedTooltip({ label, top: rect.top + rect.height / 2, left: rect.right + 10 })
+    setCollapsedTooltip({ target, top: rect.top + rect.height / 2, left: rect.right + 10 })
   }, [collapsed, cancelCollapsedTooltipHide])
   const hideCollapsedTooltip = useCallback(() => {
     cancelCollapsedTooltipHide()
@@ -416,12 +416,12 @@ export function Layout({ children }: LayoutProps) {
               onClick={hideCollapsedTooltip}
               onMouseEnter={(event) => {
                 linkHandlers.onMouseEnter()
-                showCollapsedTooltip(label, event.currentTarget)
+                showCollapsedTooltip({ kind: 'nav', to: item.to }, event.currentTarget)
               }}
               onMouseLeave={scheduleCollapsedTooltipHide}
               onFocus={(event) => {
                 linkHandlers.onFocus()
-                showCollapsedTooltip(label, event.currentTarget)
+                showCollapsedTooltip({ kind: 'nav', to: item.to }, event.currentTarget)
               }}
               onBlur={hideCollapsedTooltip}
               className={`pressable group relative flex min-h-11 items-center ${collapsed ? 'justify-center' : 'gap-3'} rounded-lg ${collapsed ? 'px-2' : 'px-3'} py-2.5 text-sm font-medium ${
@@ -545,9 +545,9 @@ export function Layout({ children }: LayoutProps) {
               hideCollapsedTooltip()
               setCommandPaletteOpen(true)
             }}
-            onMouseEnter={(event) => showCollapsedTooltip('Search (⌘K)', event.currentTarget)}
+            onMouseEnter={(event) => showCollapsedTooltip({ kind: 'static', label: 'Search (⌘K)' }, event.currentTarget)}
             onMouseLeave={scheduleCollapsedTooltipHide}
-            onFocus={(event) => showCollapsedTooltip('Search (⌘K)', event.currentTarget)}
+            onFocus={(event) => showCollapsedTooltip({ kind: 'static', label: 'Search (⌘K)' }, event.currentTarget)}
             onBlur={hideCollapsedTooltip}
             aria-label="Search and go"
             className={`pressable group relative mb-2 flex min-h-11 w-full items-center rounded-xl border border-line-strong text-sm font-medium text-ink-muted hover:bg-surface-sunken hover:text-ink ${collapsed ? 'justify-center px-2' : 'gap-3 px-3'}`}
@@ -570,9 +570,9 @@ export function Layout({ children }: LayoutProps) {
                 hideCollapsedTooltip()
                 toggleCollapsed()
               }}
-              onMouseEnter={(event) => showCollapsedTooltip('Expand sidebar', event.currentTarget)}
+              onMouseEnter={(event) => showCollapsedTooltip({ kind: 'static', label: 'Expand sidebar' }, event.currentTarget)}
               onMouseLeave={scheduleCollapsedTooltipHide}
-              onFocus={(event) => showCollapsedTooltip('Expand sidebar', event.currentTarget)}
+              onFocus={(event) => showCollapsedTooltip({ kind: 'static', label: 'Expand sidebar' }, event.currentTarget)}
               onBlur={hideCollapsedTooltip}
               aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
               className={`pressable group relative flex min-h-11 items-center ${collapsed ? 'justify-center w-full' : 'gap-3 w-full'} rounded-lg px-3 py-2 text-sm text-ink-muted hover:bg-surface-sunken hover:text-ink`}
@@ -581,18 +581,27 @@ export function Layout({ children }: LayoutProps) {
               {!collapsed && <span>Collapse</span>}
             </button>
           </div>
-          {collapsed && collapsedTooltip && (
-            <span
-              aria-hidden="true"
-              onMouseEnter={cancelCollapsedTooltipHide}
-              onMouseLeave={scheduleCollapsedTooltipHide}
-              style={{ top: collapsedTooltip.top, left: collapsedTooltip.left }}
-              className="fixed z-50 hidden -translate-y-1/2 whitespace-nowrap rounded-lg bg-surface-inverse px-3 py-2 text-xs font-semibold text-ink-on-inverse shadow-overlay before:absolute before:inset-y-0 before:-left-3 before:w-3 lg:block"
-            >
-              {collapsedTooltip.label}
-              <span className="absolute left-0 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-surface-inverse" />
-            </span>
-          )}
+          {collapsed && collapsedTooltip && (() => {
+            const tooltipText = collapsedTooltip.target.kind === 'static'
+              ? collapsedTooltip.target.label
+              : (() => {
+                  const navItem = navItems.find((item) => item.to === collapsedTooltip.target.to)
+                  return navItem ? getNavLabel(navItem) : null
+                })()
+            if (!tooltipText) return null
+            return (
+              <span
+                aria-hidden="true"
+                onMouseEnter={cancelCollapsedTooltipHide}
+                onMouseLeave={scheduleCollapsedTooltipHide}
+                style={{ top: collapsedTooltip.top, left: collapsedTooltip.left }}
+                className="fixed z-50 hidden -translate-y-1/2 whitespace-nowrap rounded-lg bg-surface-inverse px-3 py-2 text-xs font-semibold text-ink-on-inverse shadow-overlay before:absolute before:inset-y-0 before:-left-3 before:w-3 lg:block"
+              >
+                {tooltipText}
+                <span className="absolute left-0 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-surface-inverse" />
+              </span>
+            )
+          })()}
 
           <div className={`border-t border-line ${collapsed ? 'p-2' : 'p-3'}`}>
             <AccountMenu name={user?.full_name || user?.email || 'Your account'} role={user?.role} avatarUrl={user?.avatar_url} compact={collapsed} />

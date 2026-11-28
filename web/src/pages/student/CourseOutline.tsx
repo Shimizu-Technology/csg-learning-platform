@@ -287,7 +287,7 @@ function GroupTrigger({ expanded, onToggle, controls, disabled, title, group, li
       className="flex min-h-[52px] w-full items-center gap-2.5 px-4 py-2 text-left transition-colors duration-150 hover:bg-surface-hover disabled:cursor-default disabled:hover:bg-transparent sm:px-5">
       <ChevronRight className={`h-4 w-4 shrink-0 text-ink-muted transition-transform duration-200 ease-[var(--ease-out)] motion-reduce:transition-none ${expanded ? 'rotate-90' : ''}`} aria-hidden="true" />
       <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2.5 gap-y-1">
-        {title}
+        <span className="min-w-0 [overflow-wrap:anywhere]">{title}</span>
         {group.this_week && <Badge tone="brand">This week</Badge>}
         {!group.available && group.opens_on && <span className="text-sm text-ink-muted">Opens {formatShortDate(group.opens_on, '', { withYear: false, weekday: true })}</span>}
       </span>

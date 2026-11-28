@@ -111,7 +111,12 @@ export function Resources() {
     // Staff, and learners without read access (401/403), get no private folder here.
     void api.getCohortFiles(selectedCohortId).then((res) => {
       if (request !== filesRequest.current) return
-      if (res.data?.my_files) setCohortFiles(res.data)
+      if (res.data?.my_files) {
+        setCohortFiles(res.data)
+        if (res.data.my_files.length === 0) {
+          setAdding((current) => (current === null ? 'upload' : current))
+        }
+      }
       else if (!res.data && res.status !== 401 && res.status !== 403) setFilesError(res.error || 'Could not load your files.')
     })
   }, [selectedCohortId])
@@ -469,10 +474,7 @@ export function Resources() {
           {(() => {
             const activeFormSession = formSessionRef.current
             const formCohortId = selectedCohortId
-            const uploadOpen =
-              !cohortFiles?.can_upload_personal ||
-              adding === 'upload' ||
-              (adding === null && (cohortFiles?.my_files?.length || 0) === 0)
+            const uploadOpen = !cohortFiles?.can_upload_personal || adding === 'upload'
             return (
               <>
                 {cohortFiles?.can_upload_personal && (
