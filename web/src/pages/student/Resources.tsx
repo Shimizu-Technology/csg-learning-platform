@@ -75,7 +75,15 @@ export function Resources() {
   const toast = useToast()
   const confirm = useConfirm()
   const [adding, setAdding] = useState<'upload' | 'link' | 'doc' | 'closed' | null>(null)
-  useEffect(() => { setAdding(null) }, [selectedCohortId])
+  const formSessionRef = useRef(0)
+  const setFormMode = (next: 'upload' | 'link' | 'doc' | 'closed' | null) => {
+    formSessionRef.current += 1
+    setAdding(next)
+  }
+  useEffect(() => {
+    formSessionRef.current += 1
+    setAdding(null)
+  }, [selectedCohortId])
   const [myFolder, setMyFolder] = useState('All')
   const [classFolder, setClassFolder] = useState('All')
   const [myTypeFilter, setMyTypeFilter] = useState<DriveTypeFilter>('all')
@@ -459,6 +467,8 @@ export function Resources() {
             )}
           </div>
           {(() => {
+            const activeFormSession = formSessionRef.current
+            const formCohortId = selectedCohortId
             const uploadOpen =
               !cohortFiles?.can_upload_personal ||
               adding === 'upload' ||
@@ -470,16 +480,16 @@ export function Resources() {
                     <Button
                       variant={uploadOpen ? 'primary' : 'secondary'}
                       aria-expanded={uploadOpen}
-                      onClick={() => setAdding(uploadOpen ? 'closed' : 'upload')}
+                      onClick={() => setFormMode(uploadOpen ? 'closed' : 'upload')}
                     >
                       <Upload className="h-4 w-4" aria-hidden="true" />
                       Upload files
                     </Button>
-                    <Button variant={adding === 'link' ? 'primary' : 'secondary'} onClick={() => setAdding((current) => (current === 'link' ? 'closed' : 'link'))}>
+                    <Button variant={adding === 'link' ? 'primary' : 'secondary'} onClick={() => setFormMode(adding === 'link' ? 'closed' : 'link')}>
                       <Link2 className="h-4 w-4" aria-hidden="true" />
                       Add a link
                     </Button>
-                    <Button variant={adding === 'doc' ? 'primary' : 'secondary'} onClick={() => setAdding((current) => (current === 'doc' ? 'closed' : 'doc'))}>
+                    <Button variant={adding === 'doc' ? 'primary' : 'secondary'} onClick={() => setFormMode(adding === 'doc' ? 'closed' : 'doc')}>
                       <NotebookPen className="h-4 w-4" aria-hidden="true" />
                       New doc
                     </Button>
@@ -494,17 +504,26 @@ export function Resources() {
                     onUploaded={addUploadedFile} />
                 </div>
                 {cohortFiles?.can_upload_personal && adding === 'link' && (
-                  <CohortLinkForm key={`link-${selectedCohortId}`} cohortId={selectedCohortId} heading="Add a link to my files" folderPresets={myFolderPresets}
+                  <CohortLinkForm key={`link-${selectedCohortId}-${activeFormSession}`} cohortId={selectedCohortId} heading="Add a link to my files" folderPresets={myFolderPresets}
                     defaultFolder={activeMyFolder === 'All' ? undefined : activeMyFolder}
-                    onCancel={() => setAdding('closed')}
-                    onSaved={(file) => { addUploadedFile(file); setAdding('closed') }} />
+                    onCancel={() => setFormMode('closed')}
+                    onSaved={(file) => {
+                      addUploadedFile(file)
+                      if (formSessionRef.current === activeFormSession && shownCohortId.current === formCohortId) setFormMode('closed')
+                    }} />
                 )}
                 {cohortFiles?.can_upload_personal && adding === 'doc' && (
-                  <CohortDocForm key={`doc-${selectedCohortId}`} cohortId={selectedCohortId} heading="New doc in my files" folderPresets={myFolderPresets}
+                  <CohortDocForm key={`doc-${selectedCohortId}-${activeFormSession}`} cohortId={selectedCohortId} heading="New doc in my files" folderPresets={myFolderPresets}
                     defaultFolder={activeMyFolder === 'All' ? undefined : activeMyFolder}
                     description="Write notes, a plan or a checklist right here. It saves as you type, and your instructors can review it."
-                    onCancel={() => setAdding('closed')}
-                    onCreated={(file) => { addUploadedFile(file); setAdding('closed'); setOpenFileId(file.id) }} />
+                    onCancel={() => setFormMode('closed')}
+                    onCreated={(file) => {
+                      addUploadedFile(file)
+                      if (formSessionRef.current === activeFormSession && shownCohortId.current === formCohortId) {
+                        setFormMode('closed')
+                        setOpenFileId(file.id)
+                      }
+                    }} />
                 )}
               </>
             )

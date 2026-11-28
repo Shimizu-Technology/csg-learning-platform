@@ -279,15 +279,47 @@ export function Layout({ children }: LayoutProps) {
   }, [navItems])
 
   const [collapsedTooltip, setCollapsedTooltip] = useState<{ label: string; top: number; left: number } | null>(null)
+  const tooltipHideTimerRef = useRef<number | null>(null)
+  const cancelCollapsedTooltipHide = useCallback(() => {
+    if (tooltipHideTimerRef.current !== null) {
+      window.clearTimeout(tooltipHideTimerRef.current)
+      tooltipHideTimerRef.current = null
+    }
+  }, [])
   const showCollapsedTooltip = useCallback((label: string, element: HTMLElement) => {
     if (!collapsed) return
+    cancelCollapsedTooltipHide()
     const rect = element.getBoundingClientRect()
-    setCollapsedTooltip({ label, top: rect.top + rect.height / 2, left: rect.right + 12 })
-  }, [collapsed])
-  const hideCollapsedTooltip = useCallback(() => setCollapsedTooltip(null), [])
+    setCollapsedTooltip({ label, top: rect.top + rect.height / 2, left: rect.right + 10 })
+  }, [collapsed, cancelCollapsedTooltipHide])
+  const hideCollapsedTooltip = useCallback(() => {
+    cancelCollapsedTooltipHide()
+    setCollapsedTooltip(null)
+  }, [cancelCollapsedTooltipHide])
+  const scheduleCollapsedTooltipHide = useCallback(() => {
+    cancelCollapsedTooltipHide()
+    tooltipHideTimerRef.current = window.setTimeout(() => {
+      tooltipHideTimerRef.current = null
+      setCollapsedTooltip(null)
+    }, 100)
+  }, [cancelCollapsedTooltipHide])
   useEffect(() => {
-    if (!collapsed) setCollapsedTooltip(null)
-  }, [collapsed, location.pathname, location.search])
+    hideCollapsedTooltip()
+  }, [collapsed, location.pathname, location.search, hideCollapsedTooltip])
+  useEffect(() => {
+    if (!collapsedTooltip) return
+    const onResize = () => hideCollapsedTooltip()
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') hideCollapsedTooltip()
+    }
+    window.addEventListener('resize', onResize)
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('resize', onResize)
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [collapsedTooltip, hideCollapsedTooltip])
+  useEffect(() => () => cancelCollapsedTooltipHide(), [cancelCollapsedTooltipHide])
 
   const isActive = (path: string, exact?: boolean) => {
     const pathname = path.split('?')[0]
@@ -375,11 +407,12 @@ export function Layout({ children }: LayoutProps) {
               aria-label={collapsed ? label : undefined}
               aria-current={isActive(item.to, item.exact) ? 'page' : undefined}
               onTouchStart={linkHandlers.onTouchStart}
+              onClick={hideCollapsedTooltip}
               onMouseEnter={(event) => {
                 linkHandlers.onMouseEnter()
                 showCollapsedTooltip(label, event.currentTarget)
               }}
-              onMouseLeave={hideCollapsedTooltip}
+              onMouseLeave={scheduleCollapsedTooltipHide}
               onFocus={(event) => {
                 linkHandlers.onFocus()
                 showCollapsedTooltip(label, event.currentTarget)
@@ -507,7 +540,7 @@ export function Layout({ children }: LayoutProps) {
               setCommandPaletteOpen(true)
             }}
             onMouseEnter={(event) => showCollapsedTooltip('Search (⌘K)', event.currentTarget)}
-            onMouseLeave={hideCollapsedTooltip}
+            onMouseLeave={scheduleCollapsedTooltipHide}
             onFocus={(event) => showCollapsedTooltip('Search (⌘K)', event.currentTarget)}
             onBlur={hideCollapsedTooltip}
             aria-label="Search and go"
@@ -532,7 +565,7 @@ export function Layout({ children }: LayoutProps) {
                 toggleCollapsed()
               }}
               onMouseEnter={(event) => showCollapsedTooltip('Expand sidebar', event.currentTarget)}
-              onMouseLeave={hideCollapsedTooltip}
+              onMouseLeave={scheduleCollapsedTooltipHide}
               onFocus={(event) => showCollapsedTooltip('Expand sidebar', event.currentTarget)}
               onBlur={hideCollapsedTooltip}
               aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
@@ -545,8 +578,10 @@ export function Layout({ children }: LayoutProps) {
           {collapsed && collapsedTooltip && (
             <span
               aria-hidden="true"
+              onMouseEnter={cancelCollapsedTooltipHide}
+              onMouseLeave={scheduleCollapsedTooltipHide}
               style={{ top: collapsedTooltip.top, left: collapsedTooltip.left }}
-              className="pointer-events-none fixed z-50 hidden -translate-y-1/2 whitespace-nowrap rounded-lg bg-surface-inverse px-3 py-2 text-xs font-semibold text-ink-on-inverse shadow-overlay lg:block"
+              className="fixed z-50 hidden -translate-y-1/2 whitespace-nowrap rounded-lg bg-surface-inverse px-3 py-2 text-xs font-semibold text-ink-on-inverse shadow-overlay before:absolute before:inset-y-0 before:-left-3 before:w-3 lg:block"
             >
               {collapsedTooltip.label}
               <span className="absolute left-0 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-surface-inverse" />

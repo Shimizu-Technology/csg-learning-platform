@@ -1,5 +1,6 @@
 import { ChevronDown, ChevronLeft, Pin, RefreshCw } from 'lucide-react';
 import { Button } from '../../../components/ui/Button';
+import { useMediaQuery } from '../../../lib/useMediaQuery';
 import { formatDayDivider, rootMessageIdFor, sameDay, shouldCompactMessage } from './helpers';
 import { MessageRow } from './MessageRow';
 import { MessageSourceLine } from './MessageSourceLine';
@@ -24,11 +25,17 @@ export function ConversationFeed({ selectedTarget, selectedLabel, isStaff, isNav
   const { conversationView, setConversationView, activeThreadRoot, activeThreadMessages, setActiveThreadRootId, isDesktop, setMobilePane, messagesById, threadReplies, unreadBoundaryId } = conversation
   const { messageScrollRef, messageWindowMeta, loadingOlder, loadingNewer, loadingTarget, hasUnreadBelow, showScrollToLatest, queuedConversationCount, rootReadReceipts, threadReadReceipts, loadOlderMessages, loadNewerMessages, replyToMessage, scrollToLatestMessage, beginReadingScroll, handleConversationScroll } = feed
   const { showThreadPanel, displayedMessages, editingFeedRow, messageRowProps, renderThreadPaging, renderThreadLatest } = view
+  const isWideDesktop = useMediaQuery('(min-width: 1280px)')
   const feedIsThreadView = Boolean(activeThreadRoot && !showThreadPanel)
+  const threadOverlaysFeed = Boolean(showThreadPanel && activeThreadRoot && !isWideDesktop)
 
   return (
     <div className={`relative min-w-0 min-h-0 flex-1 overflow-hidden ${showThreadPanel ? 'flex xl:grid xl:grid-cols-[minmax(0,1fr)_380px]' : 'flex'}`}>
-      <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <div
+        aria-hidden={threadOverlaysFeed || undefined}
+        inert={threadOverlaysFeed}
+        className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+      >
         <div
           ref={messageScrollRef}
           onWheelCapture={beginReadingScroll}
@@ -154,7 +161,14 @@ export function ConversationFeed({ selectedTarget, selectedLabel, isStaff, isNav
           </div>
         )}
       </div>
-      <ThreadPanel conversation={conversation} feed={feed} selectedLabel={selectedLabel} view={view} />
+      {threadOverlaysFeed && (
+        <div
+          aria-hidden="true"
+          onClick={() => setActiveThreadRootId(null)}
+          className="absolute inset-0 z-10 bg-scrim/25 xl:hidden"
+        />
+      )}
+      <ThreadPanel conversation={conversation} feed={feed} selectedLabel={selectedLabel} view={view} isOverlay={threadOverlaysFeed} />
       {(loadingTarget || isNavigationPending) && (
         <div className="pointer-events-none absolute inset-0 flex items-start justify-center bg-surface-raised/20 px-4 py-6">
           <div className="inline-flex items-center gap-2 rounded-full border border-line bg-surface-raised px-3 py-1.5 text-xs font-medium text-ink-secondary shadow-raised">

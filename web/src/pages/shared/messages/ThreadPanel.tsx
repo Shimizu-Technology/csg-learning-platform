@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { IconButton } from '../../../components/ui/Button';
 import { shouldCompactMessage } from './helpers';
@@ -11,14 +12,47 @@ type ThreadPanelProps = {
   feed: Pick<ConversationWindow, 'threadScrollRef' | 'threadReadReceipts' | 'beginReadingScroll' | 'handleThreadScroll'>
   selectedLabel: string
   view: Pick<MessagesView, 'showThreadPanel' | 'editingThreadRow' | 'messageRowProps' | 'renderThreadPaging' | 'renderThreadLatest' | 'renderComposer'>
+  isOverlay?: boolean
 }
 
-export function ThreadPanel({ conversation, feed, selectedLabel, view }: ThreadPanelProps) {
+export function ThreadPanel({ conversation, feed, selectedLabel, view, isOverlay = false }: ThreadPanelProps) {
   const { activeThreadRoot, activeThreadMessages, setActiveThreadRootId } = conversation
   const { threadScrollRef, threadReadReceipts, beginReadingScroll, handleThreadScroll } = feed
   const { showThreadPanel, editingThreadRow, messageRowProps, renderThreadPaging, renderThreadLatest, renderComposer } = view
+  const asideRef = useRef<HTMLElement | null>(null)
+  const previousFocusRef = useRef<HTMLElement | null>(null)
+  const isOpen = Boolean(showThreadPanel && activeThreadRoot)
+  const activeRootId = activeThreadRoot?.id ?? null
+
+  useEffect(() => {
+    if (!isOpen || !isOverlay) return
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    previousFocusRef.current = opener && !asideRef.current?.contains(opener) ? opener : null
+    asideRef.current?.focus({ preventScroll: true })
+    return () => {
+      const target = previousFocusRef.current
+      previousFocusRef.current = null
+      if (target && target.isConnected) target.focus({ preventScroll: true })
+    }
+  }, [isOpen, isOverlay, activeRootId])
+
 return (<>{showThreadPanel && activeThreadRoot && (
-                  <aside className="hidden min-h-0 min-w-0 overflow-hidden border-l border-line bg-surface-raised lg:absolute lg:inset-y-0 lg:right-0 lg:z-20 lg:flex lg:w-[min(380px,calc(100%-2rem))] lg:flex-col lg:shadow-overlay xl:static xl:z-auto xl:w-auto xl:bg-surface-sunken/70 xl:shadow-none">
+                  <aside
+                    ref={asideRef}
+                    role={isOverlay ? 'dialog' : undefined}
+                    aria-modal={isOverlay || undefined}
+                    aria-label={isOverlay ? `Thread in ${selectedLabel}` : undefined}
+                    tabIndex={isOverlay ? -1 : undefined}
+                    onKeyDown={(event) => {
+                      if (!isOverlay || event.defaultPrevented) return
+                      if (event.key === 'Escape') {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        setActiveThreadRootId(null)
+                      }
+                    }}
+                    className="hidden min-h-0 min-w-0 overflow-hidden border-l border-line bg-surface-raised focus:outline-none lg:absolute lg:inset-y-0 lg:right-0 lg:z-20 lg:flex lg:w-[min(380px,calc(100%-2rem))] lg:flex-col lg:shadow-overlay xl:static xl:z-auto xl:w-auto xl:bg-surface-sunken/70 xl:shadow-none"
+                  >
                     <div className="flex items-start justify-between gap-3 border-b border-line bg-surface-raised px-4 py-3">
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-ink">Thread</p>

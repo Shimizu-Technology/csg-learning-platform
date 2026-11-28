@@ -276,5 +276,9 @@ it('marks Learn active on lesson and module routes and renders collapsed tooltip
   })
   const tooltip = container.querySelector<HTMLElement>('aside > span.fixed')
   expect(tooltip?.textContent).toBe('Learn')
+  await act(async () => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+  })
+  expect(container.querySelector<HTMLElement>('aside > span.fixed')).toBeNull()
   localStorage.removeItem('sidebar-collapsed')
 })

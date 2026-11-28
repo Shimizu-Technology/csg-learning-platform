@@ -69,6 +69,7 @@ export const MessageComposer = memo(forwardRef<MessageComposerHandle, {
   onEditLastMessage,
 }, ref) {
   const containerRef = useRef<HTMLDivElement | null>(null)
+  const mentionListRef = useRef<HTMLDivElement | null>(null)
   const editorRef = useRef<MarkdownEditorHandle | null>(null)
   const draftKeyRef = useRef(draftKey)
   const [initialDraft] = useState(() => (draftKey
@@ -358,6 +359,17 @@ export const MessageComposer = memo(forwardRef<MessageComposerHandle, {
 
   const renderPreview = useCallback((markdown: string) => <FormattedMessage body={markdown} mentionPatterns={mentionPatternsRef.current} />, [])
 
+  useEffect(() => {
+    if (!mentionSuggestions.length) return
+    const list = mentionListRef.current
+    const active = list?.querySelector<HTMLElement>('[data-mention-active="true"]')
+    if (!list || !active) return
+    const top = active.offsetTop
+    const bottom = top + active.offsetHeight
+    if (top < list.scrollTop) list.scrollTop = top
+    else if (bottom > list.scrollTop + list.clientHeight) list.scrollTop = bottom - list.clientHeight
+  }, [activeMentionIndex, mentionSuggestions.length])
+
   return (
     <div ref={containerRef} className="relative">
       <VoiceDraftPanel
@@ -445,11 +457,12 @@ export const MessageComposer = memo(forwardRef<MessageComposerHandle, {
       {mentionSuggestions.length > 0 && (
         <div className={`absolute bottom-full z-30 mb-2 overflow-hidden rounded-xl border border-line bg-surface-raised shadow-overlay ${inThreadPanel ? 'left-2 right-2' : 'left-3 w-72'}`}>
           <div className="border-b border-line px-3 py-2 text-xs font-semibold text-ink-muted">Mention someone</div>
-          <div className="max-h-60 overflow-y-auto overscroll-contain">
+          <div ref={mentionListRef} className="max-h-60 overflow-y-auto overscroll-contain">
             {mentionSuggestions.map((mention, index) => (
               <RowButton
                 key={mention.id}
                 selected={index === activeMentionIndex}
+                data-mention-active={index === activeMentionIndex ? 'true' : undefined}
                 onPointerDown={(event) => event.preventDefault()}
                 onClick={() => selectMention(mention)}
                 className="flex w-full items-center gap-3 px-3 py-2 text-sm"

@@ -20,23 +20,47 @@ export function OverflowMenu({ label, items, size = 'md', align = 'right', class
   className?: string
 }) {
   const [open, setOpen] = useState(false)
-  const [openUpward, setOpenUpward] = useState(false)
+  const [placement, setPlacement] = useState<{ upward: boolean; maxHeight: number | null }>({ upward: false, maxHeight: null })
   const buttonRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const menuId = useId()
 
   useLayoutEffect(() => {
     if (!open) {
-      setOpenUpward(false)
+      setPlacement({ upward: false, maxHeight: null })
       return
     }
     const updatePlacement = () => {
-      const trigger = buttonRef.current?.getBoundingClientRect()
-      const menu = menuRef.current?.getBoundingClientRect()
-      if (!trigger || !menu || menu.height === 0) return
-      const spaceBelow = window.innerHeight - trigger.bottom - 8
-      const spaceAbove = trigger.top - 8
-      setOpenUpward(spaceBelow < menu.height && spaceAbove > spaceBelow)
+      const triggerEl = buttonRef.current
+      const menuEl = menuRef.current
+      if (!triggerEl || !menuEl) return
+      const trigger = triggerEl.getBoundingClientRect()
+      const naturalHeight = Math.max(menuEl.scrollHeight, menuEl.getBoundingClientRect().height)
+      if (naturalHeight === 0) return
+
+      let clipTop = 0
+      let clipBottom = window.innerHeight
+      let ancestor = triggerEl.parentElement
+      while (ancestor && ancestor !== document.documentElement) {
+        const overflowY = window.getComputedStyle(ancestor).overflowY
+        if (/auto|scroll|hidden|clip/.test(overflowY)) {
+          const rect = ancestor.getBoundingClientRect()
+          if (rect.height > 0) {
+            clipTop = Math.max(clipTop, rect.top)
+            clipBottom = Math.min(clipBottom, rect.bottom)
+          }
+        }
+        ancestor = ancestor.parentElement
+      }
+
+      const spaceBelow = clipBottom - trigger.bottom - 8
+      const spaceAbove = trigger.top - clipTop - 8
+      const upward = spaceBelow < naturalHeight && spaceAbove > spaceBelow
+      const available = Math.floor(upward ? spaceAbove : spaceBelow)
+      const maxHeight = available < naturalHeight ? Math.max(88, available) : null
+      setPlacement((current) =>
+        current.upward === upward && current.maxHeight === maxHeight ? current : { upward, maxHeight },
+      )
     }
     updatePlacement()
     window.addEventListener('resize', updatePlacement)
@@ -109,8 +133,9 @@ export function OverflowMenu({ label, items, size = 'md', align = 'right', class
           id={menuId}
           role="menu"
           aria-label={label}
-          className={`popover-menu absolute z-50 w-64 max-w-[calc(100vw-1rem)] rounded-xl border border-line bg-surface-overlay p-1.5 shadow-overlay ${
-            openUpward
+          style={placement.maxHeight ? { maxHeight: `${placement.maxHeight}px` } : undefined}
+          className={`popover-menu absolute z-50 w-64 max-w-[calc(100vw-1rem)] overflow-y-auto overscroll-contain rounded-xl border border-line bg-surface-overlay p-1.5 shadow-overlay ${
+            placement.upward
               ? align === 'right'
                 ? 'bottom-full right-0 mb-1.5 origin-bottom-right'
                 : 'bottom-full left-0 mb-1.5 origin-bottom-left'
