@@ -434,3 +434,8 @@ it('switches between Outline and Learner files tabs and avoids duplicating match
   expect(urlText()).toContain('pane=detail')
   expect(container.querySelector('[aria-label="Curriculum details and learner files"]')).toBeNull()
 })
+
+it('focuses the files heading on a direct ?pane=files load after detail loads', async () => {
+  await renderAt('/admin/content?curriculum=1&pane=files')
+  expect(document.activeElement?.textContent).toContain('Curriculum files')
+})

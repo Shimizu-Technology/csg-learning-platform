@@ -247,7 +247,8 @@ export function ContentManagement() {
   useEffect(() => {
     if (detailLoading || selected?.id !== selectedId) return
     if (focusedId.current !== selectedId) {
-      headingRef.current?.focus({ preventScroll: true })
+      if (url.pane === 'files') filesRef.current?.focus({ preventScroll: true })
+      else headingRef.current?.focus({ preventScroll: true })
       focusedId.current = selectedId
     }
     if (/^#(curriculum|module)-\d+$/.test(location.hash)) {
@@ -260,7 +261,7 @@ export function ContentManagement() {
         hash: ''
       }, { replace: true })
     }
-  }, [selectedId, selected, detailLoading, location, hashId, navigate])
+  }, [selectedId, selected, detailLoading, location, hashId, navigate, url.pane])
   useEffect(() => {
     setSearchResults([])
     setSearchError('')
@@ -330,9 +331,11 @@ export function ContentManagement() {
   }
 
   useEffect(() => {
-    if (url.pane === 'files') filesRef.current?.focus()
+    if (url.pane === 'files' && !detailLoading && selected?.id === selectedId) {
+      filesRef.current?.focus({ preventScroll: true })
+    }
     if (url.pane === 'list' && url.curriculum && !location.hash) searchRef.current?.focus({ preventScroll: true })
-  }, [url.pane, url.curriculum, location.hash])
+  }, [url.pane, url.curriculum, location.hash, detailLoading, selected?.id, selectedId])
   const deleteCurriculum = async (curriculum: Curriculum) => {
     if (!await confirm({ title: `Delete ${curriculum.name}?`, description: 'This permanently deletes the curriculum and its content. Curricula used by cohorts, learner work or learner files cannot be deleted.', confirmLabel: 'Delete permanently', tone: 'danger' })) return
     const res = await api.deleteCurriculum(curriculum.id)
@@ -622,9 +625,9 @@ export function ContentManagement() {
                 <div
                   id={`curriculum-${curriculum.id}`}
                   key={curriculum.id}
-                  className="app-surface overflow-hidden"
+                  className="app-surface"
                 >
-                  <div className="border-b border-line bg-surface-sunken px-4 py-4 sm:px-6">
+                  <div className="rounded-t-2xl border-b border-line bg-surface-sunken px-4 py-4 sm:px-6">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <h2
@@ -1105,7 +1108,7 @@ function ModuleSection({
                   event.dataTransfer.setData('application/x-csg-module-id', String(mod.id))
                   event.dataTransfer.effectAllowed = 'move'
                 }}
-                className="cursor-grab p-1.5 text-ink-muted hover:text-ink"
+                className="inline-flex min-h-11 min-w-11 cursor-grab items-center justify-center rounded-xl text-ink-muted hover:text-ink lg:min-h-9 lg:min-w-9"
                 role="img"
                 aria-label={`Drag ${mod.name}`}
               >

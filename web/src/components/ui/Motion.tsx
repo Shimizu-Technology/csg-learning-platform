@@ -82,18 +82,26 @@ export function TabList({
   /** Show left/right scroll buttons and edge fades whenever tabs overflow horizontally. */
   scrollable?: boolean
 }) {
+  const wrapperRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const indicatorRef = useRef<HTMLSpanElement>(null)
   const placed = useRef(false)
-  const [scrollState, setScrollState] = useState({ left: false, right: false })
+  const [scrollState, setScrollState] = useState({ overflowing: false, left: false, right: false })
   const selectedIndex = Children.toArray(children).findIndex((child) => isValidElement<{ selected?: boolean }>(child) && child.props.selected)
 
   const syncScrollState = useCallback(() => {
     const list = listRef.current
     if (!scrollable || !list) return
-    const left = list.scrollLeft > 2
-    const right = list.scrollLeft + list.clientWidth < list.scrollWidth - 2
-    setScrollState((current) => (current.left === left && current.right === right ? current : { left, right }))
+    const wrapper = wrapperRef.current
+    const availableWidth = wrapper && wrapper.clientWidth > 0 ? wrapper.clientWidth : list.clientWidth
+    const overflowing = list.scrollWidth > availableWidth + 2
+    const left = overflowing && list.scrollLeft > 2
+    const right = overflowing && list.scrollLeft + list.clientWidth < list.scrollWidth - 2
+    setScrollState((current) =>
+      current.overflowing === overflowing && current.left === left && current.right === right
+        ? current
+        : { overflowing, left, right },
+    )
   }, [scrollable])
 
   const ensureSelectedVisible = useCallback((smooth: boolean) => {
@@ -140,13 +148,15 @@ export function TabList({
       place()
     })
     observer.observe(list)
+    if (wrapperRef.current) observer.observe(wrapperRef.current)
     return () => observer.disconnect()
   }, [selectedIndex, children, ensureSelectedVisible, syncScrollState])
 
   const scrollByStep = (direction: -1 | 1) => {
     const list = listRef.current
     if (!list) return
-    const delta = direction * Math.max(200, Math.round(list.clientWidth * 0.7))
+    const step = list.clientWidth > 0 ? Math.max(40, Math.min(Math.round(list.clientWidth * 0.75), Math.max(40, list.clientWidth - 24))) : 160
+    const delta = direction * step
     const behavior: ScrollBehavior = prefersReducedMotion() ? 'auto' : 'smooth'
     if (typeof list.scrollBy === 'function') list.scrollBy({ left: delta, behavior })
     else list.scrollLeft += delta
@@ -167,11 +177,11 @@ export function TabList({
         : event.key === 'End' ? tabs.length - 1
           : event.key === 'ArrowRight' ? (currentIndex + 1) % tabs.length
             : (currentIndex - 1 + tabs.length) % tabs.length
-    tabs[nextIndex]?.focus()
+    tabs[nextIndex]?.focus(scrollable ? { preventScroll: true } : undefined)
     tabs[nextIndex]?.click()
   }
 
-  const overflowing = scrollable && (scrollState.left || scrollState.right)
+  const overflowing = scrollable && scrollState.overflowing
 
   if (!scrollable) {
     return (
@@ -183,7 +193,7 @@ export function TabList({
   }
 
   return (
-    <div className="relative flex min-w-0 items-center gap-1">
+    <div ref={wrapperRef} className="relative flex min-w-0 items-center gap-1">
       {overflowing && (
         <button
           type="button"
