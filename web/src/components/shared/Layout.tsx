@@ -582,10 +582,11 @@ export function Layout({ children }: LayoutProps) {
             </button>
           </div>
           {collapsed && collapsedTooltip && (() => {
-            const tooltipText = collapsedTooltip.target.kind === 'static'
-              ? collapsedTooltip.target.label
+            const { target } = collapsedTooltip
+            const tooltipText = target.kind === 'static'
+              ? target.label
               : (() => {
-                  const navItem = navItems.find((item) => item.to === collapsedTooltip.target.to)
+                  const navItem = navItems.find((item) => item.to === target.to)
                   return navItem ? getNavLabel(navItem) : null
                 })()
             if (!tooltipText) return null
