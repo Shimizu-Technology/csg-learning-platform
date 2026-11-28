@@ -372,7 +372,7 @@ describe('Announcement composer audience', () => {
       }
     })
     const segment = (label: string) => [...container.querySelectorAll('button')].find((item) => item.textContent?.trim() === label)!
-    await act(async () => { segment('Updates').click() })
+    await act(async () => { segment('Feed').click() })
     expect(container.querySelector('input[placeholder="Title"]')).toBeNull()
     expect(container.textContent).not.toContain('Leave without saving')
     await act(async () => { segment('Manage').click() })
@@ -540,7 +540,7 @@ describe('Drafts and edits (U-3.6)', () => {
     await submit()
     expect(mocks.create).toHaveBeenCalledTimes(1)
     // Leaving Manage unmounts the composer; coming back mounts a new one.
-    await act(async () => button('Updates')!.click())
+    await act(async () => button('Feed')!.click())
     expect(container.querySelector('form')).toBeNull()
     await act(async () => button('Manage')!.click())
     expect(button('Posting…')?.disabled).toBe(true)

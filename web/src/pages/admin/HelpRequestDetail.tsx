@@ -227,7 +227,7 @@ function HelpRequestRecord({ requestId }: { requestId: number }) {
     />
 
     {queueFinished && <div ref={notice} tabIndex={-1} role="status" className="app-surface flex flex-wrap items-center justify-between gap-3 p-4 focus:outline-none"><p className="text-sm font-semibold text-ink">That was the last request in this list.</p><LinkButton to={back.to} state={RESTORE_LIST_STATE} variant="secondary" size="sm">{back.label}</LinkButton></div>}
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start">
+    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px] xl:items-start">
       <div className="min-w-0 space-y-5">
         <section className="app-surface p-5 sm:p-6"><div className="flex flex-wrap gap-2"><Badge>{humanize(request.category)}</Badge><Badge>{humanize(request.context_type)}</Badge></div><h2 className="mt-5 text-sm font-semibold text-ink-muted">Student message</h2><p className="mt-2 whitespace-pre-wrap text-base leading-7 text-ink [overflow-wrap:anywhere]">{request.message}</p></section>
         <HelpReplyThread request={request} />
@@ -238,7 +238,7 @@ function HelpRequestRecord({ requestId }: { requestId: number }) {
         </section>}
         {request.owner && <p className="px-2 text-xs font-semibold text-ink-muted">Owner: {request.owner.full_name}</p>}
       </div>
-      <RelatedPanel rows={rows} loading={related.loading} error={related.error} onRetry={related.retry} returnLabel={`Help request · ${request.student?.full_name || 'Student'}`} className="lg:sticky lg:top-20" />
+      <RelatedPanel rows={rows} loading={related.loading} error={related.error} onRetry={related.retry} returnLabel={`Help request · ${request.student?.full_name || 'Student'}`} className="xl:sticky xl:top-20" />
     </div>
 
     {request.student && <StudentContextDrawer open={showStudent} cohortId={request.cohort.id} studentId={request.student.id} source={source} onClose={() => setShowStudent(false)} />}

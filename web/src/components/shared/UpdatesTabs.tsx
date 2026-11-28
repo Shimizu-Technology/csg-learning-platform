@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { api } from '../../lib/api'
 import { subscribeUnreadRefresh, unreadRefreshVersion } from '../../lib/unread'
-import { LinkButton } from '../ui/Button'
 
 /**
  * Updates and Notifications. The Notifications tab carries its own unread
@@ -17,12 +16,13 @@ export function UpdatesTabs({ selected, inboxUnreadCount }: { selected: 'announc
   inbox.set('tab', 'inbox')
   const feed = new URLSearchParams(location.search)
   feed.delete('tab')
-  return <nav aria-label="Updates sections" className="flex gap-2">
-    <LinkButton to={`/announcements?${feed}`} variant={selected === 'announcements' ? 'primary' : 'secondary'} aria-current={selected === 'announcements' ? 'page' : undefined}>Updates</LinkButton>
-    <LinkButton to={`/announcements?${inbox}`} variant={selected === 'inbox' ? 'primary' : 'secondary'} aria-current={selected === 'inbox' ? 'page' : undefined} aria-label={unread > 0 ? `Notifications, ${unread} unread` : undefined}>
+  const base = 'inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap px-3 py-2 text-sm font-semibold transition-colors duration-150 lg:min-h-9'
+  return <nav aria-label="Updates sections" className="flex items-center gap-1 border-b border-line">
+    <Link to={`/announcements?${feed}`} aria-current={selected === 'announcements' ? 'page' : undefined} className={`${base} ${selected === 'announcements' ? 'tab-selected' : 'text-ink-secondary hover:bg-surface-sunken hover:text-ink'}`}>Updates</Link>
+    <Link to={`/announcements?${inbox}`} aria-current={selected === 'inbox' ? 'page' : undefined} aria-label={unread > 0 ? `Notifications, ${unread} unread` : undefined} className={`${base} ${selected === 'inbox' ? 'tab-selected' : 'text-ink-secondary hover:bg-surface-sunken hover:text-ink'}`}>
       Notifications
-      {unread > 0 && <span aria-hidden="true" className={`min-w-6 rounded-full px-1.5 py-0.5 text-center text-xs font-semibold tabular-nums ${selected === 'inbox' ? 'bg-surface-raised text-ink' : 'bg-action-primary text-on-action'}`}>{unread > 99 ? '99+' : unread}</span>}
-    </LinkButton>
+      {unread > 0 && <span aria-hidden="true" className="min-w-6 rounded-full bg-action-primary px-1.5 py-0.5 text-center text-xs font-semibold tabular-nums text-on-action">{unread > 99 ? '99+' : unread}</span>}
+    </Link>
   </nav>
 }
 

@@ -20,6 +20,7 @@ import { RecordHeader } from '../../components/shared/RecordHeader'
 import { RecordLink } from '../../components/shared/RecordLink'
 import { RelatedPanel } from '../../components/shared/RelatedPanel'
 import { Button, LinkButton } from '../../components/ui/Button'
+import { ScrollableNavStrip } from '../../components/ui/Motion'
 import { PreviewLink as Link, ReturnOrigin } from '../../contexts/PreviewNavigationContext'
 import { api } from '../../lib/api'
 import { forwardReturnState } from '../../lib/navigationContext'
@@ -133,14 +134,14 @@ function Workspace({ cohortId }: { cohortId: number }) {
           }
         />
 
-        <nav aria-label="Cohort sections" className="workspace-sections border-b border-line lg:overflow-x-auto">
+        <nav aria-label="Cohort sections" className="workspace-sections border-b border-line">
           <WorkspaceSectionMenu
             label="Cohort sections"
             value={cohortPath(cohort.id, activeTab)}
             state={forwardReturnState(location.state)}
             sections={visibleTabs.map((tab) => ({ to: cohortPath(cohort.id, tab.id), label: tab.label }))}
           />
-          <div className="hidden gap-1 lg:flex lg:min-w-max">
+          <ScrollableNavStrip label="Cohort sections" activeKey={activeTab} className="hidden lg:flex">
             {visibleTabs.map(({ id: tabId, label, icon: Icon }) => (
               <Link
                 key={tabId}
@@ -150,7 +151,7 @@ function Workspace({ cohortId }: { cohortId: number }) {
                   activeTab === tabId ? 'page' : undefined
                 }
                 className={
-                  'inline-flex min-h-11 items-center justify-center gap-2 px-2 text-center text-sm ' +
+                  'inline-flex min-h-11 shrink-0 items-center justify-center gap-2 whitespace-nowrap px-3 text-center text-sm ' +
                   'font-semibold transition-colors duration-150 sm:px-4 ' +
                   (activeTab === tabId
                     ? 'tab-selected'
@@ -161,7 +162,7 @@ function Workspace({ cohortId }: { cohortId: number }) {
                 {label}
               </Link>
             ))}
-          </div>
+          </ScrollableNavStrip>
         </nav>
 
         {activeTab === 'settings' && user?.is_admin && (

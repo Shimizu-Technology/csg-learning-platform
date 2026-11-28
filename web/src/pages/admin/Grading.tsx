@@ -612,13 +612,13 @@ export function Grading() {
                         className="grid min-h-16 w-full grid-cols-[minmax(0,1fr)_auto] gap-x-2 px-4 py-2 leading-snug"
                       >
                         <span className="truncate text-sm font-bold text-ink" title={sub.user_name}>{sub.user_name}</span>
-                        {sub.submission_window?.submissions_close_at && <span className="col-span-2 text-xs text-ink-muted">Deadline · {formatShortDateTime(sub.submission_window.submissions_close_at)}</span>}
-                        {sub.extensions?.map((extension) => <span key={extension.id} className="col-span-2 text-xs text-warning-ink [overflow-wrap:anywhere]">Extension · {extension.reason}</span>)}
                         <span className={`text-right text-xs font-bold tabular-nums ${waiting && (sub.review_sla?.overdue ?? waitingTooLong(sub.created_at)) ? 'text-danger-ink' : 'text-ink-muted'}`}>
                           {waiting ? (
                             <><span className="sr-only">Waiting </span>{waitingLabel(sub.created_at)}</>
                           ) : !latest ? 'Previous' : gradeLabel(sub.grade)}
                         </span>
+                        {sub.submission_window?.submissions_close_at && <span className="col-span-2 text-xs text-ink-muted">Deadline · {formatShortDateTime(sub.submission_window.submissions_close_at)}</span>}
+                        {sub.extensions?.map((extension) => <span key={extension.id} className="col-span-2 text-xs text-warning-ink [overflow-wrap:anywhere]">Extension · {extension.reason}</span>)}
                         <span className="col-span-2 truncate text-[13px] text-ink-secondary" title={where}>
                           {where}{sub.num_submissions > 1 ? ` · attempt ${sub.num_submissions}` : ''}
                         </span>

@@ -820,7 +820,7 @@ export function SubmissionReviewPanel({
                   <div
                     role="group"
                     aria-label={`Rating for ${criterion.title}`}
-                    className="mt-3 grid grid-cols-2 gap-1"
+                    className="mt-3 grid grid-cols-2 gap-1 sm:grid-cols-4"
                   >
                     {RATINGS.map(([rating, label]) => (
                       <SegmentButton
@@ -903,7 +903,7 @@ export function SubmissionReviewPanel({
                   aria-label="Save draft as reusable snippet"
                 >
                   <BookmarkPlus className="h-4 w-4" aria-hidden="true" />
-                  <span className="hidden sm:inline">{savingSnippet ? 'Saving…' : 'Save draft as reusable snippet'}</span>
+                  <span className="hidden sm:inline">{savingSnippet ? 'Saving…' : 'Save snippet'}</span>
                 </Button>
               )}
             </div>

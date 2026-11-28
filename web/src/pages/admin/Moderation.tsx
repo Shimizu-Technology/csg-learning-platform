@@ -232,7 +232,7 @@ function ReportCard({ report, returnTo, pinned, note, onNote, saving, onUpdate }
   return (
     // The pinned copy only shows when the report isn't in the list, so the id stays unique.
     <article id={`report-${report.id}`} tabIndex={-1} className={`p-5 sm:p-6 ${pinned ? 'bg-surface-selected' : ''}`}>
-      <div className={open ? 'grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,1fr)]' : 'flex flex-col gap-4'}>
+      <div className={open ? 'grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,1fr)]' : 'flex flex-col gap-4'}>
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2"><StatusPill status={report.status} /><Badge>{humanize(report.reason)}</Badge><span className="text-xs tabular-nums text-ink-muted">Reported {formatShortDateTime(report.created_at)}</span><RecordLink record={{ type: 'content_report', id: report.id }} returnLabel="Safety" variant="app" touchTarget peek={false} className="text-xs" aria-label={`Open report #${report.id}: ${report.reported_user.full_name} reported by ${report.reporter.full_name}`}>Open report</RecordLink></div>
           <div className="mt-3 flex min-w-0 items-center gap-3"><Avatar name={report.reported_user.full_name} size="sm" /><h3 className="min-w-0 text-base font-semibold text-ink [overflow-wrap:anywhere]"><SafetyPersonLink person={report.reported_user} returnTo={back} /> reported by <SafetyPersonLink person={report.reporter} returnTo={back} /></h3></div>
@@ -280,9 +280,9 @@ function ReportCard({ report, returnTo, pinned, note, onNote, saving, onUpdate }
 function OpenDeletionCard({ request, returnTo, pinned, note, onNote, saving, onUpdate }: { request: DataDeletionRequest; returnTo: string; pinned: boolean; note: string; onNote: (note: string) => void; saving: boolean; onUpdate: (status: 'processing' | 'completed' | 'declined') => void }) {
   return (
     // The pinned copy only shows when the request isn't in the list, so the id stays unique.
-    <article id={`deletion-${request.id}`} tabIndex={-1} className={`grid gap-4 p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,1fr)] ${pinned ? 'bg-surface-selected' : ''}`}>
+    <article id={`deletion-${request.id}`} tabIndex={-1} className={`grid gap-4 p-5 sm:p-6 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,1fr)] ${pinned ? 'bg-surface-selected' : ''}`}>
       <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><StatusPill status={request.status} /><span className="text-xs tabular-nums text-ink-muted">{formatShortDateTime(request.created_at)}</span></div><div className="mt-2 flex min-w-0 items-center gap-3"><Avatar name={request.user.full_name} size="md" /><div className="min-w-0"><h3 className="truncate text-base font-semibold text-ink" title={request.user.full_name}><SafetyPersonLink person={request.user} returnTo={`${returnTo}#deletion-${request.id}`} /></h3><p className="truncate text-sm text-ink-muted" title={request.user.email}>{request.user.email}</p></div></div><p className="mt-3 max-w-xl text-xs leading-5 text-ink-muted">Verify ownership and inventory the account, identity provider, learning records, files, messages, notifications, analytics, and vendor data before resolving.</p></div>
-      <div>
+      <div className="min-w-0">
         <label className="block text-sm font-semibold text-ink" htmlFor={`deletion-note-${request.id}`}>Resolution note</label>
         <textarea id={`deletion-note-${request.id}`} value={note} onChange={(event) => onNote(event.target.value)} maxLength={2000} rows={3} placeholder="Required to complete or decline: what was deleted or anonymized, or why it was declined or kept." className="app-control mt-2 min-h-24 w-full leading-6" />
         <div className="mt-3 flex flex-wrap gap-2">

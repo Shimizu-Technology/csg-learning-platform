@@ -79,9 +79,9 @@ export function Facts({ items }: { items: Array<{ label: string; value: ReactNod
 /** The page body: content on the left, the related panel on the right (below on phones). */
 export function RecordLayout({ children, related }: { children: ReactNode; related: ReactNode }) {
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start">
+    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px] xl:items-start">
       <div className="min-w-0 space-y-6">{children}</div>
-      <div className="lg:sticky lg:top-6">{related}</div>
+      <div className="xl:sticky xl:top-6">{related}</div>
     </div>
   )
 }

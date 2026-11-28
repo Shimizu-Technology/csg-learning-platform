@@ -1,4 +1,4 @@
-import { Sun, Layers3, Users, ClipboardCheck, LifeBuoy, Library, MessageCircle, Bell, PlayCircle, CalendarDays, Activity, ShieldAlert, Contact, BookOpenText, Link2, Ellipsis, Settings, FileCheck2 } from 'lucide-react'
+import { Sun, Layers3, Users, ClipboardCheck, LifeBuoy, Library, MessageCircle, Bell, PlayCircle, CalendarDays, Activity, ShieldAlert, Contact, BookOpenText, Link2, Ellipsis, Settings, SlidersHorizontal, FileCheck2 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { AccessibleCohort } from '../types/api'
 import { learnerCohortPath } from './routes'
@@ -29,6 +29,7 @@ export function shellNavigation({ staff, admin, cohort, cohorts, schoolFeatures,
       { to: '/admin/activity', icon: Activity, label: 'School activity' },
       { to: '/admin/team', icon: Contact, label: 'Team' },
       { to: '/admin/moderation', icon: ShieldAlert, label: 'Safety' },
+      { to: '/admin/settings', icon: SlidersHorizontal, label: 'School settings' },
     ] : [],
   }
   const redesigned = (cohort?.capabilities?.features || cohort?.features)?.student_experience_v2 === true

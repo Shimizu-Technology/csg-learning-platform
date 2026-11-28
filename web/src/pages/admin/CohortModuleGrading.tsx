@@ -465,7 +465,7 @@ export function CohortModuleGrading() {
             <ClipboardList className="h-4 w-4" aria-hidden="true" />
             Open Grading workbench
           </LinkButton>
-          {data.github_sync_enabled !== false && data.supports_github_sync && <>
+          {data.github_sync_enabled !== false && data.supports_github_sync && (
           <Button
             variant="secondary"
             size="sm"
@@ -480,12 +480,14 @@ export function CohortModuleGrading() {
                 ? 'Syncing...'
                 : 'Sync all from GitHub'}
           </Button>
-          {data.github_auto_sync && <span className="text-xs text-ink-muted">Verified GitHub repositories also sync automatically every hour.</span>}
-          </>}
+          )}
           </div>
         }
         menu={[{ key: 'refresh', label: loading ? 'Refreshing…' : 'Refresh', icon: <RefreshCw aria-hidden="true" />, onSelect: () => void loadData() }]}
       />
+      {data.github_sync_enabled !== false && data.supports_github_sync && data.github_auto_sync && (
+        <p className="text-xs text-ink-muted">Verified GitHub repositories also sync automatically every hour.</p>
+      )}
       {loadError && <LoadError error={loadError} stale retry={() => void loadData()} />}
 
       {message && (
@@ -513,79 +515,80 @@ export function CohortModuleGrading() {
         </div>
       )}
 
-      {/* Queue filters */}
-      <div role="group" aria-label="Submission queue" className="flex flex-wrap gap-2">
-        <FilterChip
-          selected={viewMode === 'queue' && queueFilter === 'ungraded'}
-          count={counts.ungraded}
-          onClick={() => {
-            const firstUngraded = orderSubmissionQueue(data.submissions, 'ungraded')[0]
-            void guarded(() =>
-              update({
-                view: 'queue',
-                filter: 'ungraded',
-                student: null,
-                review: firstUngraded ? String(firstUngraded.id) : null,
-              }),
-            )
-          }}
-        >
-          <Filter className="h-4 w-4" aria-hidden="true" />
-          Waiting
-        </FilterChip>
-        <FilterChip
-          selected={viewMode === 'queue' && queueFilter === 'redo'}
-          count={counts.redo}
-          onClick={() => {
-            void guarded(() =>
-              update({ view: 'queue', filter: 'redo', student: null, review: null }),
-            )
-          }}
-        >
-          <RotateCcw className="h-4 w-4" aria-hidden="true" />
-          Redo
-        </FilterChip>
-        <FilterChip
-          selected={viewMode === 'queue' && queueFilter === 'all'}
-          count={counts.all}
-          onClick={() => {
-            void guarded(() =>
-              update({ view: 'queue', filter: 'all', student: null, review: null }),
-            )
-          }}
-        >
-          <Clock className="h-4 w-4" aria-hidden="true" />
-          All
-        </FilterChip>
-      </div>
+      {/* View toggle + queue filters */}
+      <div className="flex flex-wrap items-center gap-3">
+        <SegmentedControl label="Grading view" className="w-fit">
+          <SegmentButton
+            selected={viewMode === 'grid'}
+            onClick={() => {
+              void guarded(() => update({ view: 'grid', student: null, review: null }))
+            }}
+          >
+            Grid
+          </SegmentButton>
+          <SegmentButton
+            selected={viewMode === 'students'}
+            onClick={() => {
+              void guarded(() => update({ view: 'students', student: null, review: null }))
+            }}
+          >
+            By student
+          </SegmentButton>
+          <SegmentButton
+            selected={viewMode === 'queue'}
+            onClick={() => {
+              void guarded(() => update({ view: 'queue', student: null, review: null }))
+            }}
+          >
+            Queue
+          </SegmentButton>
+        </SegmentedControl>
 
-      {/* View toggle */}
-      <SegmentedControl label="Grading view" className="w-fit">
-        <SegmentButton
-          selected={viewMode === 'grid'}
-          onClick={() => {
-            void guarded(() => update({ view: 'grid', student: null, review: null }))
-          }}
-        >
-          Grid
-        </SegmentButton>
-        <SegmentButton
-          selected={viewMode === 'students'}
-          onClick={() => {
-            void guarded(() => update({ view: 'students', student: null, review: null }))
-          }}
-        >
-          By student
-        </SegmentButton>
-        <SegmentButton
-          selected={viewMode === 'queue'}
-          onClick={() => {
-            void guarded(() => update({ view: 'queue', student: null, review: null }))
-          }}
-        >
-          Queue
-        </SegmentButton>
-      </SegmentedControl>
+        <div role="group" aria-label="Submission queue" className="flex flex-wrap gap-2">
+          <FilterChip
+            selected={viewMode === 'queue' && queueFilter === 'ungraded'}
+            count={counts.ungraded}
+            onClick={() => {
+              const firstUngraded = orderSubmissionQueue(data.submissions, 'ungraded')[0]
+              void guarded(() =>
+                update({
+                  view: 'queue',
+                  filter: 'ungraded',
+                  student: null,
+                  review: firstUngraded ? String(firstUngraded.id) : null,
+                }),
+              )
+            }}
+          >
+            <Filter className="h-4 w-4" aria-hidden="true" />
+            Waiting
+          </FilterChip>
+          <FilterChip
+            selected={viewMode === 'queue' && queueFilter === 'redo'}
+            count={counts.redo}
+            onClick={() => {
+              void guarded(() =>
+                update({ view: 'queue', filter: 'redo', student: null, review: null }),
+              )
+            }}
+          >
+            <RotateCcw className="h-4 w-4" aria-hidden="true" />
+            Redo
+          </FilterChip>
+          <FilterChip
+            selected={viewMode === 'queue' && queueFilter === 'all'}
+            count={counts.all}
+            onClick={() => {
+              void guarded(() =>
+                update({ view: 'queue', filter: 'all', student: null, review: null }),
+              )
+            }}
+          >
+            <Clock className="h-4 w-4" aria-hidden="true" />
+            All
+          </FilterChip>
+        </div>
+      </div>
 
       {/* Grid View */}
       {viewMode === 'grid' && (
@@ -1159,7 +1162,7 @@ export function CohortModuleGrading() {
                   <p className="mt-1 text-xs text-ink-muted">
                     {viewMode === 'students' && selectedStudentId
                       ? 'Exercises without submissions still show their completion state on the left.'
-                      : 'Or choose Ungraded queue above to start grading all'}
+                      : 'Or choose Queue above to start grading all'}
                   </p>
                 </div>
               </div>

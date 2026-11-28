@@ -4,7 +4,7 @@ import { resolve } from 'node:path'
 import { act, useRef, useState, type ReactElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Collapse, TabList, TabPanel } from './Motion'
+import { Collapse, ScrollableNavStrip, TabList, TabPanel } from './Motion'
 import { TabButton } from './Choice'
 import { pageKey, prefersReducedMotion, useInsertedKeys, usePageFade } from '../../lib/motion'
 
@@ -166,6 +166,32 @@ describe('TabList', () => {
       tabs[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
     })
     expect(tabs[1].getAttribute('aria-selected')).toBe('true')
+  })
+
+  it('shows left/right scroll buttons on ScrollableNavStrip when links overflow', async () => {
+    stubReducedMotion(true)
+    const view = await render(
+      <ScrollableNavStrip label="Cohort sections">
+        {['Home', 'Students', 'Grading', 'Support', 'Recordings'].map((name, index) => (
+          <a key={name} href={`#${name.toLowerCase()}`} aria-current={index === 0 ? 'page' : undefined}>{name}</a>
+        ))}
+      </ScrollableNavStrip>,
+    )
+    const nav = view.querySelector<HTMLDivElement>('.overflow-x-auto')!
+    let scrollLeft = 0
+    Object.defineProperty(nav, 'clientWidth', { configurable: true, get: () => 200 })
+    Object.defineProperty(nav, 'scrollWidth', { configurable: true, get: () => 600 })
+    Object.defineProperty(nav, 'scrollLeft', { configurable: true, get: () => scrollLeft, set: (v: number) => { scrollLeft = v } })
+    await act(async () => { nav.dispatchEvent(new Event('scroll')) })
+
+    const leftBtn = view.querySelector<HTMLButtonElement>('button[aria-label="Scroll Cohort sections left"]')!
+    const rightBtn = view.querySelector<HTMLButtonElement>('button[aria-label="Scroll Cohort sections right"]')!
+    expect(leftBtn.disabled).toBe(true)
+    expect(rightBtn.disabled).toBe(false)
+
+    await act(async () => { rightBtn.click() })
+    expect(scrollLeft).toBeGreaterThan(0)
+    expect(leftBtn.disabled).toBe(false)
   })
 })
 

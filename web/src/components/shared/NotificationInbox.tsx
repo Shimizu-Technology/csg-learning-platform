@@ -122,14 +122,14 @@ export function NotificationInbox() {
             type="button"
             aria-pressed={active}
             onClick={() => change({ inbox_category: option.value, inbox_page: '1' })}
-            className={`inline-flex min-h-10 items-center rounded-full border px-3.5 text-sm font-semibold transition-colors lg:min-h-9 ${active ? 'border-primary-soft-line bg-primary-soft text-primary-ink' : 'border-line bg-surface-raised text-ink-secondary hover:border-line-strong hover:text-ink'}`}
+            className={`inline-flex min-h-11 items-center rounded-full border px-3.5 text-sm font-semibold transition-colors lg:min-h-9 ${active ? 'border-primary-soft-line bg-primary-soft text-primary-ink' : 'border-line bg-surface-raised text-ink-secondary hover:border-line-strong hover:text-ink'}`}
           >
             {option.label}
           </button>
         )
       })}
     </div>
-    {error && <div role="alert" className="app-surface p-4 text-danger-ink">{error}<Button variant="secondary" onClick={() => void load()}>Retry</Button></div>}
+    {error && <div role="alert" className="app-surface flex flex-wrap items-center justify-between gap-3 p-4 text-danger-ink"><span>{error}</span><Button variant="secondary" size="sm" onClick={() => void load()}>Retry</Button></div>}
     {loading && (
       <div role="status" aria-live="polite" className="space-y-2">
         <span className="sr-only">Loading notifications…</span>
