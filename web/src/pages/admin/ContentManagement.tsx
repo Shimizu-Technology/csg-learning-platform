@@ -331,11 +331,8 @@ export function ContentManagement() {
   }
 
   useEffect(() => {
-    if (url.pane === 'files' && !detailLoading && selected?.id === selectedId) {
-      filesRef.current?.focus({ preventScroll: true })
-    }
     if (url.pane === 'list' && url.curriculum && !location.hash) searchRef.current?.focus({ preventScroll: true })
-  }, [url.pane, url.curriculum, location.hash, detailLoading, selected?.id, selectedId])
+  }, [url.pane, url.curriculum, location.hash])
   const deleteCurriculum = async (curriculum: Curriculum) => {
     if (!await confirm({ title: `Delete ${curriculum.name}?`, description: 'This permanently deletes the curriculum and its content. Curricula used by cohorts, learner work or learner files cannot be deleted.', confirmLabel: 'Delete permanently', tone: 'danger' })) return
     const res = await api.deleteCurriculum(curriculum.id)

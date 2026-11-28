@@ -439,3 +439,27 @@ it('focuses the files heading on a direct ?pane=files load after detail loads', 
   await renderAt('/admin/content?curriculum=1&pane=files')
   expect(document.activeElement?.textContent).toContain('Curriculum files')
 })
+
+it('supports roving tabindex and ArrowLeft/ArrowRight navigation on curriculum tabs without stealing focus', async () => {
+  await renderAt('/admin/content?curriculum=1&pane=detail')
+  const outlineTab = container.querySelector<HTMLButtonElement>('button[role="tab"][id$="-tab-outline"]')!
+  const filesTab = container.querySelector<HTMLButtonElement>('button[role="tab"][id$="-tab-files"]')!
+  expect(outlineTab.tabIndex).toBe(0)
+  expect(filesTab.tabIndex).toBe(-1)
+
+  outlineTab.focus()
+  await act(async () => {
+    outlineTab.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
+  })
+  expect(urlText()).toContain('pane=files')
+  expect(filesTab.getAttribute('aria-selected')).toBe('true')
+  expect(filesTab.tabIndex).toBe(0)
+  expect(outlineTab.tabIndex).toBe(-1)
+  expect(document.activeElement).toBe(filesTab)
+
+  await act(async () => {
+    filesTab.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }))
+  })
+  expect(urlText()).toContain('pane=detail')
+  expect(document.activeElement).toBe(outlineTab)
+})
