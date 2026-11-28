@@ -65,6 +65,7 @@ describe('shared authoring authority', () => {
     await act(async () => buttons().find(b => b.textContent?.includes('Module one'))!.click())
     expect(container.querySelector('[aria-label="Edit Shared exercise"]')).not.toBeNull()
     expect(buttons().some((b) => b.textContent === 'Restore')).toBe(true)
+    await act(async () => buttons().find((b) => b.textContent?.includes('Learner files'))!.click())
     expect(container.querySelector('input[type="file"]')).not.toBeNull()
   })
   it.each(['', '?preview=true'])('renders an instructor direct editor URL%s as saved read-only content with solutions', async (query) => {
