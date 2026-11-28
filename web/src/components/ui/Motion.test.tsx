@@ -130,6 +130,43 @@ describe('TabList', () => {
     await act(async () => (view.querySelectorAll('[role="tab"]')[1] as HTMLButtonElement).click())
     expect((view.querySelector('.tab-indicator') as HTMLElement).dataset.animate).toBe('false')
   })
+
+  it('shows left/right scroll buttons when a scrollable TabList overflows and supports arrow keys', async () => {
+    stubReducedMotion(true)
+    function WeekTabs() {
+      const [week, setWeek] = useState(1)
+      return (
+        <TabList scrollable label="Live Class weeks" className="flex">
+          {[1, 2, 3, 4].map((w) => (
+            <TabButton key={w} asTab selected={week === w} onClick={() => setWeek(w)}>Week {w}</TabButton>
+          ))}
+        </TabList>
+      )
+    }
+    const view = await render(<WeekTabs />)
+    const list = view.querySelector<HTMLDivElement>('[role="tablist"]')!
+    let scrollLeft = 0
+    Object.defineProperty(list, 'clientWidth', { configurable: true, get: () => 200 })
+    Object.defineProperty(list, 'scrollWidth', { configurable: true, get: () => 600 })
+    Object.defineProperty(list, 'scrollLeft', { configurable: true, get: () => scrollLeft, set: (v: number) => { scrollLeft = v } })
+    await act(async () => { list.dispatchEvent(new Event('scroll')) })
+
+    const leftBtn = view.querySelector<HTMLButtonElement>('button[aria-label="Scroll Live Class weeks left"]')!
+    const rightBtn = view.querySelector<HTMLButtonElement>('button[aria-label="Scroll Live Class weeks right"]')!
+    expect(leftBtn.disabled).toBe(true)
+    expect(rightBtn.disabled).toBe(false)
+
+    await act(async () => { rightBtn.click() })
+    expect(scrollLeft).toBeGreaterThan(0)
+    expect(leftBtn.disabled).toBe(false)
+
+    const tabs = view.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+    tabs[0].focus()
+    await act(async () => {
+      tabs[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
+    })
+    expect(tabs[1].getAttribute('aria-selected')).toBe('true')
+  })
 })
 
 describe('page fade', () => {
@@ -201,7 +238,9 @@ describe('motion CSS', () => {
   })
 
   it('uses the duration and easing tokens', () => {
+    expect(css).toMatch(/\.motion-collapse \{[^}]*grid-template-columns: minmax\(0, 1fr\)/)
     expect(css).toMatch(/\.motion-collapse \{[^}]*transition: grid-template-rows var\(--duration-accordion\) var\(--ease-out\)/)
+    expect(css).toMatch(/\.motion-collapse-body \{[^}]*min-width: 0;/)
     expect(css).toMatch(/\.motion-tab-panel \{\s*animation: tab-panel-enter var\(--duration-tab\) var\(--ease-out\)/)
     expect(css).toMatch(/\.motion-insert \{\s*animation: list-insert var\(--duration-accordion\) var\(--ease-out\)/)
     expect(css).toMatch(/--duration-accordion:\s*200ms/)

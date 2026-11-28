@@ -7,7 +7,7 @@ import { applyUrlPatch, urlParsers, useUrlState } from '../../lib/useUrlState'
 import { listLinkState, useListScrollMemory } from '../../lib/navigationContext'
 import { PageHeader } from '../../components/ui/PageHeader'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Archive, ChevronDown, ChevronRight, Eye, Layers3, Plus, RotateCcw, Upload } from 'lucide-react'
+import { Archive, ArrowDown, ArrowUp, ChevronDown, ChevronRight, ClipboardCheck, Copy, Eye, FolderOpen, GripVertical, Layers3, Plus, RotateCcw, Upload } from 'lucide-react'
 import { api } from '../../lib/api'
 import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { NewExerciseModal } from './NewExerciseModal'
@@ -21,11 +21,12 @@ import { ALL_DAY_NAMES, SCHEDULE_DAY_INDICES } from '../../lib/scheduleConstants
 import { useUpload } from '../../contexts/UploadContext'
 import { useToast } from '../../contexts/ToastContext'
 import { useAuthContext } from '../../contexts/AuthContext'
-import { Button, LinkButton } from '../../components/ui/Button'
+import { Button, IconButton, LinkButton } from '../../components/ui/Button'
 import { FilterChip, SegmentButton, SegmentedControl, TabButton, TextButton } from '../../components/ui/Choice'
 import { Collapse, TabList, TabPanel } from '../../components/ui/Motion'
 import { Badge } from '../../components/ui/Badge'
 import { gradingScaleLabel } from '../../lib/gradingScale'
+import { humanize } from '../../lib/glossary'
 import { RecordLink } from '../../components/shared/RecordLink'
 import { useConfirm } from '../../contexts/ConfirmContext'
 import type { CurriculumSummary, AccessibleCohort } from '../../types/api'
@@ -474,9 +475,12 @@ export function ContentManagement() {
         actions={
           canManageModules ? (
             <>
-              <Link className="app-link inline-flex min-h-11 items-center" to="/admin/content/submission-audit">Submission audit</Link>
+              <LinkButton variant="quiet" size="sm" to="/admin/content/submission-audit">
+                <ClipboardCheck className="h-4 w-4" aria-hidden="true" />
+                Submission audit
+              </LinkButton>
               <Button variant="secondary" onClick={() => setShowPackageImport(true)}>
-                <Upload className="h-4 w-4" /> Import course package
+                <Upload className="h-4 w-4" aria-hidden="true" /> Import course package
               </Button>
               <Button
                 onClick={() => {
@@ -484,7 +488,7 @@ export function ContentManagement() {
                   setShowNewCurriculum(true)
                 }}
               >
-                <Plus className="h-4 w-4" /> New curriculum
+                <Plus className="h-4 w-4" aria-hidden="true" /> New curriculum
               </Button>
             </>
           ) : null
@@ -494,10 +498,10 @@ export function ContentManagement() {
       <p role="status" className="sr-only">
         {orderNotice}
       </p>
-      <div className="grid min-w-0 gap-4 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,1fr)_260px]">
+      <div className="grid min-w-0 items-start gap-4 lg:grid-cols-[260px_minmax(0,1fr)]">
         <nav
           aria-label="Curricula"
-          className={`app-surface min-w-0 p-3 ${url.pane !== 'list' || location.hash ? 'hidden lg:block' : ''}`}
+          className={`app-surface min-w-0 p-3 lg:sticky lg:top-6 lg:max-h-[calc(100dvh-3rem)] lg:overflow-y-auto ${url.pane !== 'list' || location.hash ? 'hidden lg:block' : ''}`}
         >
           <label className="block text-sm font-semibold">
             Search library
@@ -505,6 +509,7 @@ export function ContentManagement() {
               ref={searchRef}
               aria-keyshortcuts="Meta+/ Control+/"
               type="search"
+              placeholder="Filter curricula or lessons…"
               className="app-control mt-2 w-full"
               value={url.q}
               onChange={(e) => setUrlState({ q: e.target.value }, { history: 'replace' })}
@@ -597,7 +602,7 @@ export function ContentManagement() {
         </nav>
         <section
           aria-label="Curriculum outline"
-          className={`min-w-0 ${url.pane !== 'detail' && !(location.hash && url.pane === 'list') ? 'hidden lg:block' : ''}`}
+          className={`min-w-0 ${url.pane === 'list' && !location.hash ? 'hidden lg:block' : ''}`}
         >
           <Button variant="quiet" className="mb-3 lg:hidden" onClick={() => navigate({ pathname: location.pathname, search: applyUrlPatch(location.search, CONTENT_URL, { pane: 'list' }), hash: '' })}>
             Back to curricula
@@ -605,224 +610,266 @@ export function ContentManagement() {
           {detailLoading ? (
             <LoadingSpinner message="Loading curriculum..." />
           ) : detailError ? (
-            <div role="alert">
-              {detailError}
-              <Button onClick={() => setRevision((v) => v + 1)}>Retry</Button>
+            <div role="alert" className="app-surface flex flex-wrap items-center justify-between gap-3 p-4">
+              <p className="text-sm text-danger-ink">{detailError}</p>
+              <Button size="sm" onClick={() => setRevision((v) => v + 1)}>Retry</Button>
             </div>
           ) : (
-            curricula.map((curriculum) => (
-              <div
-                id={`curriculum-${curriculum.id}`}
-                key={curriculum.id}
-                className="app-surface overflow-hidden"
-              >
-                <div className="px-4 py-4 border-b border-line bg-surface-sunken sm:px-6">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <h2
-                        ref={headingRef}
-                        tabIndex={-1}
-                        className="break-words text-lg font-bold text-ink"
-                        title={curriculum.name}
-                      >
-                        {curriculum.name}
-                      </h2>
-                      <div className="mt-1 flex flex-wrap gap-1.5">
-                        <Badge tone={curriculum.status === 'active' ? 'success' : 'neutral'}>
-                          {curriculum.status === 'active'
-                            ? 'Active'
-                            : curriculum.status.charAt(0).toUpperCase() + curriculum.status.slice(1)}
-                        </Badge>
-                        <Badge tone="neutral">Grading: {gradingScaleLabel(curriculum.grading_scale)}</Badge>
-                        {!canManageModules && curriculum.editing?.reason === 'granted' && <Badge tone="info">You can edit</Badge>}
-                        {!canManageModules && curriculum.editing?.reason === 'shared' && (
-                          <Badge tone="neutral">Read only: shared with other cohorts</Badge>
-                        )}
-                        {curriculum.editing?.copy_of && (
-                          <span className="inline-flex min-h-6 items-center text-xs font-semibold text-ink-secondary">
-                            {curriculum.editing.copy_of.cohort
-                              ? <><RecordLink record={{ type: 'cohort', id: curriculum.editing.copy_of.cohort.id }} variant="plain">{curriculum.editing.copy_of.cohort.name}</RecordLink>'s copy</>
-                              : 'A cohort’s copy'}
+            curricula.map((curriculum) => {
+              const totalLessons = curriculum.modules.reduce((n, m) => n + m.lessons.filter((l) => !l.archived_at).length, 0)
+              const showingFiles = url.pane === 'files'
+              return (
+                <div
+                  id={`curriculum-${curriculum.id}`}
+                  key={curriculum.id}
+                  className="app-surface overflow-hidden"
+                >
+                  <div className="border-b border-line bg-surface-sunken px-4 py-4 sm:px-6">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <h2
+                          ref={headingRef}
+                          tabIndex={-1}
+                          className="break-words text-lg font-bold text-ink"
+                          title={curriculum.name}
+                        >
+                          {curriculum.name}
+                        </h2>
+                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                          <Badge tone={curriculum.status === 'active' ? 'success' : 'neutral'}>
+                            {curriculum.status === 'active'
+                              ? 'Active'
+                              : curriculum.status.charAt(0).toUpperCase() + curriculum.status.slice(1)}
+                          </Badge>
+                          <Badge tone="neutral">Grading: {gradingScaleLabel(curriculum.grading_scale)}</Badge>
+                          <span className="text-xs tabular-nums text-ink-muted">
+                            {curriculum.modules.length} {curriculum.modules.length === 1 ? 'module' : 'modules'} · {totalLessons} {totalLessons === 1 ? 'lesson' : 'lessons'}
                           </span>
+                          {!canManageModules && curriculum.editing?.reason === 'granted' && <Badge tone="info">You can edit</Badge>}
+                          {!canManageModules && curriculum.editing?.reason === 'shared' && (
+                            <Badge tone="neutral">Read only: shared with other cohorts</Badge>
+                          )}
+                          {curriculum.editing?.copy_of && (
+                            <span className="inline-flex min-h-6 items-center text-xs font-semibold text-ink-secondary">
+                              {curriculum.editing.copy_of.cohort
+                                ? <><RecordLink record={{ type: 'cohort', id: curriculum.editing.copy_of.cohort.id }} variant="plain">{curriculum.editing.copy_of.cohort.name}</RecordLink>'s copy</>
+                                : 'A cohort’s copy'}
+                            </span>
+                          )}
+                        </div>
+                        {curriculum.description && (
+                          <p className="mt-2 text-sm text-ink-secondary">{curriculum.description}</p>
+                        )}
+                        {usedBy.length > 0 && (
+                          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-muted">
+                            <span className="font-semibold uppercase tracking-wide">Used by</span>
+                            {usedBy.map((co) => (
+                              <Link
+                                key={co.id}
+                                to={`/admin/cohorts/${co.id}`}
+                                className="inline-flex min-h-9 items-center font-medium text-ink-secondary underline underline-offset-2 hover:text-ink lg:min-h-0"
+                              >
+                                {co.name}
+                              </Link>
+                            ))}
+                          </div>
                         )}
                       </div>
-                    </div>
-                    {/* The curriculum's record page: cohorts using it, copies, rubrics and objectives (L-3.2). */}
-                    <LinkButton to={curriculumPath(curriculum.id)} state={listLinkState(location, 'Content')} variant="secondary" size="sm" className="shrink-0">
-                      <Layers3 className="h-4 w-4" aria-hidden="true" />Where it's used
-                    </LinkButton>
-                    {curriculum.editing && (curriculum.editing.copy_cohorts ?? []).length > 0 && (
-                      <CopyForCohortAction
-                        variant={canManageModules ? 'secondary' : 'primary'}
-                        className="shrink-0"
-                        curriculumId={curriculum.id}
-                        cohorts={curriculum.editing.copy_cohorts ?? []}
-                        onCopied={async (copy) => {
-                          toast.success(copy.already_copied ? `Opened ${copy.cohort.name}'s copy` : `Made ${copy.cohort.name}'s copy`)
-                          // The cohort now uses its copy: the cohort filter and
-                          // "used by" read this list, so move it here too.
-                          setCohorts((list) => list.map((co) => co.id === copy.cohort.id ? { ...co, curriculum_id: copy.copy_curriculum.id } : co))
-                          await loadCurricula()
-                          selectCurriculum(copy.copy_curriculum.id)
-                        }}
-                      />
-                    )}
-                    {canManageModules && <Button variant="secondary" size="sm" onClick={() => setCloneTarget({ kind: 'curricula', source: curriculum })}>Clone curriculum</Button>}
-                    {canManageModules && (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        className="shrink-0"
-                        onClick={() => {
-                          setModuleCreateError('')
-                          setNewModuleModal({
-                            curriculumId: curriculum.id,
-                            moduleCount: curriculum.modules?.length || 0
-                          })
-                        }}
-                      >
-                        <Plus className="h-4 w-4" />
-                        New module
-                      </Button>
-                    )}
-                  </div>
-                  {curriculum.description && (
-                    <p className="mt-2 text-sm text-ink-secondary">{curriculum.description}</p>
-                  )}
-                  {canManageModules && (
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      <StructureEditor record={curriculum} kind="curriculum" onSaved={loadCurricula} />
-                      <CurriculumActionsMenu curriculum={curriculum} onSaved={loadCurricula} onDelete={() => void deleteCurriculum(curriculum)} />
-                    </div>
-                  )}
-                </div>
 
-                <div className="flex flex-wrap items-center gap-2 border-b border-line p-4">
-                  <Button variant="secondary" onClick={() => setUrlState({ pane: 'files' })}>
-                    Learner files
-                  </Button>
-                  {usedBy.map((co) => (
-                    <Link
-                      key={co.id}
-                      to={`/admin/cohorts/${co.id}`}
-                      className="inline-flex min-h-11 items-center text-sm underline"
-                    >
-                      {co.name}
-                    </Link>
-                  ))}
-                  <SegmentedControl label="Outline view">
-                    {(['sequence', 'calendar'] as const).map((view) => (
-                      <SegmentButton
-                        key={view}
-                        dense
-                        selected={(sequence ? 'sequence' : 'calendar') === view}
-                        onClick={() => setUrlState({ view })}
-                      >
-                        {view === 'sequence' ? 'Sequence' : 'Calendar'}
-                      </SegmentButton>
-                    ))}
-                  </SegmentedControl>
-                  <label className="w-full text-sm">
-                    Search modules and lessons
-                    <input
-                      type="search"
-                      className="app-control mt-1 w-full"
-                      value={url.content}
-                      onChange={(e) => setUrlState({ content: e.target.value }, { history: 'replace' })}
-                    />
-                  </label>
-                </div>
-                <div className="divide-y divide-line">
-                  {curriculum.modules
-                    ?.filter(
-                      (mod) =>
-                        !url.content.trim() ||
-                        `${mod.name} ${mod.lessons.map((l) => l.title).join(' ')}`
-                          .toLowerCase()
-                          .includes(url.content.trim().toLowerCase())
-                    )
-                    .map((mod) => (
-                      <div
-                        id={`module-${mod.id}`}
-                        key={mod.id}
-                        onDragOver={(event) => {
-                          if (canManageModules && !reordering) event.preventDefault()
-                        }}
-                        onDrop={(event) => {
-                          if (!canManageModules || reordering) return
-                          event.preventDefault()
-                          const from = curriculum.modules.findIndex(
-                            (item) =>
-                              item.id === Number(event.dataTransfer.getData('application/x-csg-module-id'))
-                          )
-                          void moveModule(curriculum, from, curriculum.modules.indexOf(mod))
-                        }}
-                      >
-                        {canManageModules && (
-                          <ModuleActions
-                            mod={mod}
-                            index={curriculum.modules.indexOf(mod)}
-                            count={curriculum.modules.length}
-                            busy={reordering}
-                            onMove={(from, to) => {
-                              void moveModule(curriculum, from, to)
+                      <div className="flex flex-wrap items-center gap-2 shrink-0">
+                        {curriculum.editing && (curriculum.editing.copy_cohorts ?? []).length > 0 && (
+                          <CopyForCohortAction
+                            variant={canManageModules ? 'secondary' : 'primary'}
+                            className="shrink-0"
+                            curriculumId={curriculum.id}
+                            cohorts={curriculum.editing.copy_cohorts ?? []}
+                            onCopied={async (copy) => {
+                              toast.success(copy.already_copied ? `Opened ${copy.cohort.name}'s copy` : `Made ${copy.cohort.name}'s copy`)
+                              setCohorts((list) => list.map((co) => co.id === copy.cohort.id ? { ...co, curriculum_id: copy.copy_curriculum.id } : co))
+                              await loadCurricula()
+                              selectCurriculum(copy.copy_curriculum.id)
                             }}
-                            onSaved={loadCurricula}
                           />
                         )}
-                        {canManageModules && <div className="px-4 pt-3"><Button variant="secondary" size="sm" onClick={() => setCloneTarget({ kind: 'modules', source: { ...mod, curriculum_id: curriculum.id } })}>Clone module</Button></div>}
-                        <ModuleSection
-                          mod={mod}
-                          search={url.content}
-                          sequence={sequence}
-                          expanded={expandedModules.has(mod.id)}
-                          activeWeek={activeWeekTab[mod.id] || 1}
-                          onToggle={() => toggleModule(mod.id)}
-                          onSetWeek={(w) => setWeek(mod.id, w)}
-                          onAddExercise={(week, dayIndex) => openExerciseForDay(mod, week, dayIndex)}
-                          onChangeSchedule={(scheduleDays) => updateModuleSchedule(mod, scheduleDays)}
-                          canManageModules={canManageModules}
-                          canEditLessons={canManageModules || Boolean(curriculum.editing?.can_edit)}
-                          scheduleSaving={scheduleSavingId === mod.id}
-                          restoringLessonId={restoringLessonId}
-                          onRestoreLesson={restoreLesson}
-                        />
+                        {canManageModules && (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            className="shrink-0"
+                            onClick={() => {
+                              setModuleCreateError('')
+                              setNewModuleModal({
+                                curriculumId: curriculum.id,
+                                moduleCount: curriculum.modules?.length || 0
+                              })
+                            }}
+                          >
+                            <Plus className="h-4 w-4" aria-hidden="true" />
+                            New module
+                          </Button>
+                        )}
+                        {canManageModules && <StructureEditor record={curriculum} kind="curriculum" onSaved={loadCurricula} />}
+                        {canManageModules ? (
+                          <CurriculumActionsMenu
+                            curriculum={curriculum}
+                            onSaved={loadCurricula}
+                            onDelete={() => void deleteCurriculum(curriculum)}
+                            extraItems={[
+                              {
+                                key: 'where-used',
+                                label: "Where it's used",
+                                icon: <Layers3 aria-hidden="true" />,
+                                onSelect: () => navigate(curriculumPath(curriculum.id), { state: listLinkState(location, 'Content') }),
+                              },
+                              {
+                                key: 'clone',
+                                label: 'Clone curriculum',
+                                icon: <Copy aria-hidden="true" />,
+                                onSelect: () => setCloneTarget({ kind: 'curricula', source: curriculum }),
+                              },
+                            ]}
+                          />
+                        ) : (
+                          <LinkButton to={curriculumPath(curriculum.id)} state={listLinkState(location, 'Content')} variant="secondary" size="sm" className="shrink-0">
+                            <Layers3 className="h-4 w-4" aria-hidden="true" />Where it's used
+                          </LinkButton>
+                        )}
                       </div>
-                    ))}
+                    </div>
+                  </div>
+
+                  {/* Workspace section switcher: Outline | Learner files */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 sm:px-6">
+                    <div role="group" aria-label="Curriculum sections" className="flex items-center gap-1">
+                      <TabButton
+                        dense
+                        selected={!showingFiles}
+                        onClick={() => setUrlState({ pane: 'detail' })}
+                      >
+                        <Layers3 className="h-4 w-4" aria-hidden="true" />
+                        Outline
+                      </TabButton>
+                      <TabButton
+                        dense
+                        selected={showingFiles}
+                        onClick={() => setUrlState({ pane: 'files' })}
+                      >
+                        <FolderOpen className="h-4 w-4" aria-hidden="true" />
+                        Learner files
+                      </TabButton>
+                    </div>
+                    {!showingFiles && (
+                      <div className="py-2">
+                        <SegmentedControl label="Outline view">
+                          {(['sequence', 'calendar'] as const).map((view) => (
+                            <SegmentButton
+                              key={view}
+                              dense
+                              selected={(sequence ? 'sequence' : 'calendar') === view}
+                              onClick={() => setUrlState({ view })}
+                            >
+                              {view === 'sequence' ? 'Sequence' : 'Calendar'}
+                            </SegmentButton>
+                          ))}
+                        </SegmentedControl>
+                      </div>
+                    )}
+                  </div>
+
+                  {showingFiles ? (
+                    <div aria-label="Curriculum details and learner files">
+                      <div className="px-4 pt-4 pb-2 sm:px-6">
+                        <h3 ref={filesRef} tabIndex={-1} className="text-sm font-semibold text-ink">
+                          Curriculum files &amp; resources
+                        </h3>
+                        <p className="mt-1 text-xs text-ink-muted">
+                          Submission: learners send work for review. GitHub repo: a repository link is required.
+                        </p>
+                      </div>
+                      <CurriculumTemplateFilesPanel key={`templates-${curriculum.id}`} curriculumId={curriculum.id} />
+                      <CourseResourcesPanel
+                        key={curriculum.id}
+                        curriculumId={curriculum.id}
+                        draft={curriculum.status === 'draft'}
+                      />
+                    </div>
+                  ) : (
+                    <>
+                      <div className="border-b border-line px-4 py-3 sm:px-6">
+                        <label className="block text-xs font-semibold uppercase tracking-wide text-ink-muted">
+                          Search modules and lessons
+                          <input
+                            type="search"
+                            placeholder="Filter modules or jump to a lesson title…"
+                            className="app-control mt-1 w-full font-normal normal-case tracking-normal"
+                            value={url.content}
+                            onChange={(e) => setUrlState({ content: e.target.value }, { history: 'replace' })}
+                          />
+                        </label>
+                      </div>
+                      <div className="divide-y divide-line">
+                        {curriculum.modules
+                          ?.filter(
+                            (mod) =>
+                              !url.content.trim() ||
+                              `${mod.name} ${mod.lessons.map((l) => l.title).join(' ')}`
+                                .toLowerCase()
+                                .includes(url.content.trim().toLowerCase())
+                          )
+                          .map((mod) => {
+                            const modIndex = curriculum.modules.indexOf(mod)
+                            return (
+                              <div
+                                id={`module-${mod.id}`}
+                                key={mod.id}
+                                onDragOver={(event) => {
+                                  if (canManageModules && !reordering) event.preventDefault()
+                                }}
+                                onDrop={(event) => {
+                                  if (!canManageModules || reordering) return
+                                  event.preventDefault()
+                                  const from = curriculum.modules.findIndex(
+                                    (item) =>
+                                      item.id === Number(event.dataTransfer.getData('application/x-csg-module-id'))
+                                  )
+                                  void moveModule(curriculum, from, curriculum.modules.indexOf(mod))
+                                }}
+                              >
+                                <ModuleSection
+                                  mod={mod}
+                                  index={modIndex}
+                                  moduleCount={curriculum.modules.length}
+                                  reordering={reordering}
+                                  onMove={(from, to) => {
+                                    void moveModule(curriculum, from, to)
+                                  }}
+                                  onCloneModule={() => setCloneTarget({ kind: 'modules', source: { ...mod, curriculum_id: curriculum.id } })}
+                                  onModuleSaved={loadCurricula}
+                                  search={url.content}
+                                  sequence={sequence}
+                                  expanded={expandedModules.has(mod.id)}
+                                  activeWeek={activeWeekTab[mod.id] || 1}
+                                  onToggle={() => toggleModule(mod.id)}
+                                  onSetWeek={(w) => setWeek(mod.id, w)}
+                                  onAddExercise={(week, dayIndex) => openExerciseForDay(mod, week, dayIndex)}
+                                  onChangeSchedule={(scheduleDays) => updateModuleSchedule(mod, scheduleDays)}
+                                  canManageModules={canManageModules}
+                                  canEditLessons={canManageModules || Boolean(curriculum.editing?.can_edit)}
+                                  scheduleSaving={scheduleSavingId === mod.id}
+                                  restoringLessonId={restoringLessonId}
+                                  onRestoreLesson={restoreLesson}
+                                />
+                              </div>
+                            )
+                          })}
+                      </div>
+                    </>
+                  )}
                 </div>
-              </div>
-            ))
+              )
+            })
           )}
         </section>
-        <aside
-          aria-label="Curriculum details and learner files"
-          className={`app-surface min-w-0 ${url.pane === 'files' ? '' : 'hidden xl:block'}`}
-        >
-          <Button variant="quiet" className="m-3 xl:hidden" onClick={() => setUrlState({ pane: 'detail' })}>
-            Back to outline
-          </Button>
-          {selected && selected.id === selectedId && (
-            <>
-              <div className="p-4">
-                <h2 ref={filesRef} tabIndex={-1} className="break-words font-bold">{selected.name}</h2>
-                <p className="mt-2 text-sm text-ink-secondary">
-                  {selected.modules.length} modules ·{' '}
-                  {selected.modules.reduce((n, m) => n + m.lessons.filter((l) => !l.archived_at).length, 0)}{' '}
-                  lessons
-                </p>
-                <p className="mt-3 text-sm text-ink-muted">
-                  Submission: learners send work for review. GitHub repo: a repository link is required.
-                </p>
-              </div>
-              <CurriculumTemplateFilesPanel key={`templates-${selected.id}`} curriculumId={selected.id} />
-              <CourseResourcesPanel
-                key={selected.id}
-                curriculumId={selected.id}
-                draft={selected.status === 'draft'}
-              />
-            </>
-          )}
-        </aside>
       </div>
 
       {cloneTarget && <AuthoringCloneDialog kind={cloneTarget.kind} source={cloneTarget.source} curricula={summaries} onClose={() => setCloneTarget(null)} onCloned={async (copy) => {
@@ -956,6 +1003,12 @@ export function ContentManagement() {
 
 function ModuleSection({
   mod,
+  index,
+  moduleCount,
+  reordering,
+  onMove,
+  onCloneModule,
+  onModuleSaved,
   sequence,
   search,
   expanded,
@@ -971,6 +1024,12 @@ function ModuleSection({
   onRestoreLesson
 }: {
   mod: Module
+  index: number
+  moduleCount: number
+  reordering: boolean
+  onMove: (from: number, to: number) => void
+  onCloneModule: () => void
+  onModuleSaved: () => Promise<void>
   sequence: boolean
   search: string
   expanded: boolean
@@ -1011,9 +1070,19 @@ function ModuleSection({
 
   const scheduleLabel =
     SCHEDULE_PATTERN_OPTIONS.find((option) => option.value === mod.schedule_days)?.label || 'MTWTF / Mon–Fri'
+  const moduleTypeLabel = humanize(mod.module_type)
+  const showModuleType = Boolean(moduleTypeLabel) && moduleTypeLabel.toLowerCase() !== mod.name.trim().toLowerCase()
 
   const exerciseCount = activeLessons.length
   const draftCount = activeLessons.filter((lesson) => lesson.published === false).length
+  const metaParts = [
+    ...(showModuleType ? [moduleTypeLabel] : []),
+    `${exerciseCount} ${exerciseCount === 1 ? 'exercise' : 'exercises'}`,
+    `${weekNumbers.length} ${weekNumbers.length === 1 ? 'week' : 'weeks'}`,
+    ...(!canManageModules ? [scheduleLabel] : []),
+    ...(draftCount > 0 ? [`${draftCount} draft`] : []),
+    ...(archivedLessons.length > 0 ? [`${archivedLessons.length} archived`] : []),
+  ]
 
   const daysInActiveWeek = useMemo(() => {
     return scheduleIndices.map((dayIdx) => {
@@ -1025,39 +1094,72 @@ function ModuleSection({
 
   return (
     <div>
-      {/* Module header */}
-      <div className="w-full flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 px-4 sm:px-6 py-3 sm:py-4 hover:bg-surface-sunken transition-colors duration-150">
-        <button
-          type="button"
-          onClick={onToggle}
-          aria-expanded={expanded}
-          className="pressable flex min-h-11 flex-1 items-center gap-2 sm:gap-3 rounded-xl text-left min-w-0"
-        >
-          {expanded ? (
-            <ChevronDown className="h-4 w-4 text-ink-muted shrink-0" />
-          ) : (
-            <ChevronRight className="h-4 w-4 text-ink-muted shrink-0" />
+      {/* Unified module header */}
+      <div className="flex w-full flex-col gap-2 px-4 py-3 transition-colors duration-150 hover:bg-surface-sunken/70 sm:flex-row sm:items-center sm:gap-3 sm:px-6">
+        <div className="flex min-w-0 flex-1 items-center gap-1.5">
+          {canManageModules && (
+            <div className="flex shrink-0 items-center">
+              <span
+                draggable={!reordering}
+                onDragStart={(event) => {
+                  event.dataTransfer.setData('application/x-csg-module-id', String(mod.id))
+                  event.dataTransfer.effectAllowed = 'move'
+                }}
+                className="cursor-grab p-1.5 text-ink-muted hover:text-ink"
+                role="img"
+                aria-label={`Drag ${mod.name}`}
+              >
+                <GripVertical className="h-4 w-4" aria-hidden="true" />
+              </span>
+              <IconButton
+                label={`Move ${mod.name} up`}
+                data-module-move={mod.id}
+                data-direction="up"
+                aria-disabled={reordering || index === 0}
+                onClick={() => { if (reordering || index === 0) return; onMove(index, index - 1) }}
+              >
+                <ArrowUp className="h-3.5 w-3.5" aria-hidden="true" />
+              </IconButton>
+              <IconButton
+                label={`Move ${mod.name} down`}
+                data-module-move={mod.id}
+                data-direction="down"
+                aria-disabled={reordering || index === moduleCount - 1}
+                onClick={() => { if (reordering || index === moduleCount - 1) return; onMove(index, index + 1) }}
+              >
+                <ArrowDown className="h-3.5 w-3.5" aria-hidden="true" />
+              </IconButton>
+            </div>
           )}
-          <div className="flex-1 min-w-0">
-            <p className="break-words text-sm font-semibold text-ink" title={mod.name}>
-              {mod.name}
-            </p>
-            <p className="text-xs text-ink-muted capitalize tabular-nums">
-              {mod.module_type.replace('_', ' ')} · {exerciseCount} exercise{exerciseCount !== 1 ? 's' : ''} ·{' '}
-              {weekNumbers.length} week{weekNumbers.length !== 1 ? 's' : ''} · {scheduleLabel}
-              {draftCount > 0 ? ` · ${draftCount} draft` : ''}
-              {archivedLessons.length > 0 ? ` · ${archivedLessons.length} archived` : ''}
-            </p>
-          </div>
-        </button>
-        <div className="flex flex-wrap items-center gap-1 pl-6 sm:pl-0 shrink-0">
+          <button
+            type="button"
+            onClick={onToggle}
+            aria-expanded={expanded}
+            className="pressable flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-xl text-left sm:gap-2.5"
+          >
+            {expanded ? (
+              <ChevronDown className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />
+            ) : (
+              <ChevronRight className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="break-words text-sm font-semibold text-ink" title={mod.name}>
+                {mod.name}
+              </p>
+              <p className="text-xs tabular-nums text-ink-muted">
+                {metaParts.join(' · ')}
+              </p>
+            </div>
+          </button>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-1.5 pl-6 sm:pl-0">
           {canManageModules && (
             <select
               value={mod.schedule_days}
               disabled={scheduleSaving}
               onClick={(event) => event.stopPropagation()}
               onChange={(event) => onChangeSchedule(event.target.value)}
-              className="app-control px-2"
+              className="app-control py-1.5 pl-3 pr-8 text-xs font-medium"
               aria-label={`Schedule pattern for ${mod.name}`}
             >
               {SCHEDULE_PATTERN_OPTIONS.map((option) => (
@@ -1068,32 +1170,42 @@ function ModuleSection({
             </select>
           )}
           {canManageModules && (
-            <>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  const si = scheduleIndices
-                  const lastDay =
-                    activeLessons.length > 0 ? Math.max(...activeLessons.map((l) => l.release_day)) : -1
-                  const lastWeek = Math.floor(lastDay / 7) + 1
-                  const lastDayIdx = lastDay % 7
-                  const pos = si.indexOf(lastDayIdx)
-                  let nextWeek = lastWeek,
-                    nextDay = si[0]
-                  if (pos >= 0 && pos < si.length - 1) nextDay = si[pos + 1]
-                  else nextWeek = lastWeek + 1
-                  if (lastDay < 0) {
-                    nextWeek = 1
-                    nextDay = si[0]
-                  }
-                  onAddExercise(nextWeek, nextDay)
-                }}
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Exercise
-              </Button>
-            </>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                const si = scheduleIndices
+                const lastDay =
+                  activeLessons.length > 0 ? Math.max(...activeLessons.map((l) => l.release_day)) : -1
+                const lastWeek = Math.floor(lastDay / 7) + 1
+                const lastDayIdx = lastDay % 7
+                const pos = si.indexOf(lastDayIdx)
+                let nextWeek = lastWeek,
+                  nextDay = si[0]
+                if (pos >= 0 && pos < si.length - 1) nextDay = si[pos + 1]
+                else nextWeek = lastWeek + 1
+                if (lastDay < 0) {
+                  nextWeek = 1
+                  nextDay = si[0]
+                }
+                onAddExercise(nextWeek, nextDay)
+              }}
+            >
+              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+              Exercise
+            </Button>
+          )}
+          {canManageModules && (
+            <ModuleActions
+              compact
+              mod={mod}
+              index={index}
+              count={moduleCount}
+              busy={reordering}
+              onMove={onMove}
+              onSaved={onModuleSaved}
+              onClone={onCloneModule}
+            />
           )}
         </div>
       </div>
@@ -1109,24 +1221,26 @@ function ModuleSection({
             </div>
           ) : (
             <>
-              {weekNumbers.length > 1 && <p className="mb-2 text-xs text-ink-muted">Scroll for more weeks →</p>}
-              <TabList
-                label={`${mod.name} weeks`}
-                className="flex items-center gap-1 border-b border-line mb-4 overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0"
-              >
-                {weekNumbers.map((w) => (
-                  <TabButton
-                    key={w}
-                    asTab
-                    dense
-                    selected={activeWeek === w}
-                    onClick={() => onSetWeek(w)}
-                    className="shrink-0 tabular-nums"
-                  >
-                    Week {w}
-                  </TabButton>
-                ))}
-              </TabList>
+              <div className="mb-4">
+                <TabList
+                  scrollable
+                  label={`${mod.name} weeks`}
+                  className="flex items-center gap-1 border-b border-line"
+                >
+                  {weekNumbers.map((w) => (
+                    <TabButton
+                      key={w}
+                      asTab
+                      dense
+                      selected={activeWeek === w}
+                      onClick={() => onSetWeek(w)}
+                      className="shrink-0 tabular-nums"
+                    >
+                      Week {w}
+                    </TabButton>
+                  ))}
+                </TabList>
+              </div>
 
               {/* Days in the active week */}
               <TabPanel key={activeWeek} aria-label={`Week ${activeWeek}`} className="space-y-4">

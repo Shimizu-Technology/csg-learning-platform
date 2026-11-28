@@ -409,3 +409,28 @@ it('opens and scrolls the saved new module, then opens the created exercise edit
   expect(button('Created module').getAttribute('aria-expanded')).toBe('true')
   delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView
 })
+
+it('switches between Outline and Learner files tabs and avoids duplicating matching module type names', async () => {
+  mocks.getCurriculum.mockResolvedValue({
+    data: {
+      curriculum: {
+        id: 1,
+        name: 'Python',
+        status: 'active',
+        modules: [{ ...module, name: 'Live Class', module_type: 'live_class' }],
+      },
+    },
+  })
+  await renderAt('/admin/content?curriculum=1&pane=detail&open=10')
+  const moduleBtn = button('Live Class')
+  expect(moduleBtn.textContent).not.toMatch(/Live Class.*Live class/i)
+  expect(container.textContent).not.toContain('Scroll for more weeks')
+
+  await act(async () => button('Learner files').click())
+  expect(urlText()).toContain('pane=files')
+  expect(container.querySelector('[aria-label="Curriculum details and learner files"]')).not.toBeNull()
+
+  await act(async () => button('Outline').click())
+  expect(urlText()).toContain('pane=detail')
+  expect(container.querySelector('[aria-label="Curriculum details and learner files"]')).toBeNull()
+})
