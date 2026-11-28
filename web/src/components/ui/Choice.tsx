@@ -48,10 +48,10 @@ interface TabButtonProps extends ChoiceProps {
 
 /** An underline tab: ink text + 3px ruby underline when selected. */
 export const TabButton = forwardRef<HTMLButtonElement, TabButtonProps>(function TabButton(
-  { selected, children, count, dense = false, asTab = false, className = '', type = 'button', ...props },
+  { selected, children, count, dense = false, asTab = false, className = '', type = 'button', tabIndex, ...props },
   ref,
 ) {
-  const state = asTab ? { role: 'tab', 'aria-selected': selected } : { 'aria-pressed': selected }
+  const state = asTab ? { role: 'tab', 'aria-selected': selected, tabIndex: tabIndex ?? (selected ? 0 : -1) } : { 'aria-pressed': selected, tabIndex }
   return (
     <button
       ref={ref}

@@ -226,7 +226,7 @@ it('uses the shared confirmation for deletion and retains the curriculum on serv
 it('restores a later saved week from the URL with real lesson links', async () => {
   mocks.getCurriculum.mockResolvedValue({ data: { curriculum: { id: 1, name: 'Python', status: 'active', modules: [{ ...module, lessons: [...lessons, { ...lessons[0], id: 99, title: 'Week fourteen exercise', release_day: 91 }] }] } } })
   await act(async () => root.render(<MemoryRouter initialEntries={['/admin/content?curriculum=1&pane=detail&open=10&week=10:14']}><ContentManagement /></MemoryRouter>))
-  expect(container.querySelector('button[role="tab"][aria-selected="true"]')?.textContent).toBe('Week 14')
+  expect(container.querySelector('[role="tablist"][aria-label$="weeks"] button[role="tab"][aria-selected="true"]')?.textContent).toBe('Week 14')
   expect(container.querySelector('a[aria-label="Edit Week fourteen exercise"]')?.getAttribute('href')).toBe('/admin/lessons/99/edit')
 })
 
@@ -408,4 +408,58 @@ it('opens and scrolls the saved new module, then opens the created exercise edit
   await act(async () => button('Return to content').click())
   expect(button('Created module').getAttribute('aria-expanded')).toBe('true')
   delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView
+})
+
+it('switches between Outline and Learner files tabs and avoids duplicating matching module type names', async () => {
+  mocks.getCurriculum.mockResolvedValue({
+    data: {
+      curriculum: {
+        id: 1,
+        name: 'Python',
+        status: 'active',
+        modules: [{ ...module, name: 'Live Class', module_type: 'live_class' }],
+      },
+    },
+  })
+  await renderAt('/admin/content?curriculum=1&pane=detail&open=10')
+  const moduleBtn = button('Live Class')
+  expect(moduleBtn.textContent).not.toMatch(/Live Class.*Live class/i)
+  expect(container.textContent).not.toContain('Scroll for more weeks')
+
+  await act(async () => button('Learner files').click())
+  expect(urlText()).toContain('pane=files')
+  expect(container.querySelector<HTMLElement>('[role="tabpanel"][aria-labelledby$="-tab-files"]')?.hidden).toBe(false)
+
+  await act(async () => button('Outline').click())
+  expect(urlText()).toContain('pane=detail')
+  expect(container.querySelector<HTMLElement>('[role="tabpanel"][aria-labelledby$="-tab-files"]')?.hidden).toBe(true)
+})
+
+it('focuses the files heading on a direct ?pane=files load after detail loads', async () => {
+  await renderAt('/admin/content?curriculum=1&pane=files')
+  expect(document.activeElement?.textContent).toContain('Curriculum files')
+})
+
+it('supports roving tabindex and ArrowLeft/ArrowRight navigation on curriculum tabs without stealing focus', async () => {
+  await renderAt('/admin/content?curriculum=1&pane=detail')
+  const outlineTab = container.querySelector<HTMLButtonElement>('button[role="tab"][id$="-tab-outline"]')!
+  const filesTab = container.querySelector<HTMLButtonElement>('button[role="tab"][id$="-tab-files"]')!
+  expect(outlineTab.tabIndex).toBe(0)
+  expect(filesTab.tabIndex).toBe(-1)
+
+  outlineTab.focus()
+  await act(async () => {
+    outlineTab.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
+  })
+  expect(urlText()).toContain('pane=files')
+  expect(filesTab.getAttribute('aria-selected')).toBe('true')
+  expect(filesTab.tabIndex).toBe(0)
+  expect(outlineTab.tabIndex).toBe(-1)
+  expect(document.activeElement).toBe(filesTab)
+
+  await act(async () => {
+    filesTab.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }))
+  })
+  expect(urlText()).toContain('pane=detail')
+  expect(document.activeElement).toBe(outlineTab)
 })

@@ -139,7 +139,7 @@ describe('Content', () => {
     vi.spyOn(api, 'getCurricula').mockResolvedValue({ data: { curricula: [{ id: 1 }] }, error: null } as never)
     vi.spyOn(api, 'getCurriculum').mockResolvedValue({ data: { curriculum: { id: 1, name: 'Python', status: 'active', modules: [{ id: 10, name: 'Foundations', module_type: 'live_class', position: 0, schedule_days: 'weekdays', week_count: 2, updated_at: '2026-10-22', lessons }] } }, error: null } as never)
   })
-  const selectedWeek = () => container.querySelector('[role="tablist"] [aria-selected="true"]')?.textContent
+  const selectedWeek = () => container.querySelector('[role="tablist"][aria-label$="weeks"] [aria-selected="true"]')?.textContent
 
   it('opens the module and week from the URL, clamps a missing week, and Back restores the week tab', async () => {
     const router = await render('/admin/content', <ContentManagement />, '/admin/content?open=10&week=10:2')

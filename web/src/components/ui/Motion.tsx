@@ -1,4 +1,5 @@
-import { Children, isValidElement, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { Children, isValidElement, useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { MOTION, prefersReducedMotion } from '../../lib/motion'
 
 type CollapseState = 'open' | 'opening' | 'closing' | 'closed'
@@ -69,11 +70,59 @@ export function Collapse({ open, children, id, className = '', keepMounted = fal
  * motion it jumps. Children are TabButtons; the selected one is found by
  * aria-selected / aria-pressed.
  */
-export function TabList({ label, children, className = '' }: { label: string; children: ReactNode; className?: string }) {
+export function TabList({
+  label,
+  children,
+  className = '',
+  scrollable = false,
+}: {
+  label: string
+  children: ReactNode
+  className?: string
+  /** Show left/right scroll buttons and edge fades whenever tabs overflow horizontally. */
+  scrollable?: boolean
+}) {
+  const wrapperRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const indicatorRef = useRef<HTMLSpanElement>(null)
   const placed = useRef(false)
+  const [scrollState, setScrollState] = useState({ overflowing: false, left: false, right: false })
   const selectedIndex = Children.toArray(children).findIndex((child) => isValidElement<{ selected?: boolean }>(child) && child.props.selected)
+
+  const syncScrollState = useCallback(() => {
+    const list = listRef.current
+    if (!scrollable || !list) return
+    const wrapper = wrapperRef.current
+    const availableWidth = wrapper && wrapper.clientWidth > 0 ? wrapper.clientWidth : list.clientWidth
+    const overflowing = list.scrollWidth > availableWidth + 2
+    const left = overflowing && list.scrollLeft > 2
+    const right = overflowing && list.scrollLeft + list.clientWidth < list.scrollWidth - 2
+    setScrollState((current) =>
+      current.overflowing === overflowing && current.left === left && current.right === right
+        ? current
+        : { overflowing, left, right },
+    )
+  }, [scrollable])
+
+  const ensureSelectedVisible = useCallback((smooth: boolean) => {
+    const list = listRef.current
+    if (!scrollable || !list || list.scrollWidth <= list.clientWidth + 2) return
+    const selected = list.querySelector<HTMLElement>('[aria-selected="true"], [aria-pressed="true"]')
+    if (!selected) return
+    const pad = 24
+    const leftEdge = selected.offsetLeft
+    const rightEdge = leftEdge + selected.offsetWidth
+    let nextLeft: number | null = null
+    if (leftEdge < list.scrollLeft + pad) {
+      nextLeft = Math.max(0, leftEdge - pad)
+    } else if (rightEdge > list.scrollLeft + list.clientWidth - pad) {
+      nextLeft = Math.min(list.scrollWidth - list.clientWidth, rightEdge - list.clientWidth + pad)
+    }
+    if (nextLeft === null) return
+    const behavior: ScrollBehavior = smooth && !prefersReducedMotion() ? 'smooth' : 'auto'
+    if (typeof list.scrollTo === 'function') list.scrollTo({ left: nextLeft, behavior })
+    else list.scrollLeft = nextLeft
+  }, [scrollable])
 
   useLayoutEffect(() => {
     const list = listRef.current
@@ -81,13 +130,16 @@ export function TabList({ label, children, className = '' }: { label: string; ch
     if (!list || !indicator) return
     const place = () => {
       const selected = list.querySelector<HTMLElement>('[aria-selected="true"], [aria-pressed="true"]')
-      if (!selected) { indicator.style.opacity = '0'; return }
+      if (!selected) { indicator.style.opacity = '0'; syncScrollState(); return }
       // The first placement, and resizes, never animate.
-      indicator.dataset.animate = placed.current && !prefersReducedMotion() ? 'true' : 'false'
+      const animate = placed.current && !prefersReducedMotion()
+      indicator.dataset.animate = animate ? 'true' : 'false'
       indicator.style.opacity = '1'
       indicator.style.width = `${selected.offsetWidth}px`
       indicator.style.transform = `translateX(${selected.offsetLeft}px)`
+      ensureSelectedVisible(placed.current)
       placed.current = true
+      syncScrollState()
     }
     place()
     if (typeof ResizeObserver === 'undefined') return
@@ -96,13 +148,94 @@ export function TabList({ label, children, className = '' }: { label: string; ch
       place()
     })
     observer.observe(list)
+    if (wrapperRef.current) observer.observe(wrapperRef.current)
     return () => observer.disconnect()
-  }, [selectedIndex, children])
+  }, [selectedIndex, children, ensureSelectedVisible, syncScrollState])
+
+  const scrollByStep = (direction: -1 | 1) => {
+    const list = listRef.current
+    if (!list) return
+    const step = list.clientWidth > 0 ? Math.max(40, Math.min(Math.round(list.clientWidth * 0.75), Math.max(40, list.clientWidth - 24))) : 160
+    const delta = direction * step
+    const behavior: ScrollBehavior = prefersReducedMotion() ? 'auto' : 'smooth'
+    if (typeof list.scrollBy === 'function') list.scrollBy({ left: delta, behavior })
+    else list.scrollLeft += delta
+    syncScrollState()
+  }
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+    const list = listRef.current
+    if (!list) return
+    const tabs = Array.from(list.querySelectorAll<HTMLButtonElement>('[role="tab"]:not(:disabled)'))
+    if (tabs.length < 2) return
+    const currentIndex = tabs.indexOf(document.activeElement as HTMLButtonElement)
+    if (currentIndex === -1) return
+    event.preventDefault()
+    const nextIndex =
+      event.key === 'Home' ? 0
+        : event.key === 'End' ? tabs.length - 1
+          : event.key === 'ArrowRight' ? (currentIndex + 1) % tabs.length
+            : (currentIndex - 1 + tabs.length) % tabs.length
+    tabs[nextIndex]?.focus(scrollable ? { preventScroll: true } : undefined)
+    tabs[nextIndex]?.click()
+  }
+
+  const overflowing = scrollable && scrollState.overflowing
+
+  if (!scrollable) {
+    return (
+      <div ref={listRef} role="tablist" aria-label={label} data-tab-indicator="" onKeyDown={handleKeyDown} className={`relative ${className}`.trim()}>
+        {children}
+        <span ref={indicatorRef} aria-hidden="true" className="tab-indicator" style={{ opacity: 0 }} />
+      </div>
+    )
+  }
 
   return (
-    <div ref={listRef} role="tablist" aria-label={label} data-tab-indicator="" className={`relative ${className}`.trim()}>
-      {children}
-      <span ref={indicatorRef} aria-hidden="true" className="tab-indicator" style={{ opacity: 0 }} />
+    <div ref={wrapperRef} className="relative flex min-w-0 items-center gap-1">
+      {overflowing && (
+        <button
+          type="button"
+          aria-label={`Scroll ${label} left`}
+          disabled={!scrollState.left}
+          onClick={() => scrollByStep(-1)}
+          className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-xl border border-line bg-surface-raised text-ink-secondary transition-colors duration-150 hover:bg-surface-sunken hover:text-ink disabled:opacity-35 lg:min-h-9 lg:min-w-9"
+        >
+          <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+        </button>
+      )}
+      <div className="relative min-w-0 flex-1">
+        <div
+          ref={listRef}
+          role="tablist"
+          aria-label={label}
+          data-tab-indicator=""
+          onScroll={syncScrollState}
+          onKeyDown={handleKeyDown}
+          className={`relative min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${className}`.trim()}
+        >
+          {children}
+          <span ref={indicatorRef} aria-hidden="true" className="tab-indicator" style={{ opacity: 0 }} />
+        </div>
+        {scrollState.left && (
+          <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 w-6 bg-gradient-to-r from-surface-raised to-transparent" />
+        )}
+        {scrollState.right && (
+          <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-surface-raised to-transparent" />
+        )}
+      </div>
+      {overflowing && (
+        <button
+          type="button"
+          aria-label={`Scroll ${label} right`}
+          disabled={!scrollState.right}
+          onClick={() => scrollByStep(1)}
+          className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-xl border border-line bg-surface-raised text-ink-secondary transition-colors duration-150 hover:bg-surface-sunken hover:text-ink disabled:opacity-35 lg:min-h-9 lg:min-w-9"
+        >
+          <ChevronRight className="h-4 w-4" aria-hidden="true" />
+        </button>
+      )}
     </div>
   )
 }
