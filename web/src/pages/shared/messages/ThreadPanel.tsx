@@ -29,17 +29,49 @@ export function ThreadPanel({ conversation, feed, selectedLabel, view, isOverlay
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
     previousFocusRef.current = opener && !asideRef.current?.contains(opener) ? opener : null
     asideRef.current?.focus({ preventScroll: true })
-    const onEscape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || event.defaultPrevented) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return
+      const panel = asideRef.current
+      if (!panel) return
       const otherOverlay = Array.from(document.querySelectorAll('[role="dialog"], [role="alertdialog"], [role="menu"]'))
-        .some((node) => node !== asideRef.current && !asideRef.current?.contains(node))
+        .some((node) => node !== panel && !panel.contains(node))
       if (otherOverlay) return
-      event.preventDefault()
-      setActiveThreadRootId(null)
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        setActiveThreadRootId(null)
+        return
+      }
+      if (event.key === 'Tab') {
+        const focusables = Array.from(
+          panel.querySelectorAll<HTMLElement>(
+            'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"]), [contenteditable="true"]',
+          ),
+        ).filter((el) => el.getClientRects().length > 0 || el.offsetParent !== null)
+        if (focusables.length === 0) {
+          event.preventDefault()
+          panel.focus({ preventScroll: true })
+          return
+        }
+        const first = focusables[0]
+        const last = focusables[focusables.length - 1]
+        const active = document.activeElement
+        if (!active || !panel.contains(active)) {
+          event.preventDefault()
+          ;(event.shiftKey ? last : first).focus()
+        } else if (event.shiftKey) {
+          if (active === first || active === panel) {
+            event.preventDefault()
+            last.focus()
+          }
+        } else if (active === last) {
+          event.preventDefault()
+          first.focus()
+        }
+      }
     }
-    window.addEventListener('keydown', onEscape)
+    window.addEventListener('keydown', onKeyDown)
     return () => {
-      window.removeEventListener('keydown', onEscape)
+      window.removeEventListener('keydown', onKeyDown)
       const target = previousFocusRef.current
       previousFocusRef.current = null
       if (target && target.isConnected) target.focus({ preventScroll: true })
@@ -53,38 +85,6 @@ return (<>{showThreadPanel && activeThreadRoot && (
                     aria-modal={isOverlay || undefined}
                     aria-label={isOverlay ? `Thread in ${selectedLabel}` : undefined}
                     tabIndex={isOverlay ? -1 : undefined}
-                    onKeyDown={(event) => {
-                      if (!isOverlay || event.defaultPrevented) return
-                      if (event.key === 'Escape') {
-                        event.preventDefault()
-                        event.stopPropagation()
-                        setActiveThreadRootId(null)
-                        return
-                      }
-                      if (event.key === 'Tab') {
-                        const focusables = Array.from(
-                          event.currentTarget.querySelectorAll<HTMLElement>(
-                            'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"]), [contenteditable="true"]',
-                          ),
-                        ).filter((el) => el.getClientRects().length > 0 || el.offsetParent !== null)
-                        if (focusables.length === 0) {
-                          event.preventDefault()
-                          event.currentTarget.focus({ preventScroll: true })
-                          return
-                        }
-                        const first = focusables[0]
-                        const last = focusables[focusables.length - 1]
-                        if (event.shiftKey) {
-                          if (document.activeElement === first || document.activeElement === event.currentTarget) {
-                            event.preventDefault()
-                            last.focus()
-                          }
-                        } else if (document.activeElement === last) {
-                          event.preventDefault()
-                          first.focus()
-                        }
-                      }
-                    }}
                     className="hidden min-h-0 min-w-0 overflow-hidden border-l border-line bg-surface-raised focus:outline-none lg:absolute lg:inset-y-0 lg:right-0 lg:z-20 lg:flex lg:w-[min(380px,calc(100%-2rem))] lg:flex-col lg:shadow-overlay xl:static xl:z-auto xl:w-auto xl:bg-surface-sunken/70 xl:shadow-none"
                   >
                     <div className="flex items-start justify-between gap-3 border-b border-line bg-surface-raised px-4 py-3">
