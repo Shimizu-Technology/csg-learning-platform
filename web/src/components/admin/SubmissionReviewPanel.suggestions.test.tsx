@@ -671,7 +671,8 @@ describe('SubmissionReviewPanel grading safety (UX-1)', () => {
 
   it('gives the icon-only snippet button a 44px-wide touch target', async () => {
     await renderPanel(plain({ feedback: 'Reusable feedback' }))
-    const snippet = container.querySelector('[aria-label="Save draft as reusable snippet"]')!
+    const snippet = container.querySelector('[aria-label="Save snippet"]')!
+    expect(snippet.getAttribute('title')).toBe('Save draft as reusable snippet')
     expect(snippet.className).toContain('min-w-11')
     expect(snippet.className).toContain('min-h-11')
   })

@@ -327,7 +327,7 @@ function SubmissionRecord({ submissionId }: { submissionId: number }) {
           <LinkButton to={back.to} state={RESTORE_LIST_STATE} onClick={(event) => void guardedBack(event, back.to)} variant="secondary" size="sm">{back.label}</LinkButton>
         </div>
       )}
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px] xl:items-start">
         <div className="app-surface min-w-0 p-4 sm:p-6">
           <SubmissionReviewPanel
             showRecordLink={false}

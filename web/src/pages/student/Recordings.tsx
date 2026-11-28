@@ -1,5 +1,5 @@
 import { PausedLearningBanner, useSelectedCoursePaused } from '../../components/student/PausedLearningBanner'
-import { PageHeader } from '../../components/ui/PageHeader'
+import { PageHeader, ScopeControl, cohortScopeOptions } from '../../components/ui/PageHeader'
 import { activityReturnPath } from '../../lib/routes'
 import { RESTORE_LIST_STATE } from '../../lib/navigationContext'
 import { urlParsers, useUrlSearch, useUrlState } from '../../lib/useUrlState'
@@ -163,19 +163,19 @@ export function Recordings() {
   requestedAtLoad.current = requestedRecording
   const requestGeneration = useRef(0)
   const { user, enrollments } = useAuthContext()
-  const { selectedCohortId } = useCohortContext()
+  const { selectedCohortId, cohorts = [] } = useCohortContext()
   const navigate = useNavigate()
   const legacyInbox = v2 ? legacyInboxReturnContext(location.state) : null
   const legacyReturnTo = legacyInbox?.returnTo
   useEffect(() => {
     if (legacyReturnTo) navigate(`${location.pathname}${location.search}`, { replace: true, state: { returnTo: legacyReturnTo, returnLabel: 'Notifications' } })
   }, [legacyReturnTo, location.pathname, location.search, navigate])
-  const paused = useSelectedCoursePaused(selectedCohortId)
-  const todayPath = v2 && selectedCohortId ? `/dashboard?cohort_id=${selectedCohortId}` : '/dashboard'
-  const originBack = useBackLink({ returnTo: todayPath, returnLabel: 'Today' }, { legacyInbox: v2 })
-  const backTo = v2 ? originBack.to : todayPath
-  const backLabel = v2 ? originBack.label : 'Back to Today'
   const isStaff = Boolean(user?.is_staff)
+  const paused = useSelectedCoursePaused(selectedCohortId)
+  const todayPath = isStaff ? '/admin' : v2 && selectedCohortId ? `/dashboard?cohort_id=${selectedCohortId}` : '/dashboard'
+  const originBack = useBackLink({ returnTo: todayPath, returnLabel: 'Today' }, { legacyInbox: v2 })
+  const backTo = v2 || isStaff ? originBack.to : todayPath
+  const backLabel = v2 || isStaff ? originBack.label : 'Back to Today'
   const isAlumniLibrary = !isStaff && isAlumniOnlyEnrollment(enrollments)
   const [legacyRecordings, setLegacyRecordings] = useState<LegacyRecording[]>([])
   const [s3Recordings, setS3Recordings] = useState<S3Recording[]>([])
@@ -206,8 +206,8 @@ export function Recordings() {
     copyAttemptRef.current += 1
     if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
   }, [])
-  // The playlist only collapses on phones and tablets; on desktop it is always shown.
-  const isDesktop = useMediaQuery('(min-width: 1024px)')
+  // The playlist only collapses on phones and tablets; on wide desktop it sits beside the player.
+  const isDesktop = useMediaQuery('(min-width: 1280px)')
   // A tab with nothing in it (or one this cohort doesn't use) shows All.
   const activeTab: RecordingTab = requestedTab === 'all' || allRecordingsForTab(requestedTab, s3Recordings, legacyRecordings).length > 0 ? requestedTab : 'all'
   const setActiveTab = (tab: RecordingTab) => setUrlState({ source: tab })
@@ -364,33 +364,89 @@ export function Recordings() {
 
   const activityBack = activityReturn ? <Link to={activityReturn} state={RESTORE_LIST_STATE} className="app-link inline-flex min-h-11 items-center">Back to Activity</Link> : todayBack
 
-  if (requestedRecording && !selectedItem && !loadError) return <EmptyState headingLevel={1} action={activityBack} icon={Film} title="Recording unavailable" description="This recording is no longer available in the cohort named in this link." />
+  const staffScope = isStaff && cohorts.length > 0 ? (
+    <ScopeControl
+      value={selectedCohortId ? String(selectedCohortId) : ''}
+      options={cohortScopeOptions(cohorts)}
+      onChange={(value) => {
+        const nextId = value ? Number(value) : null
+        const params = new URLSearchParams(location.search)
+        if (nextId) params.set('cohort_id', String(nextId))
+        else params.delete('cohort_id')
+        params.delete('recording')
+        const search = params.toString()
+        navigate(
+          { pathname: location.pathname, search: search ? `?${search}` : '' },
+          { replace: true, state: location.state },
+        )
+      }}
+    />
+  ) : undefined
+
+  if (requestedRecording && !selectedItem && !loadError) {
+    return (
+      <div className="app-page">
+        {isStaff && (
+          <PageHeader
+            title="Class recordings"
+            scope={staffScope}
+          />
+        )}
+        <EmptyState
+          headingLevel={isStaff ? 2 : 1}
+          action={activityBack}
+          icon={Film}
+          title="Recording unavailable"
+          description="This recording is no longer available in the cohort named in this link."
+        />
+      </div>
+    )
+  }
 
   const totalCount = s3Recordings.length + legacyRecordings.length
   if (loadError && totalCount === 0) {
     return (
-      <EmptyState headingLevel={1}
-        icon={WifiOff}
-        title="Could not load recordings"
-        description={loadError}
-        action={
-          <div>{activityBack}<Button onClick={loadRecordings}>
-            <RefreshCw className="h-4 w-4" aria-hidden="true" />
-            Try again
-          </Button></div>
-        }
-      />
+      <div className="app-page">
+        {isStaff && (
+          <PageHeader
+            title="Class recordings"
+            scope={staffScope}
+          />
+        )}
+        <EmptyState
+          headingLevel={isStaff ? 2 : 1}
+          icon={WifiOff}
+          title="Could not load recordings"
+          description={loadError}
+          action={
+            <div>{activityBack}<Button onClick={loadRecordings}>
+              <RefreshCw className="h-4 w-4" aria-hidden="true" />
+              Try again
+            </Button></div>
+          }
+        />
+      </div>
     )
   }
 
   if (totalCount === 0) {
     return (
-      <div className="app-page">{pausedBanner}<EmptyState headingLevel={1}
-        icon={PlayCircle}
-        action={activityBack}
-        title={paused ? 'No recordings available before your pause' : 'No recordings yet'}
-        description={paused ? 'Recordings published before you paused appear here.' : 'Class recordings will appear here once your instructor adds them.'}
-      /></div>
+      <div className="app-page">
+        {pausedBanner}
+        {isStaff && (
+          <PageHeader
+            title="Class recordings"
+            description="0 recordings available"
+            scope={staffScope}
+          />
+        )}
+        <EmptyState headingLevel={isStaff ? 2 : 1}
+          icon={PlayCircle}
+          action={activityBack}
+          title={paused ? 'No recordings available before your pause' : 'No recordings yet'}
+          description={paused ? 'Recordings published before you paused appear here.' : isStaff ? 'Choose another cohort above or upload recordings from a cohort page.' : 'Class recordings will appear here once your instructor adds them.'}
+        />
+      </div>
     )
   }
 
@@ -400,7 +456,8 @@ export function Recordings() {
     legacyRecordings.some((recording) => recording.source === 'external'),
   ].filter(Boolean).length
   const showTabs = sourceGroupCount > 1
-  const Header = v2 ? 'div' : 'header'
+  const Header = v2 || isStaff ? 'div' : 'header'
+  const watchedSummary = isStaff ? '' : ` · ${[...s3Recordings, ...legacyRecordings].filter(r => r.watch_progress?.completed).length} watched`
 
   return (
     <div className="app-page">
@@ -416,17 +473,24 @@ export function Recordings() {
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           {activityReturn ? 'Back to activity' : backLabel}
         </Link>
-        {v2 ? <PageHeader eyebrow="Replay and review" title="Class recordings" description={<>{totalCount} recording{totalCount !== 1 ? 's' : ''} available{` · ${[...s3Recordings, ...legacyRecordings].filter(r => r.watch_progress?.completed).length} watched`}</>} /> : <>
+        {v2 || isStaff ? (
+          <PageHeader
+            eyebrow={isStaff ? undefined : 'Replay and review'}
+            title="Class recordings"
+            description={<>{totalCount} recording{totalCount !== 1 ? 's' : ''} available{watchedSummary}</>}
+            scope={staffScope}
+          />
+        ) : <>
         <p className="app-eyebrow">Replay and review</p>
         <h1 className="app-title mt-2">Class recordings</h1>
         <p className="app-description mt-2 tabular-nums">
           {totalCount} recording{totalCount !== 1 ? 's' : ''} available
-          {` · ${[...s3Recordings, ...legacyRecordings].filter(r => r.watch_progress?.completed).length} watched`}
+          {watchedSummary}
         </p>
         </>}
       </Header>
 
-      {continueWatching && recordingKey(continueWatching) !== (liveSelectedItem ? recordingKey(liveSelectedItem) : null) && (
+      {!isStaff && continueWatching && recordingKey(continueWatching) !== (liveSelectedItem ? recordingKey(liveSelectedItem) : null) && (
         <section
           aria-label="Continue watching"
           className="app-surface flex flex-wrap items-center justify-between gap-4 p-4"
@@ -455,7 +519,7 @@ export function Recordings() {
         </section>
       )}
 
-      <div className="flex flex-col lg:flex-row gap-5">
+      <div className="flex flex-col gap-5 xl:flex-row">
         {/* Player area */}
         <div className="flex-1 min-w-0">
           {liveSelectedItem && liveSelectedItem.source === 'uploaded' && recordingCohortId ? (
@@ -563,10 +627,10 @@ export function Recordings() {
         </div>
 
         {/* Playlist sidebar */}
-        <div className="lg:w-80 xl:w-96 shrink-0">
-          <div className="app-surface overflow-hidden lg:sticky lg:top-4">
+        <div className="shrink-0 xl:w-80">
+          <div className="app-surface overflow-hidden xl:sticky xl:top-4 xl:flex xl:max-h-[calc(100dvh-2rem)] xl:flex-col">
             {isDesktop ? (
-              <h2 className="flex min-h-11 items-center border-b border-line px-4 py-3 text-sm font-semibold tabular-nums text-ink">
+              <h2 className="flex min-h-11 shrink-0 items-center border-b border-line px-4 py-3 text-sm font-semibold tabular-nums text-ink">
                 Playlist · {filtered.length}
               </h2>
             ) : (
@@ -587,9 +651,9 @@ export function Recordings() {
               </h2>
             )}
 
-            <div className={`${playlistCollapsed ? 'hidden' : 'block'} lg:block`}>
+            <div className={`${playlistCollapsed ? 'hidden' : 'flex'} min-h-0 flex-1 flex-col xl:flex`}>
               {showTabs && (
-                <div className="flex border-b border-line" role="group" aria-label="Recording source">
+                <div className="flex shrink-0 border-b border-line" role="group" aria-label="Recording source">
                   {(['all', 'uploaded', 'youtube', 'external'] as const)
                     .filter((tab) => tab === 'all' || allRecordingsForTab(tab, s3Recordings, legacyRecordings).length > 0)
                     .map(tab => (
@@ -608,8 +672,8 @@ export function Recordings() {
                 </div>
               )}
 
-              {hasWatchProgress && (
-                <div className="flex flex-wrap gap-1.5 border-b border-line px-3 py-2.5" role="group" aria-label="Watch status">
+              {!isStaff && hasWatchProgress && (
+                <div className="flex shrink-0 flex-wrap gap-1.5 border-b border-line px-3 py-2.5" role="group" aria-label="Watch status">
                   {([
                     ['all', 'All'],
                     ['unwatched', 'Unwatched'],
@@ -634,7 +698,7 @@ export function Recordings() {
               )}
 
               {allRecordings.length > 6 && (
-                <div className="px-3 pt-3">
+                <div className="shrink-0 px-3 pt-3">
                   <div className="relative">
                     <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" aria-hidden="true" />
                     <input
@@ -649,7 +713,7 @@ export function Recordings() {
                 </div>
               )}
 
-              <div className="max-h-112 lg:max-h-[calc(100vh-14rem)] overflow-y-auto p-2">
+              <div className="max-h-112 min-h-0 flex-1 overflow-y-auto p-2 xl:max-h-none">
                 {filtered.length === 0 ? (
                   <div className="py-6 text-center">
                     <p className="text-sm text-ink-secondary">No recordings match these filters.</p>

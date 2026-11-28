@@ -244,3 +244,162 @@ export function TabList({
 export function TabPanel({ children, className = '', ...props }: { children: ReactNode; className?: string } & React.HTMLAttributes<HTMLDivElement>) {
   return <div role="tabpanel" className={`motion-tab-panel ${className}`.trim()} {...props}>{children}</div>
 }
+
+/**
+ * Horizontal scrollable link strip for desktop workspace sections (`CohortWorkspace`,
+ * `StudentWorkspace`). Shows Prev/Next scroll buttons and edge fades whenever the links
+ * overflow their wrapper, and keeps the active `[aria-current="page"]` link in view.
+ */
+export function ScrollableNavStrip({
+  label,
+  activeKey,
+  children,
+  className = '',
+}: {
+  label: string
+  activeKey?: string | number
+  children: ReactNode
+  className?: string
+}) {
+  const wrapperRef = useRef<HTMLDivElement>(null)
+  const scrollerRef = useRef<HTMLDivElement>(null)
+  const userScrolledRef = useRef(false)
+  const programmaticScrollLeftRef = useRef<number | null>(null)
+  const prevActiveKeyRef = useRef(activeKey)
+  const [scrollState, setScrollState] = useState({ overflowing: false, left: false, right: false })
+
+  const syncScrollState = useCallback(() => {
+    const scroller = scrollerRef.current
+    if (!scroller) return
+    const wrapper = wrapperRef.current
+    const availableWidth = wrapper && wrapper.clientWidth > 0 ? wrapper.clientWidth : scroller.clientWidth
+    const overflowing = scroller.scrollWidth > availableWidth + 2
+    if (!overflowing) userScrolledRef.current = false
+    const left = overflowing && scroller.scrollLeft > 2
+    const right = overflowing && scroller.scrollLeft + scroller.clientWidth < scroller.scrollWidth - 2
+    setScrollState((current) =>
+      current.overflowing === overflowing && current.left === left && current.right === right
+        ? current
+        : { overflowing, left, right },
+    )
+  }, [])
+
+  const alignActive = useCallback((force = false) => {
+    const scroller = scrollerRef.current
+    if (!scroller) return
+    if (force || !userScrolledRef.current) {
+      const active = scroller.querySelector<HTMLElement>('[aria-current="page"], .tab-selected')
+      if (active && scroller.scrollWidth > scroller.clientWidth + 2) {
+        const pad = 24
+        const leftEdge = active.offsetLeft
+        const rightEdge = leftEdge + active.offsetWidth
+        let nextLeft: number | null = null
+        if (leftEdge < scroller.scrollLeft + pad) nextLeft = Math.max(0, leftEdge - pad)
+        else if (rightEdge > scroller.scrollLeft + scroller.clientWidth - pad) {
+          nextLeft = Math.min(scroller.scrollWidth - scroller.clientWidth, rightEdge - scroller.clientWidth + pad)
+        }
+        if (nextLeft !== null) {
+          programmaticScrollLeftRef.current = Math.round(nextLeft)
+          if (typeof scroller.scrollTo === 'function') scroller.scrollTo({ left: nextLeft, behavior: 'auto' })
+          else scroller.scrollLeft = nextLeft
+        }
+      }
+    }
+    syncScrollState()
+  }, [syncScrollState])
+
+  useLayoutEffect(() => {
+    const scroller = scrollerRef.current
+    if (!scroller) return
+    if (prevActiveKeyRef.current !== activeKey) {
+      prevActiveKeyRef.current = activeKey
+      userScrolledRef.current = false
+    }
+    alignActive(false)
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => alignActive(false))
+    observer.observe(scroller)
+    if (wrapperRef.current) observer.observe(wrapperRef.current)
+    return () => observer.disconnect()
+  }, [activeKey, children, alignActive])
+
+  // Re-align after arrows mount and shrink the scroll viewport, unless the user manually scrolled.
+  useLayoutEffect(() => {
+    if (scrollState.overflowing) alignActive(false)
+  }, [scrollState.overflowing, alignActive])
+
+  const handleScroll = useCallback(() => {
+    const scroller = scrollerRef.current
+    if (scroller) {
+      const wrapper = wrapperRef.current
+      const availableWidth = wrapper && wrapper.clientWidth > 0 ? wrapper.clientWidth : scroller.clientWidth
+      const overflowing = scroller.scrollWidth > availableWidth + 2 && scroller.scrollWidth > scroller.clientWidth + 2
+      const target = programmaticScrollLeftRef.current
+      if (!overflowing) {
+        programmaticScrollLeftRef.current = null
+        userScrolledRef.current = false
+      } else if (target !== null && Math.abs(scroller.scrollLeft - target) <= 2) {
+        programmaticScrollLeftRef.current = null
+      } else {
+        programmaticScrollLeftRef.current = null
+        userScrolledRef.current = true
+      }
+    }
+    syncScrollState()
+  }, [syncScrollState])
+
+  const scrollByStep = (direction: -1 | 1) => {
+    const scroller = scrollerRef.current
+    if (!scroller) return
+    userScrolledRef.current = true
+    programmaticScrollLeftRef.current = null
+    const step = scroller.clientWidth > 0 ? Math.max(40, Math.min(Math.round(scroller.clientWidth * 0.75), Math.max(40, scroller.clientWidth - 24))) : 160
+    const delta = direction * step
+    const behavior: ScrollBehavior = prefersReducedMotion() ? 'auto' : 'smooth'
+    if (typeof scroller.scrollBy === 'function') scroller.scrollBy({ left: delta, behavior })
+    else scroller.scrollLeft += delta
+    syncScrollState()
+  }
+
+  return (
+    <div ref={wrapperRef} className={`relative flex min-w-0 items-center gap-1 ${className}`.trim()}>
+      {scrollState.overflowing && (
+        <button
+          type="button"
+          aria-label={`Scroll ${label} left`}
+          disabled={!scrollState.left}
+          onClick={() => scrollByStep(-1)}
+          className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-xl border border-line bg-surface-raised text-ink-secondary transition-colors duration-150 hover:bg-surface-sunken hover:text-ink disabled:opacity-35 lg:min-h-9 lg:min-w-9"
+        >
+          <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+        </button>
+      )}
+      <div className="relative min-w-0 flex-1">
+        <div
+          ref={scrollerRef}
+          onScroll={handleScroll}
+          className="flex min-w-0 gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          {children}
+        </div>
+        {scrollState.left && (
+          <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 w-6 bg-gradient-to-r from-surface-page to-transparent" />
+        )}
+        {scrollState.right && (
+          <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-surface-page to-transparent" />
+        )}
+      </div>
+      {scrollState.overflowing && (
+        <button
+          type="button"
+          aria-label={`Scroll ${label} right`}
+          disabled={!scrollState.right}
+          onClick={() => scrollByStep(1)}
+          className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-xl border border-line bg-surface-raised text-ink-secondary transition-colors duration-150 hover:bg-surface-sunken hover:text-ink disabled:opacity-35 lg:min-h-9 lg:min-w-9"
+        >
+          <ChevronRight className="h-4 w-4" aria-hidden="true" />
+        </button>
+      )}
+    </div>
+  )
+}

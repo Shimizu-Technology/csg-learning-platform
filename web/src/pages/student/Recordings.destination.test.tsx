@@ -3,11 +3,23 @@ import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { createMemoryRouter, RouterProvider, MemoryRouter, Routes, Route } from 'react-router-dom'
 import { expect, it, vi } from 'vitest'
-const state = vi.hoisted(() => ({ getRecordings: vi.fn(), paused: false, v2: false }))
+const state = vi.hoisted(() => ({
+  getRecordings: vi.fn(),
+  paused: false,
+  v2: false,
+  isStaff: false,
+  selectCohort: vi.fn(),
+}))
 vi.mock('../../lib/studentExperience', () => ({ useStudentExperience: () => ({ v2: state.v2 }) }))
 vi.mock('../../lib/api', () => ({ api: { getRecordings: state.getRecordings, getDashboard: vi.fn(async () => ({ data: { dashboard: { cohort: { id: 2 }, paused_since: '2026-11-19', capabilities: { can_submit: true, read_only: false, support_mode: 'guided_help', support_expires_at: null, access_expires_at: null, support_instructor_id: 1 } } }, error: null })) } }))
-vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ user: { id: 9 }, enrollments: state.paused ? [{ status: 'paused', cohort: { id: 2 } }] : [] }) }))
-vi.mock('../../contexts/CohortContext', () => ({ useCohortContext: () => ({ selectedCohortId: 2 }) }))
+vi.mock('../../contexts/AuthContext', () => ({ useAuthContext: () => ({ user: { id: 9, is_staff: state.isStaff }, enrollments: state.paused ? [{ status: 'paused', cohort: { id: 2 } }] : [] }) }))
+vi.mock('../../contexts/CohortContext', () => ({
+  useCohortContext: () => ({
+    selectedCohortId: 2,
+    cohorts: state.isStaff ? [{ id: 2, name: 'Cohort 2' }, { id: 3, name: 'Cohort 3' }] : [],
+    selectCohort: state.selectCohort,
+  }),
+}))
 vi.mock('../../lib/useMediaQuery', () => ({ useMediaQuery: () => true }))
 vi.mock('../../components/shared/VideoPlayer', () => ({ VideoPlayer: ({ title }: { title: string }) => <div data-testid="player">{title}</div> }))
 vi.mock('../../components/student/ContextualHelp', () => ({ ContextualHelp: () => null }))
@@ -90,5 +102,73 @@ it('uses the existing recordings dashboard request for the pause date', async ()
   } finally {
     state.paused = false
     act(() => root.unmount())
+  }
+})
+
+it('shows cohort scope control, preserves return state on scope change, and recovers from errors for staff', async () => {
+  state.isStaff = true
+  state.v2 = true
+  state.selectCohort.mockClear()
+  state.getRecordings.mockResolvedValueOnce({ data: { items: [{ id: 9, cohort_id: 2, title: 'Live Session 1', source: 'uploaded' }] } })
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  const router = createMemoryRouter(
+    [{ path: '/recordings', element: <Recordings /> }],
+    {
+      initialEntries: [
+        {
+          pathname: '/recordings',
+          search: '?cohort_id=2',
+          state: { returnTo: '/announcements?tab=inbox', returnLabel: 'Notifications' },
+        },
+      ],
+    },
+  )
+  try {
+    await act(async () => root.render(<RouterProvider router={router} />))
+    expect(container.querySelector('a[href="/announcements?tab=inbox"]')?.textContent).toContain('Back to Notifications')
+    const select = container.querySelector<HTMLSelectElement>('[data-scope-control] select')!
+    expect(select).toBeTruthy()
+    expect(container.textContent).not.toContain('watched')
+
+    // Changing cohort updates the URL in place without calling selectCohort or dropping return state.
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')!.set!.call(select, '3')
+      select.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+    expect(state.selectCohort).not.toHaveBeenCalled()
+    expect(router.state.location.pathname).toBe('/recordings')
+    expect(router.state.location.search).toBe('?cohort_id=3')
+    expect(router.state.location.state).toEqual({ returnTo: '/announcements?tab=inbox', returnLabel: 'Notifications' })
+  } finally {
+    state.isStaff = false
+    state.v2 = false
+    act(() => root.unmount())
+  }
+})
+
+it('keeps the staff scope picker visible on load errors and unavailable recording links', async () => {
+  state.isStaff = true
+  state.getRecordings.mockResolvedValueOnce({ data: null, error: 'Cannot access this cohort' })
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  try {
+    await act(async () => root.render(<MemoryRouter initialEntries={['/recordings?cohort_id=999']}><Recordings /></MemoryRouter>))
+    expect(container.textContent).toContain('Could not load recordings')
+    expect(container.querySelector('[data-scope-control] select')).toBeTruthy()
+  } finally {
+    act(() => root.unmount())
+  }
+
+  state.getRecordings.mockResolvedValueOnce({ data: { items: [{ id: 8, cohort_id: 2, title: 'Other recording', source: 'uploaded' }] } })
+  const container2 = document.createElement('div')
+  const root2 = createRoot(container2)
+  try {
+    await act(async () => root2.render(<MemoryRouter initialEntries={['/recordings?cohort_id=2&recording=999']}><Recordings /></MemoryRouter>))
+    expect(container2.textContent).toContain('Recording unavailable')
+    expect(container2.querySelector('[data-scope-control] select')).toBeTruthy()
+  } finally {
+    state.isStaff = false
+    act(() => root2.unmount())
   }
 })

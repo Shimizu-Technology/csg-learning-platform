@@ -16,6 +16,7 @@ import { LoadingSpinner } from '../../components/shared/LoadingSpinner'
 import { NoAccess } from '../../components/shared/NoAccess'
 import { RelatedPanel } from '../../components/shared/RelatedPanel'
 import { Button } from '../../components/ui/Button'
+import { ScrollableNavStrip } from '../../components/ui/Motion'
 import { ReturnOrigin } from '../../contexts/PreviewNavigationContext'
 import { relatedRows } from '../../lib/recordRelated'
 import { cohortStudentPath } from '../../lib/routes'
@@ -122,7 +123,7 @@ function Workspace() {
           </div>
         )}
         <StudentWorkspaceHeader workspace={{ ...workspace, progress, cohort }} />
-        <nav aria-label="Student page sections" className="workspace-sections border-b border-line lg:overflow-x-auto">
+        <nav aria-label="Student page sections" className="workspace-sections border-b border-line">
           <WorkspaceSectionMenu
             label="Student page sections"
             value={cohortStudentPath(cohortId, studentId, activeTab)}
@@ -141,21 +142,21 @@ function Workspace() {
               }
             })}
           />
-          <div className="hidden min-w-max gap-1 lg:flex">
+          <ScrollableNavStrip label="Student page sections" activeKey={activeTab} className="hidden lg:flex">
             {tabs.map(({ id, label, icon: Icon }) => (
               <NavLink
                 key={id}
                 to={cohortStudentPath(cohortId, studentId, id)}
                 state={returnState}
                 className={({ isActive }) =>
-                  'inline-flex min-h-11 items-center gap-2 px-3 text-sm font-semibold transition-colors ' +
+                  'inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap px-3 text-sm font-semibold transition-colors ' +
                   'duration-150 ' +
                   (isActive || (activeTab === id && !params.tab)
                     ? 'tab-selected'
                     : 'text-ink-secondary hover:bg-surface-sunken hover:text-ink')
                 }
               >
-                <Icon className="h-4 w-4" aria-hidden="true" />
+                <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
                 {label}
                 {id === 'work' && ungraded !== undefined && ungraded > 0 && <CountBadge count={ungraded!} />}
                 {id === 'support' && openHelp !== undefined && openHelp > 0 && (
@@ -166,7 +167,7 @@ function Workspace() {
                 )}
               </NavLink>
             ))}
-          </div>
+          </ScrollableNavStrip>
         </nav>
 
         {activeTab === 'overview' && progress.course_certificate && (
@@ -213,6 +214,16 @@ function Workspace() {
         )}
         {activeTab === 'learning' && (
           <>
+            <LearningTab
+              recordingsSection={recordingsSection}
+              videosSection={videosSection}
+              recordings={recordings}
+              lessonVideos={lessonVideos}
+              progress={progress}
+              cohortId={cohortId}
+              studentId={studentId}
+              returnTo={location.pathname}
+            />
             <StudentExtensions
               key={`extensions-${progress.enrollment.id}`}
               enrollmentId={progress.enrollment.id}
@@ -234,16 +245,6 @@ function Workspace() {
               outsideChange={planVersion}
               enrollmentId={progress.enrollment.id}
               onSaved={() => { setPaceVersion((value) => value + 1); refresh() }}
-            />
-            <LearningTab
-              recordingsSection={recordingsSection}
-              videosSection={videosSection}
-              recordings={recordings}
-              lessonVideos={lessonVideos}
-              progress={progress}
-              cohortId={cohortId}
-              studentId={studentId}
-              returnTo={location.pathname}
             />
           </>
         )}

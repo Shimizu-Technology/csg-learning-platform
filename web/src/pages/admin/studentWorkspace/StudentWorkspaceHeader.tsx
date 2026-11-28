@@ -187,17 +187,35 @@ export function StudentWorkspaceHeader({
         </section>
       )}
       <section className="app-surface overflow-hidden">
-        <div className="grid items-center gap-2 bg-surface-sunken px-4 py-2 sm:grid-cols-[minmax(0,1fr)_minmax(180px,260px)_minmax(0,1fr)] sm:px-6">
-          <StudentStepper
-            direction="previous"
-            student={previousStudent}
-            cohortId={cohortId}
-            tab={activeTab}
-            state={returnState}
-          />
-          <label className="grid gap-1 text-center text-xs font-semibold tabular-nums text-ink-muted">
+        <div
+          className={
+            rosterStep
+              ? 'flex flex-wrap items-center justify-between gap-2 bg-surface-sunken px-4 py-2 sm:px-6'
+              : 'grid items-center gap-2 bg-surface-sunken px-4 py-2 sm:grid-cols-[minmax(0,1fr)_minmax(180px,260px)_minmax(0,1fr)] sm:px-6'
+          }
+        >
+          {!rosterStep && (
+            <StudentStepper
+              direction="previous"
+              student={previousStudent}
+              cohortId={cohortId}
+              tab={activeTab}
+              state={returnState}
+            />
+          )}
+          <label
+            className={
+              rosterStep
+                ? 'flex w-full max-w-full min-w-0 flex-wrap items-center gap-2 text-xs font-semibold tabular-nums text-ink-muted sm:w-auto'
+                : 'grid min-w-0 gap-1 text-center text-xs font-semibold tabular-nums text-ink-muted'
+            }
+          >
             <span>
-              {studentIndex >= 0 ? `Student ${studentIndex + 1} of ${cohort.students.length}` : 'Historical enrollment'}
+              {rosterStep
+                ? `Jump to student in ${cohort.name}`
+                : studentIndex >= 0
+                  ? `Student ${studentIndex + 1} of ${cohort.students.length}`
+                  : 'Historical enrollment'}
             </span>
             <select
               aria-label={`Switch student in ${cohort.name}`}
@@ -205,7 +223,11 @@ export function StudentWorkspaceHeader({
               onChange={(event) =>
                 navigate(cohortStudentPath(cohortId, Number(event.target.value), activeTab), { state: returnState })
               }
-              className="app-control w-full font-semibold"
+              className={
+                rosterStep
+                  ? 'app-control w-full min-w-0 max-w-full font-semibold sm:w-auto sm:min-w-[12rem] sm:max-w-[20rem]'
+                  : 'app-control w-full min-w-0 font-semibold'
+              }
             >
               {cohort.students.map((student) => (
                 <option key={student.enrollment_id} value={student.user_id}>
@@ -214,13 +236,15 @@ export function StudentWorkspaceHeader({
               ))}
             </select>
           </label>
-          <StudentStepper
-            direction="next"
-            student={nextStudent}
-            cohortId={cohortId}
-            tab={activeTab}
-            state={returnState}
-          />
+          {!rosterStep && (
+            <StudentStepper
+              direction="next"
+              student={nextStudent}
+              cohortId={cohortId}
+              tab={activeTab}
+              state={returnState}
+            />
+          )}
         </div>
       </section>
     </>

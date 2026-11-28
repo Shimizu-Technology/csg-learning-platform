@@ -472,7 +472,7 @@ function AnnouncementFeed() {
                 selected={!manageMode}
                 onClick={() => updateQuery({ scope: null, status: null, audience: null, page: '1' })}
               >
-                Updates
+                Feed
               </SegmentButton>
               <SegmentButton
                 dense

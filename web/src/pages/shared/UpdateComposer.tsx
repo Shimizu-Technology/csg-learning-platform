@@ -242,7 +242,7 @@ export function UpdateComposer({ form, setForm, cohorts, contextCohort, defaultC
         <Megaphone className="h-5 w-5 shrink-0 text-ink-muted" aria-hidden="true" />
         <h2 className="text-lg font-bold text-ink">{heading}</h2>
       </div>
-      <div className={posted ? 'grid gap-3' : 'grid gap-3 md:grid-cols-[1fr_180px_220px]'}>
+      <div className={posted ? 'grid gap-3' : 'grid gap-3 md:grid-cols-[minmax(0,1fr)_180px_220px]'}>
         <input
           value={form.title}
           onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}

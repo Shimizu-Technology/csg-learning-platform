@@ -486,7 +486,7 @@ describe.each(entries)('canonical review at %s', (entry) => {
     await click('Load attempts')
     expect(container.textContent).toContain('This attempt')
     await input('overall', 'Reusable feedback')
-    await click('Save draft as reusable snippet')
+    await click('Save snippet')
     expect(api.createFeedbackSnippet).toHaveBeenCalledWith('Reusable feedback')
     expect(container.textContent).toContain('Saved snippet')
     expect(api.gradeSubmission).not.toHaveBeenCalled()

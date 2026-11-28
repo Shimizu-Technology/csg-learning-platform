@@ -21,9 +21,16 @@ const request = (id: number): HelpRequest => ({
   acknowledged_at: null, resolved_at: null, canceled_at: null, created_at: '2026-11-12T09:00:00Z', updated_at: '2026-11-12T09:00:00Z', owner: null,
   destination: null, context_destination: null, replies: [], student: { id: 9, full_name: 'Blair Synthetic', email: 'blair@example.com' },
 })
+const resolvedRequest: HelpRequest = {
+  ...request(9),
+  status: 'resolved',
+  message: 'How do I push my branch?',
+  staff_response: 'Run git push -u origin your-branch.',
+  resolved_at: '2026-11-12T10:30:00Z',
+}
 vi.mock('../../lib/useStaffResource', () => ({ useStaffResource: () => ({ loading: false, error: null, reload: state.reload, data: {
   summary: { open_help_count: 2, acknowledged_help_count: 0, urgent_help_count: 0, active_intervention_count: 0, due_follow_up_count: 0, due_recovery_check_in_count: 0 },
-  help_requests: [request(4), request(5)], recently_resolved: [], students: [], interventions: [], recovery_plans: [],
+  help_requests: [request(4), request(5)], recently_resolved: [resolvedRequest], students: [], interventions: [], recovery_plans: [],
 } }) }))
 
 let container: HTMLDivElement
@@ -152,4 +159,14 @@ it('retries a failed send with the same attempt id, and starts a new one after i
   await type('A second, separate reply.')
   await press(card(4), 'Send reply')
   expect((state.reply.mock.calls[2][1] as { client_request_id: string }).client_request_id).not.toBe(first)
+})
+
+it('shows Resolved status and staff response on the Resolved tab without active reply controls', async () => {
+  const resolvedTab = Array.from(container.querySelectorAll('button')).find((item) => item.textContent?.trim() === 'Resolved')!
+  expect(resolvedTab).toBeTruthy()
+  await act(async () => resolvedTab.click())
+  const resolvedCard = card(9)
+  expect(resolvedCard.textContent).toContain('Resolved')
+  expect(resolvedCard.textContent).toContain('Run git push -u origin your-branch.')
+  expect(actions(resolvedCard)).toEqual(['Loops and iteration', 'Open request'])
 })

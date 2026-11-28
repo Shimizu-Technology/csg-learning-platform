@@ -246,14 +246,31 @@ export function StaffPrivateMeetings({ cohortId }: { cohortId?: number } = {}) {
       {error && <p role="alert" className="rounded-xl border border-warning-line bg-warning-soft p-3 text-sm text-warning-ink">{error}</p>}
 
       {user?.is_admin && unconfigured.length > 0 && (
-        <form onSubmit={(event) => void configure(event)} className="app-surface p-5">
-          <div className="flex items-start gap-3"><div className="rounded-xl bg-surface-sunken p-2 text-ink-secondary"><Plus className="h-5 w-5" /></div><div><h2 className="text-base font-semibold text-ink">Enable meetings for a cohort</h2><p className="mt-1 text-sm text-ink-secondary">Choose the instructor who will host every meeting for this course.</p></div></div>
-          <div className="mt-5 grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
-            <label className="block min-w-0 text-sm font-semibold text-ink-secondary">Cohort<select required value={newCohortId} onChange={(event) => setNewCohortId(event.target.value)} className="app-control mt-1 w-full"><option value="">Select cohort</option>{unconfigured.map((cohort) => <option key={cohort.id} value={cohort.id}>{cohort.name}</option>)}</select></label>
-            <label className="block min-w-0 text-sm font-semibold text-ink-secondary">Instructor<select required value={newInstructorId} onChange={(event) => setNewInstructorId(event.target.value)} className="app-control mt-1 w-full"><option value="">Select instructor</option>{instructors.map((person) => <option key={person.id} value={person.id}>{person.full_name || person.email}</option>)}{user && !instructors.some((person) => person.id === user.id) && <option value={user.id}>{user.full_name || user.email} (you)</option>}</select></label>
-            <Button type="submit" variant="secondary" disabled={busy !== null || !newCohortId || !newInstructorId}>{busy === 'configure' ? 'Enabling...' : 'Enable'}</Button>
-          </div>
-        </form>
+        cohorts.length > 0 ? (
+          <details className="group app-surface overflow-hidden">
+            <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-5 py-3 text-sm font-semibold text-ink transition-colors duration-150 hover:bg-surface-sunken [&::-webkit-details-marker]:hidden">
+              <span className="inline-flex items-center gap-2"><Plus className="h-4 w-4 text-ink-muted" aria-hidden="true" />Enable meetings for another cohort</span>
+              <ChevronDown className="h-4 w-4 shrink-0 text-ink-muted transition-transform duration-[180ms] group-open:rotate-180" aria-hidden="true" />
+            </summary>
+            <form onSubmit={(event) => void configure(event)} className="border-t border-line p-5">
+              <p className="text-sm text-ink-secondary">Choose the instructor who will host every meeting for this course.</p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+                <label className="block min-w-0 text-sm font-semibold text-ink-secondary">Cohort<select required value={newCohortId} onChange={(event) => setNewCohortId(event.target.value)} className="app-control mt-1 w-full"><option value="">Select cohort</option>{unconfigured.map((cohort) => <option key={cohort.id} value={cohort.id}>{cohort.name}</option>)}</select></label>
+                <label className="block min-w-0 text-sm font-semibold text-ink-secondary">Instructor<select required value={newInstructorId} onChange={(event) => setNewInstructorId(event.target.value)} className="app-control mt-1 w-full"><option value="">Select instructor</option>{instructors.map((person) => <option key={person.id} value={person.id}>{person.full_name || person.email}</option>)}{user && !instructors.some((person) => person.id === user.id) && <option value={user.id}>{user.full_name || user.email} (you)</option>}</select></label>
+                <Button type="submit" variant="secondary" disabled={busy !== null || !newCohortId || !newInstructorId}>{busy === 'configure' ? 'Enabling...' : 'Enable'}</Button>
+              </div>
+            </form>
+          </details>
+        ) : (
+          <form onSubmit={(event) => void configure(event)} className="app-surface p-5">
+            <div className="flex items-start gap-3"><div className="rounded-xl bg-surface-sunken p-2 text-ink-secondary"><Plus className="h-5 w-5" /></div><div><h2 className="text-base font-semibold text-ink">Enable meetings for a cohort</h2><p className="mt-1 text-sm text-ink-secondary">Choose the instructor who will host every meeting for this course.</p></div></div>
+            <div className="mt-5 grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+              <label className="block min-w-0 text-sm font-semibold text-ink-secondary">Cohort<select required value={newCohortId} onChange={(event) => setNewCohortId(event.target.value)} className="app-control mt-1 w-full"><option value="">Select cohort</option>{unconfigured.map((cohort) => <option key={cohort.id} value={cohort.id}>{cohort.name}</option>)}</select></label>
+              <label className="block min-w-0 text-sm font-semibold text-ink-secondary">Instructor<select required value={newInstructorId} onChange={(event) => setNewInstructorId(event.target.value)} className="app-control mt-1 w-full"><option value="">Select instructor</option>{instructors.map((person) => <option key={person.id} value={person.id}>{person.full_name || person.email}</option>)}{user && !instructors.some((person) => person.id === user.id) && <option value={user.id}>{user.full_name || user.email} (you)</option>}</select></label>
+              <Button type="submit" variant="secondary" disabled={busy !== null || !newCohortId || !newInstructorId}>{busy === 'configure' ? 'Enabling...' : 'Enable'}</Button>
+            </div>
+          </form>
+        )
       )}
 
       {cohorts.length === 0 && !user?.is_admin ? <MeetingsWhoToAsk cohorts={otherCohorts} admins={adminContacts} scoped={Boolean(cohortId)} /> : cohorts.length === 0 ? <EmptyState icon={CalendarDays} title={cohortId ? "No meetings in this cohort" : "No cohorts have meetings yet"} description="Enable meetings for a cohort above, then publish times that students can book." /> : (
@@ -284,7 +301,7 @@ export function StaffPrivateMeetings({ cohortId }: { cohortId?: number } = {}) {
               <div className="space-y-3">
                 <h2 className="text-lg font-bold text-ink">Available times</h2>
                 {weekGroups.current.length > 0
-                  ? <div className="grid gap-4 lg:grid-cols-3">{weekGroups.current.map(renderWeek)}</div>
+                  ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{weekGroups.current.map(renderWeek)}</div>
                   : <p className="text-sm text-ink-secondary">All meeting weeks for this course are over.</p>}
                 {weekGroups.past.length > 0 && (
                   <details className="group rounded-2xl border border-line bg-surface-raised" data-testid="staff-past-meeting-weeks">
@@ -292,7 +309,7 @@ export function StaffPrivateMeetings({ cohortId }: { cohortId?: number } = {}) {
                       <span>Past weeks <span className="tabular-nums text-ink-muted">({weekGroups.past.length})</span></span>
                       <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-[180ms] group-open:rotate-180" aria-hidden="true" />
                     </summary>
-                    <div className="grid gap-4 border-t border-line p-4 lg:grid-cols-3">{weekGroups.past.map(renderWeek)}</div>
+                    <div className="grid gap-4 border-t border-line p-4 md:grid-cols-2 xl:grid-cols-3">{weekGroups.past.map(renderWeek)}</div>
                   </details>
                 )}
               </div>

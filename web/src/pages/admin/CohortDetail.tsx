@@ -102,6 +102,16 @@ export function CohortSettings({ onSaved }: { onSaved?: () => Promise<unknown> }
       >
         <UnsavedChangesGuard pathnameOnly={false} dirty={dirty} />
         <SettingsFields settings={ready} />
+        <ModuleSettings settings={ready} />
+        <ResourceSettingsDialog settings={ready} />
+        {message && (
+          <div
+            role="status"
+            className="rounded-xl border border-line bg-surface-sunken px-4 py-3 text-sm text-ink-secondary"
+          >
+            {message}
+          </div>
+        )}
         {dirty || saving ? (
           <div
             data-testid="cohort-save-bar"
@@ -125,17 +135,6 @@ export function CohortSettings({ onSaved }: { onSaved?: () => Promise<unknown> }
             </Button>
           </div>
         )}
-        {message && (
-          <div
-            role="status"
-            className="rounded-xl border border-line bg-surface-sunken px-4 py-3 text-sm text-ink-secondary"
-          >
-            {message}
-          </div>
-        )}
-
-        <ModuleSettings settings={ready} />
-        <ResourceSettingsDialog settings={ready} />
       </fieldset>
     </form>
     <div className="mt-6">

@@ -4,7 +4,7 @@ import { resolve } from 'node:path'
 import { act, useRef, useState, type ReactElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Collapse, TabList, TabPanel } from './Motion'
+import { Collapse, ScrollableNavStrip, TabList, TabPanel } from './Motion'
 import { TabButton } from './Choice'
 import { pageKey, prefersReducedMotion, useInsertedKeys, usePageFade } from '../../lib/motion'
 
@@ -166,6 +166,89 @@ describe('TabList', () => {
       tabs[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
     })
     expect(tabs[1].getAttribute('aria-selected')).toBe('true')
+  })
+
+  it('shows left/right scroll buttons on ScrollableNavStrip when links overflow', async () => {
+    stubReducedMotion(true)
+    const view = await render(
+      <ScrollableNavStrip label="Cohort sections">
+        {['Home', 'Students', 'Grading', 'Support', 'Recordings'].map((name, index) => (
+          <a key={name} href={`#${name.toLowerCase()}`} aria-current={index === 0 ? 'page' : undefined}>{name}</a>
+        ))}
+      </ScrollableNavStrip>,
+    )
+    const nav = view.querySelector<HTMLDivElement>('.overflow-x-auto')!
+    let scrollLeft = 0
+    Object.defineProperty(nav, 'clientWidth', { configurable: true, get: () => 200 })
+    Object.defineProperty(nav, 'scrollWidth', { configurable: true, get: () => 600 })
+    Object.defineProperty(nav, 'scrollLeft', { configurable: true, get: () => scrollLeft, set: (v: number) => { scrollLeft = v } })
+    await act(async () => { nav.dispatchEvent(new Event('scroll')) })
+
+    const leftBtn = view.querySelector<HTMLButtonElement>('button[aria-label="Scroll Cohort sections left"]')!
+    const rightBtn = view.querySelector<HTMLButtonElement>('button[aria-label="Scroll Cohort sections right"]')!
+    expect(leftBtn.disabled).toBe(true)
+    expect(rightBtn.disabled).toBe(false)
+
+    await act(async () => { rightBtn.click() })
+    expect(scrollLeft).toBeGreaterThan(0)
+    expect(leftBtn.disabled).toBe(false)
+  })
+
+  it('re-aligns a clipped active link when ScrollableNavStrip overflows on resize without overriding manual scroll', async () => {
+    stubReducedMotion(true)
+    const callbacks: ResizeObserverCallback[] = []
+    class FakeResizeObserver {
+      constructor(cb: ResizeObserverCallback) { callbacks.push(cb) }
+      observe() {}
+      disconnect() {}
+    }
+    vi.stubGlobal('ResizeObserver', FakeResizeObserver)
+
+    const view = await render(
+      <ScrollableNavStrip label="Cohort sections" activeKey="settings">
+        <a href="#home">Home</a>
+        <a href="#settings" aria-current="page">Settings</a>
+      </ScrollableNavStrip>,
+    )
+    const nav = view.querySelector<HTMLDivElement>('.overflow-x-auto')!
+    const active = view.querySelector<HTMLAnchorElement>('a[aria-current="page"]')!
+    let clientWidth = 400
+    let scrollLeft = 0
+    Object.defineProperty(nav, 'clientWidth', { configurable: true, get: () => clientWidth })
+    Object.defineProperty(nav, 'scrollWidth', { configurable: true, get: () => 500 })
+    Object.defineProperty(nav, 'scrollLeft', { configurable: true, get: () => scrollLeft, set: (v: number) => { scrollLeft = v } })
+    Object.defineProperty(active, 'offsetLeft', { configurable: true, get: () => 380 })
+    Object.defineProperty(active, 'offsetWidth', { configurable: true, get: () => 100 })
+
+    // Simulate resize shrinking the viewport so the active link is now clipped past the right edge.
+    clientWidth = 220
+    await act(async () => {
+      callbacks.forEach((cb) => cb([], {} as ResizeObserver))
+    })
+    expect(scrollLeft).toBe(280)
+
+    // Manual scroll is preserved across subsequent resizes while activeKey stays unchanged.
+    scrollLeft = 40
+    await act(async () => { nav.dispatchEvent(new Event('scroll')) })
+    clientWidth = 210
+    await act(async () => {
+      callbacks.forEach((cb) => cb([], {} as ResizeObserver))
+    })
+    expect(scrollLeft).toBe(40)
+
+    // Widening until all links fit clamps scrollLeft to 0 without counting as manual scroll,
+    // so narrowing again re-aligns the active link.
+    clientWidth = 600
+    scrollLeft = 0
+    await act(async () => {
+      nav.dispatchEvent(new Event('scroll'))
+      callbacks.forEach((cb) => cb([], {} as ResizeObserver))
+    })
+    clientWidth = 220
+    await act(async () => {
+      callbacks.forEach((cb) => cb([], {} as ResizeObserver))
+    })
+    expect(scrollLeft).toBe(280)
   })
 })
 
