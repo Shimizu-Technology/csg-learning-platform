@@ -274,6 +274,7 @@ export function ScrollableNavStrip({
     const wrapper = wrapperRef.current
     const availableWidth = wrapper && wrapper.clientWidth > 0 ? wrapper.clientWidth : scroller.clientWidth
     const overflowing = scroller.scrollWidth > availableWidth + 2
+    if (!overflowing) userScrolledRef.current = false
     const left = overflowing && scroller.scrollLeft > 2
     const right = overflowing && scroller.scrollLeft + scroller.clientWidth < scroller.scrollWidth - 2
     setScrollState((current) =>
@@ -330,8 +331,14 @@ export function ScrollableNavStrip({
   const handleScroll = useCallback(() => {
     const scroller = scrollerRef.current
     if (scroller) {
+      const wrapper = wrapperRef.current
+      const availableWidth = wrapper && wrapper.clientWidth > 0 ? wrapper.clientWidth : scroller.clientWidth
+      const overflowing = scroller.scrollWidth > availableWidth + 2 && scroller.scrollWidth > scroller.clientWidth + 2
       const target = programmaticScrollLeftRef.current
-      if (target !== null && Math.abs(scroller.scrollLeft - target) <= 2) {
+      if (!overflowing) {
+        programmaticScrollLeftRef.current = null
+        userScrolledRef.current = false
+      } else if (target !== null && Math.abs(scroller.scrollLeft - target) <= 2) {
         programmaticScrollLeftRef.current = null
       } else {
         programmaticScrollLeftRef.current = null

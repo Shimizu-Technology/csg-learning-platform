@@ -235,6 +235,20 @@ describe('TabList', () => {
       callbacks.forEach((cb) => cb([], {} as ResizeObserver))
     })
     expect(scrollLeft).toBe(40)
+
+    // Widening until all links fit clamps scrollLeft to 0 without counting as manual scroll,
+    // so narrowing again re-aligns the active link.
+    clientWidth = 600
+    scrollLeft = 0
+    await act(async () => {
+      nav.dispatchEvent(new Event('scroll'))
+      callbacks.forEach((cb) => cb([], {} as ResizeObserver))
+    })
+    clientWidth = 220
+    await act(async () => {
+      callbacks.forEach((cb) => cb([], {} as ResizeObserver))
+    })
+    expect(scrollLeft).toBe(280)
   })
 })
 
