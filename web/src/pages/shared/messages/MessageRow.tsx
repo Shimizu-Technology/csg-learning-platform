@@ -112,7 +112,7 @@ export function MessageRow({
           </button>
         )}
       </div>
-      <div className="min-w-0 flex-1 overflow-hidden">
+      <div className="min-w-0 flex-1">
         {!compact && (
           <div className={`flex flex-wrap items-baseline gap-x-2 gap-y-0.5 ${inThreadView ? 'lg:pr-12' : ''}`}>
             <button
@@ -264,9 +264,9 @@ export function MessageRow({
                     <span>{reaction.count}</span>
                   </button>
                   {reaction.users.length > 0 && (
-                    <div className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden -translate-x-1/2 rounded-lg bg-surface-inverse px-2.5 py-1.5 text-xs text-ink-on-inverse shadow-overlay group-hover/reaction:block">
+                    <div className="pointer-events-none absolute bottom-full left-0 z-20 mb-2 hidden max-w-[18rem] rounded-lg bg-surface-inverse px-2.5 py-1.5 text-xs text-ink-on-inverse shadow-overlay group-hover/reaction:block">
                       <div className="font-semibold">{reactionDisplay.label}</div>
-                      <div className="mt-0.5 whitespace-nowrap opacity-90">{reaction.users.map((user) => user.full_name).join(', ')}</div>
+                      <div className="mt-0.5 break-words opacity-90">{reaction.users.map((user) => user.full_name).join(', ')}</div>
                     </div>
                   )}
                 </div>

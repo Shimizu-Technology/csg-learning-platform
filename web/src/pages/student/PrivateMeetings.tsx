@@ -211,7 +211,7 @@ export function PrivateMeetings() {
             return (
               <>
                 {current.length > 0
-                  ? <div className="grid gap-4 lg:grid-cols-3">{current.map(renderWeek)}</div>
+                  ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{current.map(renderWeek)}</div>
                   : <p className="text-sm text-ink-secondary">All meeting weeks for this course are over.</p>}
                 {past.length > 0 && (
                   <details className="group rounded-2xl border border-line bg-surface-raised" data-testid="past-meeting-weeks">
@@ -219,7 +219,7 @@ export function PrivateMeetings() {
                       <span>Past weeks <span className="tabular-nums text-ink-muted">({past.length})</span></span>
                       <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-[180ms] group-open:rotate-180" aria-hidden="true" />
                     </summary>
-                    <div className="grid gap-4 border-t border-line p-4 lg:grid-cols-3">{past.map(renderWeek)}</div>
+                    <div className="grid gap-4 border-t border-line p-4 md:grid-cols-2 xl:grid-cols-3">{past.map(renderWeek)}</div>
                   </details>
                 )}
               </>

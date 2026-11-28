@@ -322,8 +322,8 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
         </div>
       </header>
 
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="relative flex-1">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+        <div className="relative min-w-0 flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" aria-hidden="true" />
           <input
             type="text"
@@ -334,7 +334,7 @@ export function Materials({ previewData, disableStaffRedirect = false, previewLe
             className="app-control w-full pl-10"
           />
         </div>
-        <div className="flex gap-2 overflow-x-auto pb-1">
+        <div className="flex flex-wrap gap-2">
           {filters.map((item) => (
             <button
               key={item.key}

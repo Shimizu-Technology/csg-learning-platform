@@ -95,10 +95,10 @@ export function Messages() {
 
   return (
     <div className="mx-auto flex h-full min-h-0 w-full max-w-[1500px] min-w-0 flex-col gap-0 overflow-hidden">
-      <div className={`${isDesktop ? 'grid overflow-hidden rounded-2xl border border-line bg-surface-raised shadow-raised' : 'flex min-w-0 overflow-hidden border-y border-line bg-surface-raised'} min-h-0 flex-1 ${isDesktop ? (sidebarCollapsed ? 'lg:grid-cols-[72px_minmax(0,1fr)]' : 'lg:grid-cols-[340px_minmax(0,1fr)]') : ''}`}>
+      <div className={`${isDesktop ? 'grid overflow-hidden rounded-2xl border border-line bg-surface-raised shadow-raised' : 'flex min-w-0 overflow-hidden border-y border-line bg-surface-raised'} min-h-0 flex-1 ${isDesktop ? (sidebarCollapsed ? 'lg:grid-cols-[72px_minmax(0,1fr)]' : 'lg:grid-cols-[260px_minmax(0,1fr)] xl:grid-cols-[300px_minmax(0,1fr)]') : ''}`}>
         <ConversationList directory={directory} conversation={conversation} search={search} alerts={alerts} onlineUserIds={realtime.onlineUserIds} filter={inboxFilter} setFilter={setInboxFilter} filteredRecent={visibleRecent} showListPane={view.showListPane} />
         {showCollapsedRail && (
-          <aside className="hidden border-r border-line bg-surface-sunken p-2 lg:block">
+          <aside className="hidden min-h-0 overflow-y-auto overscroll-contain border-r border-line bg-surface-sunken p-2 lg:block">
             <Button variant="quiet" fullWidth onClick={() => setSidebarCollapsed(false)} aria-label="Show conversation list" title="Show conversation list" className="mb-3">
               <PanelLeftOpen className="h-5 w-5" />
             </Button>

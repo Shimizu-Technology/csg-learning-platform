@@ -27,7 +27,7 @@ export function ConversationFeed({ selectedTarget, selectedLabel, isStaff, isNav
   const feedIsThreadView = Boolean(activeThreadRoot && !showThreadPanel)
 
   return (
-    <div className={`relative min-w-0 min-h-0 flex-1 overflow-hidden ${showThreadPanel ? 'grid lg:grid-cols-[minmax(0,1fr)_380px]' : 'flex'}`}>
+    <div className={`relative min-w-0 min-h-0 flex-1 overflow-hidden ${showThreadPanel ? 'flex xl:grid xl:grid-cols-[minmax(0,1fr)_380px]' : 'flex'}`}>
       <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <div
           ref={messageScrollRef}

@@ -18,7 +18,7 @@ export function ThreadPanel({ conversation, feed, selectedLabel, view }: ThreadP
   const { threadScrollRef, threadReadReceipts, beginReadingScroll, handleThreadScroll } = feed
   const { showThreadPanel, editingThreadRow, messageRowProps, renderThreadPaging, renderThreadLatest, renderComposer } = view
 return (<>{showThreadPanel && activeThreadRoot && (
-                  <aside className="hidden min-h-0 border-l border-line bg-surface-sunken/70 lg:flex lg:flex-col">
+                  <aside className="hidden min-h-0 min-w-0 overflow-hidden border-l border-line bg-surface-raised lg:absolute lg:inset-y-0 lg:right-0 lg:z-20 lg:flex lg:w-[min(380px,calc(100%-2rem))] lg:flex-col lg:shadow-overlay xl:static xl:z-auto xl:w-auto xl:bg-surface-sunken/70 xl:shadow-none">
                     <div className="flex items-start justify-between gap-3 border-b border-line bg-surface-raised px-4 py-3">
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-ink">Thread</p>
@@ -30,7 +30,7 @@ return (<>{showThreadPanel && activeThreadRoot && (
                         <X className="h-4 w-4" />
                       </IconButton>
                     </div>
-                    <div ref={threadScrollRef} onScroll={handleThreadScroll} onWheelCapture={beginReadingScroll} onTouchMoveCapture={beginReadingScroll} onPointerDownCapture={beginReadingScroll} onKeyDownCapture={(event) => { if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)) beginReadingScroll() }} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4">
+                    <div ref={threadScrollRef} onScroll={handleThreadScroll} onWheelCapture={beginReadingScroll} onTouchMoveCapture={beginReadingScroll} onPointerDownCapture={beginReadingScroll} onKeyDownCapture={(event) => { if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)) beginReadingScroll() }} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-3 py-4">
                       {renderThreadPaging('older')}
                       {activeThreadMessages.map((message, index) => {
                         const previousMessage = activeThreadMessages[index - 1]

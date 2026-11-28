@@ -2,7 +2,7 @@ import { PausedLearningBanner, useSelectedCoursePaused } from '../../components/
 import { PageHeader } from '../../components/ui/PageHeader'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Clock, ExternalLink, Link2, Search, Video, MessageSquare, Github, FileText, Globe, RefreshCw, WifiOff, Keyboard, Copy, Check, FolderLock, NotebookPen, Trash2 } from 'lucide-react'
+import { ArrowLeft, Clock, ExternalLink, Link2, Search, Video, MessageSquare, Github, FileText, Globe, RefreshCw, WifiOff, Keyboard, Copy, Check, FolderLock, NotebookPen, Trash2, Upload } from 'lucide-react'
 import { api } from '../../lib/api'
 import { useStudentExperience } from '../../lib/studentExperience'
 import { useCohortContext } from '../../contexts/CohortContext'
@@ -74,7 +74,8 @@ export function Resources() {
   useEffect(() => { shownCohortId.current = selectedCohortId }, [selectedCohortId])
   const toast = useToast()
   const confirm = useConfirm()
-  const [adding, setAdding] = useState<'link' | 'doc' | null>(null)
+  const [adding, setAdding] = useState<'upload' | 'link' | 'doc' | 'closed' | null>(null)
+  useEffect(() => { setAdding(null) }, [selectedCohortId])
   const [myFolder, setMyFolder] = useState('All')
   const [classFolder, setClassFolder] = useState('All')
   const [myTypeFilter, setMyTypeFilter] = useState<DriveTypeFilter>('all')
@@ -443,7 +444,7 @@ export function Resources() {
         </section>
       )}
 
-      <div className={inspectedFile ? 'grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start' : 'space-y-6'}>
+      <div className={inspectedFile ? 'grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start' : 'space-y-6'}>
       <div className="min-w-0 space-y-6">
       {hasFolder && selectedCohortId && (
         <section className="space-y-3" aria-label="My files">
@@ -457,35 +458,57 @@ export function Resources() {
                 ariaLabel="Download all my files as a ZIP" />
             )}
           </div>
-          <CohortFileUploader key={selectedCohortId} cohortId={selectedCohortId} heading="Upload files" folderPresets={myFolderPresets}
-            defaultFolder={activeMyFolder === 'All' ? undefined : activeMyFolder}
-            description="Resumes, cover letters, workbooks and notes. Choose several at once, up to 100 MB each."
-            disabled={!cohortFiles?.can_upload_personal || !cohortFiles?.storage_configured}
-            disabledReason={!cohortFiles?.can_upload_personal ? 'Uploads are paused while your course is paused or your access has ended. You can still download your files.' : "File uploads aren't available right now. You can still add links."}
-            onUploaded={addUploadedFile} />
-          {cohortFiles?.can_upload_personal && (adding === 'link' ? (
-            <CohortLinkForm key={`link-${selectedCohortId}`} cohortId={selectedCohortId} heading="Add a link to my files" folderPresets={myFolderPresets}
-              defaultFolder={activeMyFolder === 'All' ? undefined : activeMyFolder}
-              onCancel={() => setAdding(null)}
-              onSaved={(file) => { addUploadedFile(file); setAdding(null) }} />
-          ) : adding === 'doc' ? (
-            <CohortDocForm key={`doc-${selectedCohortId}`} cohortId={selectedCohortId} heading="New doc in my files" folderPresets={myFolderPresets}
-              defaultFolder={activeMyFolder === 'All' ? undefined : activeMyFolder}
-              description="Write notes, a plan or a checklist right here. It saves as you type, and your instructors can review it."
-              onCancel={() => setAdding(null)}
-              onCreated={(file) => { addUploadedFile(file); setAdding(null); setOpenFileId(file.id) }} />
-          ) : (
-            <div className="grid grid-cols-2 gap-2 sm:flex">
-              <Button variant="secondary" onClick={() => setAdding('link')}>
-                <Link2 className="h-4 w-4" aria-hidden="true" />
-                Add a link
-              </Button>
-              <Button variant="secondary" onClick={() => setAdding('doc')}>
-                <NotebookPen className="h-4 w-4" aria-hidden="true" />
-                New doc
-              </Button>
-            </div>
-          ))}
+          {(() => {
+            const uploadOpen =
+              !cohortFiles?.can_upload_personal ||
+              adding === 'upload' ||
+              (adding === null && (cohortFiles?.my_files?.length || 0) === 0)
+            return (
+              <>
+                {cohortFiles?.can_upload_personal && (
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant={uploadOpen ? 'primary' : 'secondary'}
+                      aria-expanded={uploadOpen}
+                      onClick={() => setAdding(uploadOpen ? 'closed' : 'upload')}
+                    >
+                      <Upload className="h-4 w-4" aria-hidden="true" />
+                      Upload files
+                    </Button>
+                    <Button variant={adding === 'link' ? 'primary' : 'secondary'} onClick={() => setAdding((current) => (current === 'link' ? 'closed' : 'link'))}>
+                      <Link2 className="h-4 w-4" aria-hidden="true" />
+                      Add a link
+                    </Button>
+                    <Button variant={adding === 'doc' ? 'primary' : 'secondary'} onClick={() => setAdding((current) => (current === 'doc' ? 'closed' : 'doc'))}>
+                      <NotebookPen className="h-4 w-4" aria-hidden="true" />
+                      New doc
+                    </Button>
+                  </div>
+                )}
+                <div hidden={!uploadOpen}>
+                  <CohortFileUploader key={selectedCohortId} cohortId={selectedCohortId} heading="Upload files" folderPresets={myFolderPresets}
+                    defaultFolder={activeMyFolder === 'All' ? undefined : activeMyFolder}
+                    description="Resumes, cover letters, workbooks and notes. Choose several at once, up to 100 MB each."
+                    disabled={!cohortFiles?.can_upload_personal || !cohortFiles?.storage_configured}
+                    disabledReason={!cohortFiles?.can_upload_personal ? 'Uploads are paused while your course is paused or your access has ended. You can still download your files.' : "File uploads aren't available right now. You can still add links."}
+                    onUploaded={addUploadedFile} />
+                </div>
+                {cohortFiles?.can_upload_personal && adding === 'link' && (
+                  <CohortLinkForm key={`link-${selectedCohortId}`} cohortId={selectedCohortId} heading="Add a link to my files" folderPresets={myFolderPresets}
+                    defaultFolder={activeMyFolder === 'All' ? undefined : activeMyFolder}
+                    onCancel={() => setAdding('closed')}
+                    onSaved={(file) => { addUploadedFile(file); setAdding('closed') }} />
+                )}
+                {cohortFiles?.can_upload_personal && adding === 'doc' && (
+                  <CohortDocForm key={`doc-${selectedCohortId}`} cohortId={selectedCohortId} heading="New doc in my files" folderPresets={myFolderPresets}
+                    defaultFolder={activeMyFolder === 'All' ? undefined : activeMyFolder}
+                    description="Write notes, a plan or a checklist right here. It saves as you type, and your instructors can review it."
+                    onCancel={() => setAdding('closed')}
+                    onCreated={(file) => { addUploadedFile(file); setAdding('closed'); setOpenFileId(file.id) }} />
+                )}
+              </>
+            )
+          })()}
           {activeMyFolder === 'All' && myFolderSummaries.length > 1 && !query.trim() && (
             <DriveFolderGrid
               folders={myFolderSummaries}
@@ -522,7 +545,7 @@ export function Resources() {
             onClear={() => setSelectedMyIds(new Set())}
           />
           {myFiles.length > 0 ? viewMode === 'grid' ? (
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-label="Files in my folder">
+            <div className={inspectedFile ? 'grid gap-3 sm:grid-cols-2' : 'grid gap-3 sm:grid-cols-2 xl:grid-cols-3'} aria-label="Files in my folder">
               {myFiles.map((file) => (
                 <DriveFileGridCard
                   key={file.id}
@@ -557,10 +580,9 @@ export function Resources() {
                   inspected={inspectedId === file.id} onInspect={(item) => setInspectedId((current) => (current === item.id ? null : item.id))}
                   note={file.uploaded_by_role === 'student' ? 'Added by you' : 'Shared by your instructor'}
                   actions={file.can_manage ? (
-                    <Button size="sm" variant="quiet" onClick={() => void removeMyFile(file)} aria-label={`Delete ${file.title}`}>
+                    <IconButton size="sm" label={`Delete ${file.title}`} onClick={() => void removeMyFile(file)}>
                       <Trash2 className="h-4 w-4" aria-hidden="true" />
-                      Delete
-                    </Button>
+                    </IconButton>
                   ) : undefined} />
               ))}
             </ul>
@@ -600,7 +622,7 @@ export function Resources() {
           )}
           {viewMode === 'grid' ? (
             filteredClassFiles.length > 0 ? (
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-label="Class files">
+              <div className={inspectedFile ? 'grid gap-3 sm:grid-cols-2' : 'grid gap-3 sm:grid-cols-2 xl:grid-cols-3'} aria-label="Class files">
                 {filteredClassFiles.map((file) => (
                   <DriveFileGridCard
                     key={file.id}
@@ -643,6 +665,7 @@ export function Resources() {
         <DriveInspectorDrawer
           cohortId={selectedCohortId}
           file={inspectedFile}
+          desktopBreakpoint="xl"
           folderOptions={inspectedFile.student_id !== null ? myFolderPresets : classFolderSummaries.map((item) => item.name)}
           downloadDisabled={!cohortFiles?.storage_configured}
           review={inspectedFile.student_id !== null ? { staff: false, canChange: Boolean(cohortFiles?.can_upload_personal) } : undefined}

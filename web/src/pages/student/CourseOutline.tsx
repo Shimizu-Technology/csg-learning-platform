@@ -286,14 +286,17 @@ function GroupTrigger({ expanded, onToggle, controls, disabled, title, group, li
     <button type="button" onClick={onToggle} aria-expanded={expanded} aria-controls={controls} disabled={disabled}
       className="flex min-h-[52px] w-full items-center gap-2.5 px-4 py-2 text-left transition-colors duration-150 hover:bg-surface-hover disabled:cursor-default disabled:hover:bg-transparent sm:px-5">
       <ChevronRight className={`h-4 w-4 shrink-0 text-ink-muted transition-transform duration-200 ease-[var(--ease-out)] motion-reduce:transition-none ${expanded ? 'rotate-90' : ''}`} aria-hidden="true" />
-      {title}
-      {group.this_week && <Badge tone="brand">This week</Badge>}
-      {!group.available && group.opens_on && <span className="text-sm text-ink-muted">Opens {formatShortDate(group.opens_on, '', { withYear: false, weekday: true })}</span>}
-      <span className="flex-1" />
-      {redos > 0 && <Badge tone="warning">{redos} {redos === 1 ? 'redo' : 'redos'}</Badge>}
-      {group.counts && group.available && <span className="text-sm tabular-nums text-ink-muted">{group.counts.completed_lessons} of {group.counts.total_lessons}</span>}
-      {complete && <CheckCircle2 className="h-4 w-4 shrink-0 text-success-ink" aria-label="All done" />}
-      {!group.available && <Lock className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />}
+      <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2.5 gap-y-1">
+        {title}
+        {group.this_week && <Badge tone="brand">This week</Badge>}
+        {!group.available && group.opens_on && <span className="text-sm text-ink-muted">Opens {formatShortDate(group.opens_on, '', { withYear: false, weekday: true })}</span>}
+      </span>
+      <span className="flex shrink-0 items-center gap-2">
+        {redos > 0 && <Badge tone="warning">{redos} {redos === 1 ? 'redo' : 'redos'}</Badge>}
+        {group.counts && group.available && <span className="text-sm tabular-nums text-ink-muted">{group.counts.completed_lessons} of {group.counts.total_lessons}</span>}
+        {complete && <CheckCircle2 className="h-4 w-4 shrink-0 text-success-ink" aria-label="All done" />}
+        {!group.available && <Lock className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />}
+      </span>
     </button>
   )
 }

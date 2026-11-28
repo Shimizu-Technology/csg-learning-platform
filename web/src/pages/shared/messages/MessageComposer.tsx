@@ -445,25 +445,27 @@ export const MessageComposer = memo(forwardRef<MessageComposerHandle, {
       {mentionSuggestions.length > 0 && (
         <div className={`absolute bottom-full z-30 mb-2 overflow-hidden rounded-xl border border-line bg-surface-raised shadow-overlay ${inThreadPanel ? 'left-2 right-2' : 'left-3 w-72'}`}>
           <div className="border-b border-line px-3 py-2 text-xs font-semibold text-ink-muted">Mention someone</div>
-          {mentionSuggestions.map((mention, index) => (
-            <RowButton
-              key={mention.id}
-              selected={index === activeMentionIndex}
-              onPointerDown={(event) => event.preventDefault()}
-              onClick={() => selectMention(mention)}
-              className="flex w-full items-center gap-3 px-3 py-2 text-sm"
-            >
-              {mention.kind === 'channel' ? (
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-info-line bg-info-soft text-info-ink"><Users className="h-4 w-4" aria-hidden="true" /></span>
-              ) : (
-                <Avatar name={mention.label.replace(/^@/, '')} src={mention.avatarUrl} size="sm" />
-              )}
-              <span className="min-w-0">
-                <span className="block truncate font-semibold text-ink">{mention.label}</span>
-                <span className="block truncate text-xs text-ink-muted">{mention.subtitle}</span>
-              </span>
-            </RowButton>
-          ))}
+          <div className="max-h-60 overflow-y-auto overscroll-contain">
+            {mentionSuggestions.map((mention, index) => (
+              <RowButton
+                key={mention.id}
+                selected={index === activeMentionIndex}
+                onPointerDown={(event) => event.preventDefault()}
+                onClick={() => selectMention(mention)}
+                className="flex w-full items-center gap-3 px-3 py-2 text-sm"
+              >
+                {mention.kind === 'channel' ? (
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-info-line bg-info-soft text-info-ink"><Users className="h-4 w-4" aria-hidden="true" /></span>
+                ) : (
+                  <Avatar name={mention.label.replace(/^@/, '')} src={mention.avatarUrl} size="sm" />
+                )}
+                <span className="min-w-0">
+                  <span className="block truncate font-semibold text-ink">{mention.label}</span>
+                  <span className="block truncate text-xs text-ink-muted">{mention.subtitle}</span>
+                </span>
+              </RowButton>
+            ))}
+          </div>
         </div>
       )}
     </div>

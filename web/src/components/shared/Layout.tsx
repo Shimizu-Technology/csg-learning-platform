@@ -278,9 +278,27 @@ export function Layout({ children }: LayoutProps) {
     return () => globalThis.clearTimeout(timeoutId)
   }, [navItems])
 
+  const [collapsedTooltip, setCollapsedTooltip] = useState<{ label: string; top: number; left: number } | null>(null)
+  const showCollapsedTooltip = useCallback((label: string, element: HTMLElement) => {
+    if (!collapsed) return
+    const rect = element.getBoundingClientRect()
+    setCollapsedTooltip({ label, top: rect.top + rect.height / 2, left: rect.right + 12 })
+  }, [collapsed])
+  const hideCollapsedTooltip = useCallback(() => setCollapsedTooltip(null), [])
+  useEffect(() => {
+    if (!collapsed) setCollapsedTooltip(null)
+  }, [collapsed, location.pathname, location.search])
+
   const isActive = (path: string, exact?: boolean) => {
     const pathname = path.split('?')[0]
     if (pathname === '/dashboard' || exact) return location.pathname === pathname
+    if (pathname === '/materials') {
+      return (
+        location.pathname.startsWith('/materials') ||
+        location.pathname.startsWith('/lessons/') ||
+        location.pathname.startsWith('/modules/')
+      )
+    }
     return location.pathname.startsWith(pathname)
   }
 
@@ -306,7 +324,6 @@ export function Layout({ children }: LayoutProps) {
 
   const sidebarWidth = collapsed ? 'w-[68px]' : 'w-64'
   const mainMargin = collapsed ? 'lg:ml-[68px]' : 'lg:ml-64'
-  const collapsedTooltipClassName = 'pointer-events-none absolute left-full top-1/2 z-50 ml-3 hidden -translate-y-1/2 whitespace-nowrap rounded-lg bg-surface-inverse px-3 py-2 text-xs font-semibold text-ink-on-inverse opacity-0 shadow-overlay transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 lg:block'
   const getLinkHandlers = (path: string) => ({
     onMouseEnter: () => preloadRoute(path),
     onFocus: () => preloadRoute(path),
@@ -348,13 +365,26 @@ export function Layout({ children }: LayoutProps) {
     </section>
   )
 
-  const renderDesktopLinks = (items: typeof navItems) => items.map((item) => (
+  const renderDesktopLinks = (items: typeof navItems) => items.map((item) => {
+            const label = getNavLabel(item)
+            const linkHandlers = getLinkHandlers(item.to)
+            return (
             <Link
               key={item.to}
               to={navTarget(item)}
-              aria-label={collapsed ? getNavLabel(item) : undefined}
+              aria-label={collapsed ? label : undefined}
               aria-current={isActive(item.to, item.exact) ? 'page' : undefined}
-              {...getLinkHandlers(item.to)}
+              onTouchStart={linkHandlers.onTouchStart}
+              onMouseEnter={(event) => {
+                linkHandlers.onMouseEnter()
+                showCollapsedTooltip(label, event.currentTarget)
+              }}
+              onMouseLeave={hideCollapsedTooltip}
+              onFocus={(event) => {
+                linkHandlers.onFocus()
+                showCollapsedTooltip(label, event.currentTarget)
+              }}
+              onBlur={hideCollapsedTooltip}
               className={`pressable group relative flex min-h-11 items-center ${collapsed ? 'justify-center' : 'gap-3'} rounded-lg ${collapsed ? 'px-2' : 'px-3'} py-2.5 text-sm font-medium ${
                 isActive(item.to, item.exact)
                   ? 'nav-selected font-semibold'
@@ -381,16 +411,9 @@ export function Layout({ children }: LayoutProps) {
                   {messageUnreadCount}
                 </span>
               )}
-              {collapsed && (
-                <span
-                  className={collapsedTooltipClassName}
-                >
-                  {getNavLabel(item)}
-                  <span className="absolute left-0 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-surface-inverse" />
-                </span>
-              )}
             </Link>
-            ))
+            )
+            })
 
   return (
     <div className={isMessagesRoute ? 'keyboard-shell h-dvh overflow-hidden bg-surface-page' : 'min-h-dvh bg-surface-page'}>
@@ -471,9 +494,28 @@ export function Layout({ children }: LayoutProps) {
             {!collapsed && <span className="truncate font-bold tracking-tight text-ink">{PRODUCT_NAME}</span>}
           </Link>
         </div>
-        {!isStaff && <CohortSwitcher iconOnly={collapsed} />}
-        <nav className={`flex-1 overflow-y-auto ${collapsed ? 'p-2' : 'p-4'} space-y-1`}>
-          <button type="button" onClick={() => setCommandPaletteOpen(true)} aria-label="Search and go" className={`pressable group relative mb-2 flex min-h-11 w-full items-center rounded-xl border border-line-strong text-sm font-medium text-ink-muted hover:bg-surface-sunken hover:text-ink ${collapsed ? 'justify-center px-2' : 'gap-3 px-3'}`}><Search className="h-5 w-5" aria-hidden="true" />{!collapsed && <><span>Search</span><kbd className="ml-auto rounded-md bg-surface-sunken px-1.5 py-0.5 font-sans text-xs text-ink-muted">⌘K</kbd></>}</button>
+        {!isStaff && (cohorts?.length ?? 0) > 1 && (
+          <div className={`border-b border-line ${collapsed ? 'p-2' : 'px-4 py-3'}`}>
+            <CohortSwitcher iconOnly={collapsed} />
+          </div>
+        )}
+        <nav onScroll={hideCollapsedTooltip} className={`flex-1 overflow-y-auto ${collapsed ? 'p-2' : 'p-4'} space-y-1`}>
+          <button
+            type="button"
+            onClick={() => {
+              hideCollapsedTooltip()
+              setCommandPaletteOpen(true)
+            }}
+            onMouseEnter={(event) => showCollapsedTooltip('Search (⌘K)', event.currentTarget)}
+            onMouseLeave={hideCollapsedTooltip}
+            onFocus={(event) => showCollapsedTooltip('Search (⌘K)', event.currentTarget)}
+            onBlur={hideCollapsedTooltip}
+            aria-label="Search and go"
+            className={`pressable group relative mb-2 flex min-h-11 w-full items-center rounded-xl border border-line-strong text-sm font-medium text-ink-muted hover:bg-surface-sunken hover:text-ink ${collapsed ? 'justify-center px-2' : 'gap-3 px-3'}`}
+          >
+            <Search className="h-5 w-5" aria-hidden="true" />
+            {!collapsed && <><span>Search</span><kbd className="ml-auto rounded-md bg-surface-sunken px-1.5 py-0.5 font-sans text-xs text-ink-muted">⌘K</kbd></>}
+          </button>
           {renderDesktopLinks(primary)}
           {(more.length > 0 || admin.length > 0) && <section className="border-t border-line pt-3" aria-label="More">
             {!collapsed && <h2 className="px-3 pb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">More</h2>}
@@ -485,22 +527,31 @@ export function Layout({ children }: LayoutProps) {
           <div className={`border-t border-line ${collapsed ? 'p-2' : 'p-3'}`}>
             <button
               type="button"
-              onClick={toggleCollapsed}
+              onClick={() => {
+                hideCollapsedTooltip()
+                toggleCollapsed()
+              }}
+              onMouseEnter={(event) => showCollapsedTooltip('Expand sidebar', event.currentTarget)}
+              onMouseLeave={hideCollapsedTooltip}
+              onFocus={(event) => showCollapsedTooltip('Expand sidebar', event.currentTarget)}
+              onBlur={hideCollapsedTooltip}
               aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
               className={`pressable group relative flex min-h-11 items-center ${collapsed ? 'justify-center w-full' : 'gap-3 w-full'} rounded-lg px-3 py-2 text-sm text-ink-muted hover:bg-surface-sunken hover:text-ink`}
             >
               {collapsed ? <PanelLeftOpen className="h-5 w-5" aria-hidden="true" /> : <PanelLeftClose className="h-5 w-5" aria-hidden="true" />}
               {!collapsed && <span>Collapse</span>}
-              {collapsed && (
-                <span
-                  className={collapsedTooltipClassName}
-                >
-                  Expand sidebar
-                  <span className="absolute left-0 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-surface-inverse" />
-                </span>
-              )}
             </button>
           </div>
+          {collapsed && collapsedTooltip && (
+            <span
+              aria-hidden="true"
+              style={{ top: collapsedTooltip.top, left: collapsedTooltip.left }}
+              className="pointer-events-none fixed z-50 hidden -translate-y-1/2 whitespace-nowrap rounded-lg bg-surface-inverse px-3 py-2 text-xs font-semibold text-ink-on-inverse shadow-overlay lg:block"
+            >
+              {collapsedTooltip.label}
+              <span className="absolute left-0 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-surface-inverse" />
+            </span>
+          )}
 
           <div className={`border-t border-line ${collapsed ? 'p-2' : 'p-3'}`}>
             <AccountMenu name={user?.full_name || user?.email || 'Your account'} role={user?.role} avatarUrl={user?.avatar_url} compact={collapsed} />

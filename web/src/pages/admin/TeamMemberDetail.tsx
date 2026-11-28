@@ -146,7 +146,7 @@ function TeamMemberRecord({ memberId }: { memberId: number }) {
       actions={member.message_cohort_id ? <Button variant="secondary" size="sm" onClick={() => void openMessage()} disabled={messaging}><MessageSquareText className="h-4 w-4" aria-hidden="true" />{messaging ? 'Opening…' : `Message ${firstName}`}</Button> : null}
     />
 
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start">
+    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px] xl:items-start">
       <div className="min-w-0 space-y-6">
         <section id="cohorts" aria-labelledby="team-member-cohorts" className="app-surface overflow-hidden">
           <div className="border-b border-line px-5 py-4 sm:px-6">

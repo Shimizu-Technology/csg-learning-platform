@@ -189,9 +189,9 @@ export function CohortFileRow({ cohortId, file, badges, actions, note, downloadD
                 </Button>
               )}
               {canUploadVersion && !downloadDisabled && !addingVersion && (
-                <Button size="sm" variant="quiet" onClick={() => setAddingVersion(true)} aria-label={`Upload new version of ${file.title}`}>
+                <Button size="sm" variant="quiet" onClick={() => setAddingVersion(true)} aria-label={`Upload new version of ${file.title}`} title="Upload new version">
                   <FileUp className="h-4 w-4" aria-hidden="true" />
-                  Upload new version
+                  New version
                 </Button>
               )}
             </>

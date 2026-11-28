@@ -114,7 +114,7 @@ export function ConversationHeader({ selectedTarget, selected, route, conversati
           </h2>
           <p className="hide-with-keyboard truncate text-xs leading-4 text-ink-muted">
             {headerCohortPath
-              ? <Link to={headerCohortPath} onClick={(event) => openRecordWithReturn(event, headerCohortPath)} className={`rounded-sm hover:text-ink hover:underline${v2 && !isStaff ? ' inline-flex min-h-11 min-w-11 items-center' : ''}`}>{selected.workspace_name}</Link>
+              ? <Link to={headerCohortPath} onClick={(event) => openRecordWithReturn(event, headerCohortPath)} className={`rounded-sm hover:text-ink hover:underline${v2 && !isStaff ? ' inline-flex min-h-11 max-w-full items-center lg:min-h-0' : ''}`}>{selected.workspace_name}</Link>
               : selected.workspace_name}
             {dmPeerOnline && <span className="text-success-ink"> · Active now</span>}
             {selectedTarget.type === 'channel' && selectedChannel?.visibility === 'staff_only' && ' · Staff only'}

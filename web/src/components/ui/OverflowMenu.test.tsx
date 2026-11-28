@@ -72,3 +72,32 @@ it('lets an action move focus on, such as into a dialog it opens', async () => {
   expect(document.activeElement).toBe(dialogButton)
   dialogButton.remove()
 })
+
+it('flips the menu upward when there is not enough room below the trigger', async () => {
+  Object.defineProperty(window, 'innerHeight', { configurable: true, value: 600 })
+  await act(async () => root.render(
+    <MemoryRouter>
+      <OverflowMenu label="Row options" items={[
+        { key: 'edit', label: 'Edit', onSelect: vi.fn() },
+        { key: 'delete', label: 'Delete', onSelect: vi.fn() },
+      ]} />
+    </MemoryRouter>,
+  ))
+  const trigger = container.querySelector<HTMLButtonElement>('[aria-label="Row options"]')!
+  vi.spyOn(trigger, 'getBoundingClientRect').mockReturnValue({
+    top: 520, bottom: 560, left: 200, right: 244, width: 44, height: 40, x: 200, y: 520, toJSON: () => ({}),
+  })
+  const origRect = HTMLElement.prototype.getBoundingClientRect
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+    if (this.getAttribute('role') === 'menu') {
+      return { top: 566, bottom: 726, left: 40, right: 244, width: 204, height: 160, x: 40, y: 566, toJSON: () => ({}) }
+    }
+    return origRect.call(this)
+  })
+
+  await act(async () => trigger.click())
+  const menu = container.querySelector<HTMLElement>('[role="menu"]')!
+  expect(menu.className).toContain('bottom-full')
+  expect(menu.className).not.toContain('top-full')
+  vi.restoreAllMocks()
+})
