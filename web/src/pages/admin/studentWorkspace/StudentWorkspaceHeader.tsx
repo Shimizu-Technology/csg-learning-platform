@@ -206,8 +206,8 @@ export function StudentWorkspaceHeader({
           <label
             className={
               rosterStep
-                ? 'flex flex-wrap items-center gap-2 text-xs font-semibold tabular-nums text-ink-muted'
-                : 'grid gap-1 text-center text-xs font-semibold tabular-nums text-ink-muted'
+                ? 'flex w-full max-w-full min-w-0 flex-wrap items-center gap-2 text-xs font-semibold tabular-nums text-ink-muted sm:w-auto'
+                : 'grid min-w-0 gap-1 text-center text-xs font-semibold tabular-nums text-ink-muted'
             }
           >
             <span>
@@ -223,7 +223,11 @@ export function StudentWorkspaceHeader({
               onChange={(event) =>
                 navigate(cohortStudentPath(cohortId, Number(event.target.value), activeTab), { state: returnState })
               }
-              className={rosterStep ? 'app-control min-w-[12rem] font-semibold' : 'app-control w-full font-semibold'}
+              className={
+                rosterStep
+                  ? 'app-control w-full min-w-0 max-w-full font-semibold sm:w-auto sm:min-w-[12rem] sm:max-w-[20rem]'
+                  : 'app-control w-full min-w-0 font-semibold'
+              }
             >
               {cohort.students.map((student) => (
                 <option key={student.enrollment_id} value={student.user_id}>

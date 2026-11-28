@@ -193,6 +193,49 @@ describe('TabList', () => {
     expect(scrollLeft).toBeGreaterThan(0)
     expect(leftBtn.disabled).toBe(false)
   })
+
+  it('re-aligns a clipped active link when ScrollableNavStrip overflows on resize without overriding manual scroll', async () => {
+    stubReducedMotion(true)
+    const callbacks: ResizeObserverCallback[] = []
+    class FakeResizeObserver {
+      constructor(cb: ResizeObserverCallback) { callbacks.push(cb) }
+      observe() {}
+      disconnect() {}
+    }
+    vi.stubGlobal('ResizeObserver', FakeResizeObserver)
+
+    const view = await render(
+      <ScrollableNavStrip label="Cohort sections" activeKey="settings">
+        <a href="#home">Home</a>
+        <a href="#settings" aria-current="page">Settings</a>
+      </ScrollableNavStrip>,
+    )
+    const nav = view.querySelector<HTMLDivElement>('.overflow-x-auto')!
+    const active = view.querySelector<HTMLAnchorElement>('a[aria-current="page"]')!
+    let clientWidth = 400
+    let scrollLeft = 0
+    Object.defineProperty(nav, 'clientWidth', { configurable: true, get: () => clientWidth })
+    Object.defineProperty(nav, 'scrollWidth', { configurable: true, get: () => 500 })
+    Object.defineProperty(nav, 'scrollLeft', { configurable: true, get: () => scrollLeft, set: (v: number) => { scrollLeft = v } })
+    Object.defineProperty(active, 'offsetLeft', { configurable: true, get: () => 380 })
+    Object.defineProperty(active, 'offsetWidth', { configurable: true, get: () => 100 })
+
+    // Simulate resize shrinking the viewport so the active link is now clipped past the right edge.
+    clientWidth = 220
+    await act(async () => {
+      callbacks.forEach((cb) => cb([], {} as ResizeObserver))
+    })
+    expect(scrollLeft).toBe(280)
+
+    // Manual scroll is preserved across subsequent resizes while activeKey stays unchanged.
+    scrollLeft = 40
+    await act(async () => { nav.dispatchEvent(new Event('scroll')) })
+    clientWidth = 210
+    await act(async () => {
+      callbacks.forEach((cb) => cb([], {} as ResizeObserver))
+    })
+    expect(scrollLeft).toBe(40)
+  })
 })
 
 describe('page fade', () => {

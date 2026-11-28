@@ -163,7 +163,7 @@ export function Recordings() {
   requestedAtLoad.current = requestedRecording
   const requestGeneration = useRef(0)
   const { user, enrollments } = useAuthContext()
-  const { selectedCohortId, cohorts = [], selectCohort } = useCohortContext()
+  const { selectedCohortId, cohorts = [] } = useCohortContext()
   const navigate = useNavigate()
   const legacyInbox = v2 ? legacyInboxReturnContext(location.state) : null
   const legacyReturnTo = legacyInbox?.returnTo
@@ -364,41 +364,70 @@ export function Recordings() {
 
   const activityBack = activityReturn ? <Link to={activityReturn} state={RESTORE_LIST_STATE} className="app-link inline-flex min-h-11 items-center">Back to Activity</Link> : todayBack
 
-  if (requestedRecording && !selectedItem && !loadError) return <EmptyState headingLevel={1} action={activityBack} icon={Film} title="Recording unavailable" description="This recording is no longer available in the cohort named in this link." />
-
-  const totalCount = s3Recordings.length + legacyRecordings.length
-  if (loadError && totalCount === 0) {
-    return (
-      <EmptyState headingLevel={1}
-        icon={WifiOff}
-        title="Could not load recordings"
-        description={loadError}
-        action={
-          <div>{activityBack}<Button onClick={loadRecordings}>
-            <RefreshCw className="h-4 w-4" aria-hidden="true" />
-            Try again
-          </Button></div>
-        }
-      />
-    )
-  }
-
   const staffScope = isStaff && cohorts.length > 0 ? (
     <ScopeControl
       value={selectedCohortId ? String(selectedCohortId) : ''}
       options={cohortScopeOptions(cohorts)}
       onChange={(value) => {
         const nextId = value ? Number(value) : null
-        selectCohort?.(nextId)
         const params = new URLSearchParams(location.search)
         if (nextId) params.set('cohort_id', String(nextId))
         else params.delete('cohort_id')
         params.delete('recording')
         const search = params.toString()
-        navigate({ pathname: location.pathname, search: search ? `?${search}` : '' }, { replace: true })
+        navigate(
+          { pathname: location.pathname, search: search ? `?${search}` : '' },
+          { replace: true, state: location.state },
+        )
       }}
     />
   ) : undefined
+
+  if (requestedRecording && !selectedItem && !loadError) {
+    return (
+      <div className="app-page">
+        {isStaff && (
+          <PageHeader
+            title="Class recordings"
+            scope={staffScope}
+          />
+        )}
+        <EmptyState
+          headingLevel={isStaff ? 2 : 1}
+          action={activityBack}
+          icon={Film}
+          title="Recording unavailable"
+          description="This recording is no longer available in the cohort named in this link."
+        />
+      </div>
+    )
+  }
+
+  const totalCount = s3Recordings.length + legacyRecordings.length
+  if (loadError && totalCount === 0) {
+    return (
+      <div className="app-page">
+        {isStaff && (
+          <PageHeader
+            title="Class recordings"
+            scope={staffScope}
+          />
+        )}
+        <EmptyState
+          headingLevel={isStaff ? 2 : 1}
+          icon={WifiOff}
+          title="Could not load recordings"
+          description={loadError}
+          action={
+            <div>{activityBack}<Button onClick={loadRecordings}>
+              <RefreshCw className="h-4 w-4" aria-hidden="true" />
+              Try again
+            </Button></div>
+          }
+        />
+      </div>
+    )
+  }
 
   if (totalCount === 0) {
     return (

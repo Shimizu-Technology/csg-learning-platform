@@ -900,7 +900,7 @@ export function SubmissionReviewPanel({
                   disabled={!feedback.trim() || savingSnippet}
                   onClick={() => void saveSnippet()}
                   title="Save draft as reusable snippet"
-                  aria-label="Save draft as reusable snippet"
+                  aria-label={savingSnippet ? 'Saving snippet' : 'Save snippet'}
                 >
                   <BookmarkPlus className="h-4 w-4" aria-hidden="true" />
                   <span className="hidden sm:inline">{savingSnippet ? 'Saving…' : 'Save snippet'}</span>

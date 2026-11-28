@@ -263,6 +263,9 @@ export function ScrollableNavStrip({
 }) {
   const wrapperRef = useRef<HTMLDivElement>(null)
   const scrollerRef = useRef<HTMLDivElement>(null)
+  const userScrolledRef = useRef(false)
+  const programmaticScrollLeftRef = useRef<number | null>(null)
+  const prevActiveKeyRef = useRef(activeKey)
   const [scrollState, setScrollState] = useState({ overflowing: false, left: false, right: false })
 
   const syncScrollState = useCallback(() => {
@@ -280,10 +283,10 @@ export function ScrollableNavStrip({
     )
   }, [])
 
-  useLayoutEffect(() => {
+  const alignActive = useCallback((force = false) => {
     const scroller = scrollerRef.current
     if (!scroller) return
-    const alignActive = () => {
+    if (force || !userScrolledRef.current) {
       const active = scroller.querySelector<HTMLElement>('[aria-current="page"], .tab-selected')
       if (active && scroller.scrollWidth > scroller.clientWidth + 2) {
         const pad = 24
@@ -295,23 +298,54 @@ export function ScrollableNavStrip({
           nextLeft = Math.min(scroller.scrollWidth - scroller.clientWidth, rightEdge - scroller.clientWidth + pad)
         }
         if (nextLeft !== null) {
+          programmaticScrollLeftRef.current = Math.round(nextLeft)
           if (typeof scroller.scrollTo === 'function') scroller.scrollTo({ left: nextLeft, behavior: 'auto' })
           else scroller.scrollLeft = nextLeft
         }
       }
-      syncScrollState()
     }
-    alignActive()
+    syncScrollState()
+  }, [syncScrollState])
+
+  useLayoutEffect(() => {
+    const scroller = scrollerRef.current
+    if (!scroller) return
+    if (prevActiveKeyRef.current !== activeKey) {
+      prevActiveKeyRef.current = activeKey
+      userScrolledRef.current = false
+    }
+    alignActive(false)
     if (typeof ResizeObserver === 'undefined') return
-    const observer = new ResizeObserver(() => syncScrollState())
+    const observer = new ResizeObserver(() => alignActive(false))
     observer.observe(scroller)
     if (wrapperRef.current) observer.observe(wrapperRef.current)
     return () => observer.disconnect()
-  }, [activeKey, children, syncScrollState])
+  }, [activeKey, children, alignActive])
+
+  // Re-align after arrows mount and shrink the scroll viewport, unless the user manually scrolled.
+  useLayoutEffect(() => {
+    if (scrollState.overflowing) alignActive(false)
+  }, [scrollState.overflowing, alignActive])
+
+  const handleScroll = useCallback(() => {
+    const scroller = scrollerRef.current
+    if (scroller) {
+      const target = programmaticScrollLeftRef.current
+      if (target !== null && Math.abs(scroller.scrollLeft - target) <= 2) {
+        programmaticScrollLeftRef.current = null
+      } else {
+        programmaticScrollLeftRef.current = null
+        userScrolledRef.current = true
+      }
+    }
+    syncScrollState()
+  }, [syncScrollState])
 
   const scrollByStep = (direction: -1 | 1) => {
     const scroller = scrollerRef.current
     if (!scroller) return
+    userScrolledRef.current = true
+    programmaticScrollLeftRef.current = null
     const step = scroller.clientWidth > 0 ? Math.max(40, Math.min(Math.round(scroller.clientWidth * 0.75), Math.max(40, scroller.clientWidth - 24))) : 160
     const delta = direction * step
     const behavior: ScrollBehavior = prefersReducedMotion() ? 'auto' : 'smooth'
@@ -336,7 +370,7 @@ export function ScrollableNavStrip({
       <div className="relative min-w-0 flex-1">
         <div
           ref={scrollerRef}
-          onScroll={syncScrollState}
+          onScroll={handleScroll}
           className="flex min-w-0 gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           {children}
