@@ -23,10 +23,10 @@ const categories: Array<{ value: HelpCategory; label: string; description: strin
   { value: 'other', label: 'Something else', description: 'My question does not fit the options above.' },
 ]
 
-// One scrolling row on phones; wrapping rows from sm up. Padding keeps focus rings unclipped, and
+// Wrapping pill rows on all screen sizes so category labels never clip on narrow phones.
 // `relative` keeps the visually hidden radios inside the row so the sheet never scrolls sideways.
-const PILL_ROW = 'relative mt-1.5 flex flex-nowrap gap-2 overflow-x-auto p-0.5 [scrollbar-width:none] sm:flex-wrap sm:overflow-visible'
-const PILL = 'pressable relative inline-flex min-h-11 shrink-0 cursor-pointer items-center whitespace-nowrap sm:max-w-full sm:shrink sm:whitespace-normal rounded-full border px-3.5 py-2 text-sm font-semibold has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-focus'
+const PILL_ROW = 'relative mt-1.5 flex flex-wrap gap-2 p-0.5'
+const PILL = 'pressable relative inline-flex min-h-11 min-w-0 max-w-full cursor-pointer items-center whitespace-normal [overflow-wrap:anywhere] rounded-full border px-3.5 py-2 text-sm font-semibold has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-focus'
 const PILL_SELECTED = 'border-ink bg-surface-sunken text-ink'
 const PILL_IDLE = 'border-line bg-surface-raised text-ink-secondary hover:bg-surface-sunken hover:text-ink'
 

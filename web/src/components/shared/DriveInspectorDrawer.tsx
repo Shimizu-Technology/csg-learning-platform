@@ -254,31 +254,34 @@ export function DriveInspectorDrawer({
 
       <dl className="divide-y divide-line border-y border-line text-xs">
         <div className="flex justify-between gap-3 py-2">
-          <dt className="text-ink-muted">Type</dt>
-          <dd className="font-medium text-ink">
+          <dt className="shrink-0 text-ink-muted">Type</dt>
+          <dd
+            className="min-w-0 truncate text-right font-medium text-ink"
+            title={doc ? 'Learn Doc' : link ? LINK_PROVIDERS[file.link_provider || 'web'].label : (file.filename || 'File')}
+          >
             {doc ? 'Learn Doc' : link ? LINK_PROVIDERS[file.link_provider || 'web'].label : (file.filename || 'File')}
           </dd>
         </div>
         {!link && !doc && (
           <div className="flex justify-between gap-3 py-2">
-            <dt className="text-ink-muted">Size</dt>
-            <dd className="font-medium tabular-nums text-ink">{formatFileSize(file.file_size || 0)}</dd>
+            <dt className="shrink-0 text-ink-muted">Size</dt>
+            <dd className="min-w-0 truncate text-right font-medium tabular-nums text-ink">{formatFileSize(file.file_size || 0)}</dd>
           </div>
         )}
         {link && file.external_url && (
           <div className="flex justify-between gap-3 py-2">
-            <dt className="text-ink-muted">Host</dt>
-            <dd className="truncate font-medium text-ink">{linkHost(file.external_url)}</dd>
+            <dt className="shrink-0 text-ink-muted">Host</dt>
+            <dd className="min-w-0 truncate text-right font-medium text-ink">{linkHost(file.external_url)}</dd>
           </div>
         )}
         <div className="flex justify-between gap-3 py-2">
-          <dt className="text-ink-muted">Added by</dt>
-          <dd className="font-medium text-ink">{file.uploaded_by_name || (file.uploaded_by_role === 'student' ? 'Student' : 'Staff')}</dd>
+          <dt className="shrink-0 text-ink-muted">Added by</dt>
+          <dd className="min-w-0 truncate text-right font-medium text-ink">{file.uploaded_by_name || (file.uploaded_by_role === 'student' ? 'Student' : 'Staff')}</dd>
         </div>
         {updatedIso && (
           <div className="flex justify-between gap-3 py-2">
-            <dt className="text-ink-muted">Updated</dt>
-            <dd className="font-medium tabular-nums text-ink">{formatShortDateTime(updatedIso, '')}</dd>
+            <dt className="shrink-0 text-ink-muted">Updated</dt>
+            <dd className="min-w-0 truncate text-right font-medium tabular-nums text-ink">{formatShortDateTime(updatedIso, '')}</dd>
           </div>
         )}
       </dl>
@@ -373,7 +376,7 @@ export function DriveInspectorDrawer({
         event.stopPropagation()
         onClose()
       }}
-      className="app-surface flex flex-col gap-4 p-4 focus:outline-none lg:sticky lg:top-6"
+      className="app-surface flex flex-col gap-4 p-4 focus:outline-none lg:sticky lg:top-6 lg:max-h-[calc(100dvh-3rem)] lg:overflow-y-auto overscroll-contain"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">

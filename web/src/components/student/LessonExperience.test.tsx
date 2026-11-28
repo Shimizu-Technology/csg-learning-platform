@@ -96,6 +96,32 @@ it('shows outline position, one help, one completion and a next-module link from
     await page.close()
   }
 })
+
+it('uses the single Outline button to toggle the desktop sidebar on wide viewports', async () => {
+  window.localStorage.setItem('csg-lesson-outline-sidebar', '1')
+  const origMatchMedia = window.matchMedia
+  window.matchMedia = ((query: string) => ({
+    matches: query === '(min-width: 1280px)',
+    media: query,
+    addEventListener() {},
+    removeEventListener() {},
+  })) as unknown as typeof window.matchMedia
+  const page = await render()
+  try {
+    const outlineButtons = [...page.host.querySelectorAll('button')].filter((node) => node.textContent === 'Outline')
+    expect(outlineButtons).toHaveLength(1)
+    expect(page.host.querySelector('aside[aria-label="Course outline"]')).not.toBeNull()
+    expect(outlineButtons[0].getAttribute('aria-pressed')).toBe('true')
+
+    await act(async () => outlineButtons[0].click())
+    expect(page.host.querySelector('aside[aria-label="Course outline"]')).toBeNull()
+    expect(outlineButtons[0].getAttribute('aria-pressed')).toBe('false')
+  } finally {
+    window.matchMedia = origMatchMedia
+    window.localStorage.removeItem('csg-lesson-outline-sidebar')
+    await page.close()
+  }
+})
 it('renders a refreshable real completion screen only when LearnerProgress confirms it', async () => {
   const value = {
     ...lesson,

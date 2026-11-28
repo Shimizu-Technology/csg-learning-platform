@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { MoreHorizontal } from 'lucide-react'
 import { IconButton } from './Button'
@@ -20,9 +20,56 @@ export function OverflowMenu({ label, items, size = 'md', align = 'right', class
   className?: string
 }) {
   const [open, setOpen] = useState(false)
+  const [placement, setPlacement] = useState<{ upward: boolean; maxHeight: number | null }>({ upward: false, maxHeight: null })
   const buttonRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const menuId = useId()
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setPlacement({ upward: false, maxHeight: null })
+      return
+    }
+    const updatePlacement = () => {
+      const triggerEl = buttonRef.current
+      const menuEl = menuRef.current
+      if (!triggerEl || !menuEl) return
+      const trigger = triggerEl.getBoundingClientRect()
+      const naturalHeight = Math.max(menuEl.scrollHeight, menuEl.getBoundingClientRect().height)
+      if (naturalHeight === 0) return
+
+      let clipTop = 0
+      let clipBottom = window.innerHeight
+      let ancestor = triggerEl.parentElement
+      while (ancestor && ancestor !== document.documentElement) {
+        const overflowY = window.getComputedStyle(ancestor).overflowY
+        if (/auto|scroll|hidden|clip/.test(overflowY)) {
+          const rect = ancestor.getBoundingClientRect()
+          if (rect.height > 0) {
+            clipTop = Math.max(clipTop, rect.top)
+            clipBottom = Math.min(clipBottom, rect.bottom)
+          }
+        }
+        ancestor = ancestor.parentElement
+      }
+
+      const spaceBelow = clipBottom - trigger.bottom - 8
+      const spaceAbove = trigger.top - clipTop - 8
+      const upward = spaceBelow < naturalHeight && spaceAbove > spaceBelow
+      const available = Math.floor(upward ? spaceAbove : spaceBelow)
+      const maxHeight = available < naturalHeight ? Math.max(0, available) : null
+      setPlacement((current) =>
+        current.upward === upward && current.maxHeight === maxHeight ? current : { upward, maxHeight },
+      )
+    }
+    updatePlacement()
+    window.addEventListener('resize', updatePlacement)
+    window.addEventListener('scroll', updatePlacement, true)
+    return () => {
+      window.removeEventListener('resize', updatePlacement)
+      window.removeEventListener('scroll', updatePlacement, true)
+    }
+  }, [open, items.length])
 
   useEffect(() => {
     if (!open) return
@@ -86,7 +133,16 @@ export function OverflowMenu({ label, items, size = 'md', align = 'right', class
           id={menuId}
           role="menu"
           aria-label={label}
-          className={`popover-menu absolute top-full z-50 mt-1.5 w-64 max-w-[calc(100vw-1rem)] rounded-xl border border-line bg-surface-overlay p-1.5 shadow-overlay ${align === 'right' ? 'right-0 origin-top-right' : 'left-0 origin-top-left'}`}
+          style={placement.maxHeight !== null ? { maxHeight: `${placement.maxHeight}px` } : undefined}
+          className={`popover-menu absolute z-50 w-64 max-w-[calc(100vw-1rem)] overflow-y-auto overscroll-contain rounded-xl border border-line bg-surface-overlay p-1.5 shadow-overlay ${
+            placement.upward
+              ? align === 'right'
+                ? 'bottom-full right-0 mb-1.5 origin-bottom-right'
+                : 'bottom-full left-0 mb-1.5 origin-bottom-left'
+              : align === 'right'
+                ? 'top-full right-0 mt-1.5 origin-top-right'
+                : 'top-full left-0 mt-1.5 origin-top-left'
+          }`}
         >
           {items.map((item) => 'to' in item ? (
             <Link key={item.key} role="menuitem" to={item.to} onClick={() => setOpen(false)} className={itemClass(item.tone)}>

@@ -112,7 +112,7 @@ export function MessageRow({
           </button>
         )}
       </div>
-      <div className="min-w-0 flex-1 overflow-hidden">
+      <div className="min-w-0 flex-1">
         {!compact && (
           <div className={`flex flex-wrap items-baseline gap-x-2 gap-y-0.5 ${inThreadView ? 'lg:pr-12' : ''}`}>
             <button
@@ -243,8 +243,29 @@ export function MessageRow({
             {message.reactions.map((reaction) => {
               const reactionDisplay = REACTIONS_BY_VALUE.get(reaction.emoji) || { label: 'Reaction', Icon: SmilePlus }
               const ReactionIcon = reactionDisplay.Icon
+              const alignTooltip = (element: HTMLDivElement) => {
+                const tooltip = element.querySelector<HTMLElement>('[data-reaction-tooltip]')
+                if (!tooltip) return
+                const pane = element.closest<HTMLElement>('.overflow-x-hidden, .overflow-y-auto')
+                const paneRect = pane?.getBoundingClientRect()
+                const chipRect = element.getBoundingClientRect()
+                const rightBound = paneRect && paneRect.width > 0 ? paneRect.right : window.innerWidth
+                const leftBound = paneRect && paneRect.width > 0 ? paneRect.left : 0
+                const spaceRight = rightBound - chipRect.left
+                const spaceLeft = chipRect.right - leftBound
+                const alignRight = spaceRight < 220 && spaceLeft > spaceRight
+                tooltip.style.left = alignRight ? 'auto' : '0px'
+                tooltip.style.right = alignRight ? '0px' : 'auto'
+                const availableWidth = Math.max(120, Math.min(288, Math.floor((alignRight ? spaceLeft : spaceRight) - 12)))
+                tooltip.style.maxWidth = `${availableWidth}px`
+              }
               return (
-                <div key={reaction.emoji} className="group/reaction relative">
+                <div
+                  key={reaction.emoji}
+                  className="group/reaction relative"
+                  onMouseEnter={(event) => alignTooltip(event.currentTarget)}
+                  onFocus={(event) => alignTooltip(event.currentTarget)}
+                >
                   <button
                     type="button"
                     aria-pressed={reaction.reacted}
@@ -264,9 +285,12 @@ export function MessageRow({
                     <span>{reaction.count}</span>
                   </button>
                   {reaction.users.length > 0 && (
-                    <div className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden -translate-x-1/2 rounded-lg bg-surface-inverse px-2.5 py-1.5 text-xs text-ink-on-inverse shadow-overlay group-hover/reaction:block">
+                    <div
+                      data-reaction-tooltip=""
+                      className="pointer-events-none absolute bottom-full left-0 z-20 mb-2 hidden w-max max-w-[min(18rem,calc(100vw-2rem))] rounded-lg bg-surface-inverse px-2.5 py-1.5 text-xs text-ink-on-inverse shadow-overlay group-hover/reaction:block group-focus-within/reaction:block"
+                    >
                       <div className="font-semibold">{reactionDisplay.label}</div>
-                      <div className="mt-0.5 whitespace-nowrap opacity-90">{reaction.users.map((user) => user.full_name).join(', ')}</div>
+                      <div className="mt-0.5 break-words opacity-90">{reaction.users.map((user) => user.full_name).join(', ')}</div>
                     </div>
                   )}
                 </div>

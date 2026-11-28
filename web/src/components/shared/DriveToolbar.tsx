@@ -79,7 +79,7 @@ export function DriveControlsBar({
         })}
       </div>
 
-      <div className="flex items-center justify-between gap-2 sm:justify-end">
+      <div className="flex flex-wrap items-center justify-between gap-2 sm:justify-end">
         <span className="text-xs font-medium tabular-nums text-ink-muted">
           {totalCount} {totalCount === 1 ? 'item' : 'items'}
         </span>

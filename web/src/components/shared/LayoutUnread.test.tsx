@@ -260,3 +260,32 @@ it('shows unread icon dots only when the desktop sidebar is collapsed, aligns Mo
   expect(container.querySelectorAll('aside [data-unread-dot]').length).toBeGreaterThanOrEqual(2)
   localStorage.removeItem('sidebar-collapsed')
 })
+
+it('marks Learn active on lesson and module routes and renders collapsed tooltips outside nav overflow', async () => {
+  localStorage.removeItem('sidebar-collapsed')
+  await act(async () => root.render(<MemoryRouter initialEntries={['/lessons/42']}><Layout /></MemoryRouter>))
+  const learnLinks = [...container.querySelectorAll('a[href="/materials"]')]
+  expect(learnLinks.length).toBeGreaterThan(0)
+  expect(learnLinks.every((link) => link.getAttribute('aria-current') === 'page')).toBe(true)
+
+  const collapseBtn = container.querySelector<HTMLButtonElement>('aside button[aria-label="Collapse sidebar"]')!
+  await act(async () => collapseBtn.click())
+  const desktopLearn = container.querySelector<HTMLAnchorElement>('aside nav a[href="/materials"]')!
+  await act(async () => {
+    desktopLearn.focus()
+    desktopLearn.dispatchEvent(new FocusEvent('focusin', { bubbles: true }))
+  })
+  const tooltip = container.querySelector<HTMLElement>('aside > span.fixed')
+  expect(tooltip?.textContent).toBe('Learn')
+  // Leaving with the mouse does not hide the tooltip while the trigger stays focused.
+  await act(async () => {
+    desktopLearn.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 130))
+  })
+  expect(container.querySelector<HTMLElement>('aside > span.fixed')?.textContent).toBe('Learn')
+  await act(async () => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+  })
+  expect(container.querySelector<HTMLElement>('aside > span.fixed')).toBeNull()
+  localStorage.removeItem('sidebar-collapsed')
+})

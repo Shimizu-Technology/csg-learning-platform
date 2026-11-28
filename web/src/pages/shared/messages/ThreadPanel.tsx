@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { IconButton } from '../../../components/ui/Button';
 import { shouldCompactMessage } from './helpers';
@@ -11,14 +12,81 @@ type ThreadPanelProps = {
   feed: Pick<ConversationWindow, 'threadScrollRef' | 'threadReadReceipts' | 'beginReadingScroll' | 'handleThreadScroll'>
   selectedLabel: string
   view: Pick<MessagesView, 'showThreadPanel' | 'editingThreadRow' | 'messageRowProps' | 'renderThreadPaging' | 'renderThreadLatest' | 'renderComposer'>
+  isOverlay?: boolean
 }
 
-export function ThreadPanel({ conversation, feed, selectedLabel, view }: ThreadPanelProps) {
+export function ThreadPanel({ conversation, feed, selectedLabel, view, isOverlay = false }: ThreadPanelProps) {
   const { activeThreadRoot, activeThreadMessages, setActiveThreadRootId } = conversation
   const { threadScrollRef, threadReadReceipts, beginReadingScroll, handleThreadScroll } = feed
   const { showThreadPanel, editingThreadRow, messageRowProps, renderThreadPaging, renderThreadLatest, renderComposer } = view
+  const asideRef = useRef<HTMLElement | null>(null)
+  const previousFocusRef = useRef<HTMLElement | null>(null)
+  const isOpen = Boolean(showThreadPanel && activeThreadRoot)
+  const activeRootId = activeThreadRoot?.id ?? null
+
+  useEffect(() => {
+    if (!isOpen || !isOverlay) return
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    previousFocusRef.current = opener && !asideRef.current?.contains(opener) ? opener : null
+    asideRef.current?.focus({ preventScroll: true })
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return
+      const panel = asideRef.current
+      if (!panel) return
+      const otherOverlay = Array.from(document.querySelectorAll('[role="dialog"], [role="alertdialog"], [role="menu"]'))
+        .some((node) => node !== panel && !panel.contains(node))
+      if (otherOverlay) return
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        setActiveThreadRootId(null)
+        return
+      }
+      if (event.key === 'Tab') {
+        const focusables = Array.from(
+          panel.querySelectorAll<HTMLElement>(
+            'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"]), [contenteditable="true"]',
+          ),
+        ).filter((el) => el.getClientRects().length > 0 || el.offsetParent !== null)
+        if (focusables.length === 0) {
+          event.preventDefault()
+          panel.focus({ preventScroll: true })
+          return
+        }
+        const first = focusables[0]
+        const last = focusables[focusables.length - 1]
+        const active = document.activeElement
+        if (!active || !panel.contains(active)) {
+          event.preventDefault()
+          ;(event.shiftKey ? last : first).focus()
+        } else if (event.shiftKey) {
+          if (active === first || active === panel) {
+            event.preventDefault()
+            last.focus()
+          }
+        } else if (active === last) {
+          event.preventDefault()
+          first.focus()
+        }
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      const target = previousFocusRef.current
+      previousFocusRef.current = null
+      if (target && target.isConnected) target.focus({ preventScroll: true })
+    }
+  }, [isOpen, isOverlay, activeRootId, setActiveThreadRootId])
+
 return (<>{showThreadPanel && activeThreadRoot && (
-                  <aside className="hidden min-h-0 border-l border-line bg-surface-sunken/70 lg:flex lg:flex-col">
+                  <aside
+                    ref={asideRef}
+                    role={isOverlay ? 'dialog' : undefined}
+                    aria-modal={isOverlay || undefined}
+                    aria-label={isOverlay ? `Thread in ${selectedLabel}` : undefined}
+                    tabIndex={isOverlay ? -1 : undefined}
+                    className="hidden min-h-0 min-w-0 overflow-hidden border-l border-line bg-surface-raised focus:outline-none lg:absolute lg:inset-y-0 lg:right-0 lg:z-20 lg:flex lg:w-[min(380px,calc(100%-2rem))] lg:flex-col lg:shadow-overlay xl:static xl:z-auto xl:w-auto xl:bg-surface-sunken/70 xl:shadow-none"
+                  >
                     <div className="flex items-start justify-between gap-3 border-b border-line bg-surface-raised px-4 py-3">
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-ink">Thread</p>
@@ -30,7 +98,7 @@ return (<>{showThreadPanel && activeThreadRoot && (
                         <X className="h-4 w-4" />
                       </IconButton>
                     </div>
-                    <div ref={threadScrollRef} onScroll={handleThreadScroll} onWheelCapture={beginReadingScroll} onTouchMoveCapture={beginReadingScroll} onPointerDownCapture={beginReadingScroll} onKeyDownCapture={(event) => { if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)) beginReadingScroll() }} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4">
+                    <div ref={threadScrollRef} onScroll={handleThreadScroll} onWheelCapture={beginReadingScroll} onTouchMoveCapture={beginReadingScroll} onPointerDownCapture={beginReadingScroll} onKeyDownCapture={(event) => { if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)) beginReadingScroll() }} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-3 py-4">
                       {renderThreadPaging('older')}
                       {activeThreadMessages.map((message, index) => {
                         const previousMessage = activeThreadMessages[index - 1]

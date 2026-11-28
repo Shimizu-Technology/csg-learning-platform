@@ -3,7 +3,7 @@ import { useBackLink } from '../../lib/recordOrigin'
 import { RESTORE_LIST_STATE } from '../../lib/navigationContext'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { ArrowLeft, ArrowRight, BookOpen, CheckCircle2, Clock3, List, PanelRight } from 'lucide-react'
+import { ArrowLeft, ArrowRight, BookOpen, CheckCircle2, Clock3, List } from 'lucide-react'
 import { api } from '../../lib/api'
 import { learnerPaths } from '../../lib/routes'
 import { useKeyboardAwareViewport } from '../../lib/visualViewport'
@@ -269,7 +269,7 @@ export function LessonExperience({
       {readProgress > 0 && (
         <div
           aria-hidden="true"
-          className="pointer-events-none fixed inset-x-0 top-0 z-30 h-0.5 bg-transparent"
+          className="pointer-events-none fixed inset-x-0 top-14 z-30 h-0.5 bg-transparent lg:top-0"
         >
           <div className="h-full bg-action-primary transition-[width] duration-150" style={{ width: `${readProgress}%` }} />
         </div>
@@ -294,16 +294,17 @@ export function LessonExperience({
             {back.label}
           </LinkButton>
           <div className="flex items-center gap-2">
-            {isWideDesktop && Boolean(outline?.modules.length) && (
-              <Button variant="quiet" onClick={toggleSidebar} aria-pressed={sidebarOpen}>
-                <PanelRight className="h-4 w-4" aria-hidden="true" />
-                {sidebarOpen ? 'Hide sidebar' : 'Pin outline'}
+            {isWideDesktop && Boolean(outline?.modules.length) ? (
+              <Button variant="secondary" onClick={toggleSidebar} aria-pressed={sidebarOpen}>
+                <List className="h-4 w-4" aria-hidden="true" />
+                Outline
+              </Button>
+            ) : (
+              <Button variant="secondary" onClick={() => setOutlineOpen(true)}>
+                <List className="h-4 w-4" aria-hidden="true" />
+                Outline
               </Button>
             )}
-            <Button variant="secondary" onClick={() => setOutlineOpen(true)}>
-              <List className="h-4 w-4" aria-hidden="true" />
-              Outline
-            </Button>
           </div>
         </div>
         <div>
@@ -356,9 +357,9 @@ export function LessonExperience({
           </p>
         )}
         {navigation?.previous && (
-          <LinkButton size="sm" variant="quiet" state={backState} to={paths.lesson(navigation.previous.id)} className="mr-auto">
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            <span className="sr-only lg:not-sr-only">Previous: {navigation.previous.title}</span>
+          <LinkButton size="sm" variant="quiet" state={backState} to={paths.lesson(navigation.previous.id)} className="mr-auto min-w-0 max-w-[45%]">
+            <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <span className="sr-only lg:not-sr-only lg:truncate">Previous: {navigation.previous.title}</span>
           </LinkButton>
         )}
         {!readOnly && Boolean(navigation?.manual_block_ids.length) && (
@@ -376,9 +377,9 @@ export function LessonExperience({
             onClick={(event) => {
               if (saving) event.preventDefault()
             }}
-            className="max-w-full whitespace-normal text-left"
+            className="min-w-0 max-w-full lg:max-w-[45%]"
           >
-            {nextLabel}
+            <span className="min-w-0 truncate">{nextLabel}</span>
             <ArrowRight className="h-4 w-4 shrink-0" aria-hidden="true" />
           </LinkButton>
         )}
