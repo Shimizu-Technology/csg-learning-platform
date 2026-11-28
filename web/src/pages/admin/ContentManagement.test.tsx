@@ -226,7 +226,7 @@ it('uses the shared confirmation for deletion and retains the curriculum on serv
 it('restores a later saved week from the URL with real lesson links', async () => {
   mocks.getCurriculum.mockResolvedValue({ data: { curriculum: { id: 1, name: 'Python', status: 'active', modules: [{ ...module, lessons: [...lessons, { ...lessons[0], id: 99, title: 'Week fourteen exercise', release_day: 91 }] }] } } })
   await act(async () => root.render(<MemoryRouter initialEntries={['/admin/content?curriculum=1&pane=detail&open=10&week=10:14']}><ContentManagement /></MemoryRouter>))
-  expect(container.querySelector('button[role="tab"][aria-selected="true"]')?.textContent).toBe('Week 14')
+  expect(container.querySelector('[role="tablist"][aria-label$="weeks"] button[role="tab"][aria-selected="true"]')?.textContent).toBe('Week 14')
   expect(container.querySelector('a[aria-label="Edit Week fourteen exercise"]')?.getAttribute('href')).toBe('/admin/lessons/99/edit')
 })
 
@@ -428,11 +428,11 @@ it('switches between Outline and Learner files tabs and avoids duplicating match
 
   await act(async () => button('Learner files').click())
   expect(urlText()).toContain('pane=files')
-  expect(container.querySelector('[aria-label="Curriculum details and learner files"]')).not.toBeNull()
+  expect(container.querySelector<HTMLElement>('[role="tabpanel"][aria-labelledby$="-tab-files"]')?.hidden).toBe(false)
 
   await act(async () => button('Outline').click())
   expect(urlText()).toContain('pane=detail')
-  expect(container.querySelector('[aria-label="Curriculum details and learner files"]')).toBeNull()
+  expect(container.querySelector<HTMLElement>('[role="tabpanel"][aria-labelledby$="-tab-files"]')?.hidden).toBe(true)
 })
 
 it('focuses the files heading on a direct ?pane=files load after detail loads', async () => {

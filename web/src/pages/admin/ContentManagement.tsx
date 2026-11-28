@@ -667,13 +667,17 @@ export function ContentManagement() {
                           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-muted">
                             <span className="font-semibold uppercase tracking-wide">Used by</span>
                             {usedBy.map((co) => (
-                              <Link
+                              <RecordLink
                                 key={co.id}
-                                to={`/admin/cohorts/${co.id}`}
-                                className="inline-flex min-h-9 items-center font-medium text-ink-secondary underline underline-offset-2 hover:text-ink lg:min-h-0"
+                                record={{ type: 'cohort', id: co.id }}
+                                viewer={{ is_staff: true, is_admin: canManageModules }}
+                                returnLabel="Content"
+                                variant="plain"
+                                touchTarget
+                                className="font-medium text-ink-secondary hover:text-ink lg:min-h-0"
                               >
                                 {co.name}
-                              </Link>
+                              </RecordLink>
                             ))}
                           </div>
                         )}
@@ -743,9 +747,12 @@ export function ContentManagement() {
 
                   {/* Workspace section switcher: Outline | Learner files */}
                   <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 sm:px-6">
-                    <div role="group" aria-label="Curriculum sections" className="flex items-center gap-1">
+                    <TabList label="Curriculum sections" className="flex items-center gap-1">
                       <TabButton
+                        id={`curriculum-${curriculum.id}-tab-outline`}
+                        asTab
                         dense
+                        aria-controls={`curriculum-${curriculum.id}-panel-outline`}
                         selected={!showingFiles}
                         onClick={() => setUrlState({ pane: 'detail' })}
                       >
@@ -753,14 +760,17 @@ export function ContentManagement() {
                         Outline
                       </TabButton>
                       <TabButton
+                        id={`curriculum-${curriculum.id}-tab-files`}
+                        asTab
                         dense
+                        aria-controls={`curriculum-${curriculum.id}-panel-files`}
                         selected={showingFiles}
                         onClick={() => setUrlState({ pane: 'files' })}
                       >
                         <FolderOpen className="h-4 w-4" aria-hidden="true" />
                         Learner files
                       </TabButton>
-                    </div>
+                    </TabList>
                     {!showingFiles && (
                       <div className="py-2">
                         <SegmentedControl label="Outline view">
@@ -779,95 +789,106 @@ export function ContentManagement() {
                     )}
                   </div>
 
-                  {showingFiles ? (
-                    <div aria-label="Curriculum details and learner files">
-                      <div className="px-4 pt-4 pb-2 sm:px-6">
-                        <h3 ref={filesRef} tabIndex={-1} className="text-sm font-semibold text-ink">
-                          Curriculum files &amp; resources
-                        </h3>
-                        <p className="mt-1 text-xs text-ink-muted">
-                          Submission: learners send work for review. GitHub repo: a repository link is required.
-                        </p>
-                      </div>
-                      <CurriculumTemplateFilesPanel key={`templates-${curriculum.id}`} curriculumId={curriculum.id} />
-                      <CourseResourcesPanel
-                        key={curriculum.id}
-                        curriculumId={curriculum.id}
-                        draft={curriculum.status === 'draft'}
-                      />
+                  {/* Keep Files mounted while switching to Outline so staged ZIP uploads/titles persist. */}
+                  <div
+                    id={`curriculum-${curriculum.id}-panel-files`}
+                    role="tabpanel"
+                    aria-labelledby={`curriculum-${curriculum.id}-tab-files`}
+                    hidden={!showingFiles}
+                    className={showingFiles ? '' : 'hidden'}
+                  >
+                    <div className="px-4 pt-4 pb-2 sm:px-6">
+                      <h3 ref={filesRef} tabIndex={-1} className="text-sm font-semibold text-ink">
+                        Curriculum files &amp; resources
+                      </h3>
+                      <p className="mt-1 text-xs text-ink-muted">
+                        Submission: learners send work for review. GitHub repo: a repository link is required.
+                      </p>
                     </div>
-                  ) : (
-                    <>
-                      <div className="border-b border-line px-4 py-3 sm:px-6">
-                        <label className="block text-xs font-semibold uppercase tracking-wide text-ink-muted">
-                          Search modules and lessons
-                          <input
-                            type="search"
-                            placeholder="Filter modules or jump to a lesson title…"
-                            className="app-control mt-1 w-full font-normal normal-case tracking-normal"
-                            value={url.content}
-                            onChange={(e) => setUrlState({ content: e.target.value }, { history: 'replace' })}
-                          />
-                        </label>
-                      </div>
-                      <div className="divide-y divide-line">
-                        {curriculum.modules
-                          ?.filter(
-                            (mod) =>
-                              !url.content.trim() ||
-                              `${mod.name} ${mod.lessons.map((l) => l.title).join(' ')}`
-                                .toLowerCase()
-                                .includes(url.content.trim().toLowerCase())
+                    <CurriculumTemplateFilesPanel key={`templates-${curriculum.id}`} curriculumId={curriculum.id} />
+                    <CourseResourcesPanel
+                      key={curriculum.id}
+                      curriculumId={curriculum.id}
+                      draft={curriculum.status === 'draft'}
+                    />
+                  </div>
+
+                  <div
+                    id={`curriculum-${curriculum.id}-panel-outline`}
+                    role="tabpanel"
+                    aria-labelledby={`curriculum-${curriculum.id}-tab-outline`}
+                    hidden={showingFiles}
+                    className={showingFiles ? 'hidden' : ''}
+                  >
+                    <div className="border-b border-line px-4 py-3 sm:px-6">
+                      <label className="block text-xs font-semibold uppercase tracking-wide text-ink-muted">
+                        Search modules and lessons
+                        <input
+                          type="search"
+                          placeholder="Filter modules or jump to a lesson title…"
+                          className="app-control mt-1 w-full font-normal normal-case tracking-normal"
+                          value={url.content}
+                          onChange={(e) => setUrlState({ content: e.target.value }, { history: 'replace' })}
+                        />
+                      </label>
+                    </div>
+                    <div className="divide-y divide-line">
+                      {curriculum.modules
+                        ?.filter(
+                          (mod) =>
+                            !url.content.trim() ||
+                            `${mod.name} ${mod.lessons.map((l) => l.title).join(' ')}`
+                              .toLowerCase()
+                              .includes(url.content.trim().toLowerCase())
+                        )
+                        .map((mod) => {
+                          const modIndex = curriculum.modules.indexOf(mod)
+                          return (
+                            <div
+                              id={`module-${mod.id}`}
+                              key={mod.id}
+                              onDragOver={(event) => {
+                                if (canManageModules && !reordering) event.preventDefault()
+                              }}
+                              onDrop={(event) => {
+                                if (!canManageModules || reordering) return
+                                event.preventDefault()
+                                const from = curriculum.modules.findIndex(
+                                  (item) =>
+                                    item.id === Number(event.dataTransfer.getData('application/x-csg-module-id'))
+                                )
+                                void moveModule(curriculum, from, curriculum.modules.indexOf(mod))
+                              }}
+                            >
+                              <ModuleSection
+                                mod={mod}
+                                index={modIndex}
+                                moduleCount={curriculum.modules.length}
+                                reordering={reordering}
+                                onMove={(from, to) => {
+                                  void moveModule(curriculum, from, to)
+                                }}
+                                onCloneModule={() => setCloneTarget({ kind: 'modules', source: { ...mod, curriculum_id: curriculum.id } })}
+                                onModuleSaved={loadCurricula}
+                                search={url.content}
+                                sequence={sequence}
+                                expanded={expandedModules.has(mod.id)}
+                                activeWeek={activeWeekTab[mod.id] || 1}
+                                onToggle={() => toggleModule(mod.id)}
+                                onSetWeek={(w) => setWeek(mod.id, w)}
+                                onAddExercise={(week, dayIndex) => openExerciseForDay(mod, week, dayIndex)}
+                                onChangeSchedule={(scheduleDays) => updateModuleSchedule(mod, scheduleDays)}
+                                canManageModules={canManageModules}
+                                canEditLessons={canManageModules || Boolean(curriculum.editing?.can_edit)}
+                                scheduleSaving={scheduleSavingId === mod.id}
+                                restoringLessonId={restoringLessonId}
+                                onRestoreLesson={restoreLesson}
+                              />
+                            </div>
                           )
-                          .map((mod) => {
-                            const modIndex = curriculum.modules.indexOf(mod)
-                            return (
-                              <div
-                                id={`module-${mod.id}`}
-                                key={mod.id}
-                                onDragOver={(event) => {
-                                  if (canManageModules && !reordering) event.preventDefault()
-                                }}
-                                onDrop={(event) => {
-                                  if (!canManageModules || reordering) return
-                                  event.preventDefault()
-                                  const from = curriculum.modules.findIndex(
-                                    (item) =>
-                                      item.id === Number(event.dataTransfer.getData('application/x-csg-module-id'))
-                                  )
-                                  void moveModule(curriculum, from, curriculum.modules.indexOf(mod))
-                                }}
-                              >
-                                <ModuleSection
-                                  mod={mod}
-                                  index={modIndex}
-                                  moduleCount={curriculum.modules.length}
-                                  reordering={reordering}
-                                  onMove={(from, to) => {
-                                    void moveModule(curriculum, from, to)
-                                  }}
-                                  onCloneModule={() => setCloneTarget({ kind: 'modules', source: { ...mod, curriculum_id: curriculum.id } })}
-                                  onModuleSaved={loadCurricula}
-                                  search={url.content}
-                                  sequence={sequence}
-                                  expanded={expandedModules.has(mod.id)}
-                                  activeWeek={activeWeekTab[mod.id] || 1}
-                                  onToggle={() => toggleModule(mod.id)}
-                                  onSetWeek={(w) => setWeek(mod.id, w)}
-                                  onAddExercise={(week, dayIndex) => openExerciseForDay(mod, week, dayIndex)}
-                                  onChangeSchedule={(scheduleDays) => updateModuleSchedule(mod, scheduleDays)}
-                                  canManageModules={canManageModules}
-                                  canEditLessons={canManageModules || Boolean(curriculum.editing?.can_edit)}
-                                  scheduleSaving={scheduleSavingId === mod.id}
-                                  restoringLessonId={restoringLessonId}
-                                  onRestoreLesson={restoreLesson}
-                                />
-                              </div>
-                            )
-                          })}
-                      </div>
-                    </>
-                  )}
+                        })}
+                    </div>
+                  </div>
                 </div>
               )
             })
