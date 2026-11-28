@@ -137,3 +137,38 @@ it('uses clipping ancestor bounds and caps menu height when neither side fits', 
   expect(menu.style.maxHeight).toBe('102px')
   vi.restoreAllMocks()
 })
+
+it('caps menu height strictly inside tight clipping bounds even below 88px', async () => {
+  Object.defineProperty(window, 'innerHeight', { configurable: true, value: 900 })
+  await act(async () => root.render(
+    <MemoryRouter>
+      <div data-testid="tight-clip" style={{ overflowY: 'hidden' }}>
+        <OverflowMenu label="Tight options" items={[
+          { key: 'a', label: 'A', onSelect: vi.fn() },
+          { key: 'b', label: 'B', onSelect: vi.fn() },
+        ]} />
+      </div>
+    </MemoryRouter>,
+  ))
+  const clipBox = container.querySelector<HTMLElement>('[data-testid="tight-clip"]')!
+  const trigger = container.querySelector<HTMLButtonElement>('[aria-label="Tight options"]')!
+  vi.spyOn(clipBox, 'getBoundingClientRect').mockReturnValue({
+    top: 100, bottom: 230, left: 0, right: 400, width: 400, height: 130, x: 0, y: 100, toJSON: () => ({}),
+  })
+  vi.spyOn(trigger, 'getBoundingClientRect').mockReturnValue({
+    top: 168, bottom: 208, left: 200, right: 244, width: 44, height: 40, x: 200, y: 168, toJSON: () => ({}),
+  })
+  const origRect = HTMLElement.prototype.getBoundingClientRect
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+    if (this.getAttribute('role') === 'menu') {
+      return { top: 214, bottom: 414, left: 40, right: 244, width: 204, height: 200, x: 40, y: 214, toJSON: () => ({}) }
+    }
+    return origRect.call(this)
+  })
+
+  await act(async () => trigger.click())
+  const menu = container.querySelector<HTMLElement>('[role="menu"]')!
+  expect(menu.className).toContain('bottom-full')
+  expect(menu.style.maxHeight).toBe('60px')
+  vi.restoreAllMocks()
+})

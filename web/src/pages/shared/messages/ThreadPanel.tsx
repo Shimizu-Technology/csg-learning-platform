@@ -29,12 +29,22 @@ export function ThreadPanel({ conversation, feed, selectedLabel, view, isOverlay
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
     previousFocusRef.current = opener && !asideRef.current?.contains(opener) ? opener : null
     asideRef.current?.focus({ preventScroll: true })
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return
+      const otherOverlay = Array.from(document.querySelectorAll('[role="dialog"], [role="alertdialog"], [role="menu"]'))
+        .some((node) => node !== asideRef.current && !asideRef.current?.contains(node))
+      if (otherOverlay) return
+      event.preventDefault()
+      setActiveThreadRootId(null)
+    }
+    window.addEventListener('keydown', onEscape)
     return () => {
+      window.removeEventListener('keydown', onEscape)
       const target = previousFocusRef.current
       previousFocusRef.current = null
       if (target && target.isConnected) target.focus({ preventScroll: true })
     }
-  }, [isOpen, isOverlay, activeRootId])
+  }, [isOpen, isOverlay, activeRootId, setActiveThreadRootId])
 
 return (<>{showThreadPanel && activeThreadRoot && (
                   <aside
@@ -49,6 +59,30 @@ return (<>{showThreadPanel && activeThreadRoot && (
                         event.preventDefault()
                         event.stopPropagation()
                         setActiveThreadRootId(null)
+                        return
+                      }
+                      if (event.key === 'Tab') {
+                        const focusables = Array.from(
+                          event.currentTarget.querySelectorAll<HTMLElement>(
+                            'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"]), [contenteditable="true"]',
+                          ),
+                        ).filter((el) => el.getClientRects().length > 0 || el.offsetParent !== null)
+                        if (focusables.length === 0) {
+                          event.preventDefault()
+                          event.currentTarget.focus({ preventScroll: true })
+                          return
+                        }
+                        const first = focusables[0]
+                        const last = focusables[focusables.length - 1]
+                        if (event.shiftKey) {
+                          if (document.activeElement === first || document.activeElement === event.currentTarget) {
+                            event.preventDefault()
+                            last.focus()
+                          }
+                        } else if (document.activeElement === last) {
+                          event.preventDefault()
+                          first.focus()
+                        }
                       }
                     }}
                     className="hidden min-h-0 min-w-0 overflow-hidden border-l border-line bg-surface-raised focus:outline-none lg:absolute lg:inset-y-0 lg:right-0 lg:z-20 lg:flex lg:w-[min(380px,calc(100%-2rem))] lg:flex-col lg:shadow-overlay xl:static xl:z-auto xl:w-auto xl:bg-surface-sunken/70 xl:shadow-none"

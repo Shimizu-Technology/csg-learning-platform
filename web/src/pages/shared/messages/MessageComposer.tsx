@@ -364,8 +364,10 @@ export const MessageComposer = memo(forwardRef<MessageComposerHandle, {
     const list = mentionListRef.current
     const active = list?.querySelector<HTMLElement>('[data-mention-active="true"]')
     if (!list || !active) return
-    const top = active.offsetTop
-    const bottom = top + active.offsetHeight
+    const listRect = list.getBoundingClientRect()
+    const activeRect = active.getBoundingClientRect()
+    const top = activeRect.height > 0 ? activeRect.top - listRect.top + list.scrollTop : active.offsetTop
+    const bottom = top + (activeRect.height > 0 ? activeRect.height : active.offsetHeight)
     if (top < list.scrollTop) list.scrollTop = top
     else if (bottom > list.scrollTop + list.clientHeight) list.scrollTop = bottom - list.clientHeight
   }, [activeMentionIndex, mentionSuggestions.length])
@@ -457,7 +459,7 @@ export const MessageComposer = memo(forwardRef<MessageComposerHandle, {
       {mentionSuggestions.length > 0 && (
         <div className={`absolute bottom-full z-30 mb-2 overflow-hidden rounded-xl border border-line bg-surface-raised shadow-overlay ${inThreadPanel ? 'left-2 right-2' : 'left-3 w-72'}`}>
           <div className="border-b border-line px-3 py-2 text-xs font-semibold text-ink-muted">Mention someone</div>
-          <div ref={mentionListRef} className="max-h-60 overflow-y-auto overscroll-contain">
+          <div ref={mentionListRef} className="relative max-h-60 overflow-y-auto overscroll-contain">
             {mentionSuggestions.map((mention, index) => (
               <RowButton
                 key={mention.id}

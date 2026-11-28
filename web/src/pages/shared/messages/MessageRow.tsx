@@ -287,7 +287,7 @@ export function MessageRow({
                   {reaction.users.length > 0 && (
                     <div
                       data-reaction-tooltip=""
-                      className="pointer-events-none absolute bottom-full left-0 z-20 mb-2 hidden max-w-[18rem] rounded-lg bg-surface-inverse px-2.5 py-1.5 text-xs text-ink-on-inverse shadow-overlay group-hover/reaction:block"
+                      className="pointer-events-none absolute bottom-full left-0 z-20 mb-2 hidden max-w-[18rem] rounded-lg bg-surface-inverse px-2.5 py-1.5 text-xs text-ink-on-inverse shadow-overlay group-hover/reaction:block group-focus-within/reaction:block"
                     >
                       <div className="font-semibold">{reactionDisplay.label}</div>
                       <div className="mt-0.5 break-words opacity-90">{reaction.users.map((user) => user.full_name).join(', ')}</div>

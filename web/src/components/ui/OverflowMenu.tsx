@@ -57,7 +57,7 @@ export function OverflowMenu({ label, items, size = 'md', align = 'right', class
       const spaceAbove = trigger.top - clipTop - 8
       const upward = spaceBelow < naturalHeight && spaceAbove > spaceBelow
       const available = Math.floor(upward ? spaceAbove : spaceBelow)
-      const maxHeight = available < naturalHeight ? Math.max(88, available) : null
+      const maxHeight = available < naturalHeight ? Math.max(0, available) : null
       setPlacement((current) =>
         current.upward === upward && current.maxHeight === maxHeight ? current : { upward, maxHeight },
       )
@@ -133,7 +133,7 @@ export function OverflowMenu({ label, items, size = 'md', align = 'right', class
           id={menuId}
           role="menu"
           aria-label={label}
-          style={placement.maxHeight ? { maxHeight: `${placement.maxHeight}px` } : undefined}
+          style={placement.maxHeight !== null ? { maxHeight: `${placement.maxHeight}px` } : undefined}
           className={`popover-menu absolute z-50 w-64 max-w-[calc(100vw-1rem)] overflow-y-auto overscroll-contain rounded-xl border border-line bg-surface-overlay p-1.5 shadow-overlay ${
             placement.upward
               ? align === 'right'

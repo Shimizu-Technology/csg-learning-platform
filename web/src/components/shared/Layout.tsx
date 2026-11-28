@@ -279,6 +279,7 @@ export function Layout({ children }: LayoutProps) {
   }, [navItems])
 
   const [collapsedTooltip, setCollapsedTooltip] = useState<{ label: string; top: number; left: number } | null>(null)
+  const tooltipTriggerRef = useRef<HTMLElement | null>(null)
   const tooltipHideTimerRef = useRef<number | null>(null)
   const cancelCollapsedTooltipHide = useCallback(() => {
     if (tooltipHideTimerRef.current !== null) {
@@ -289,17 +290,22 @@ export function Layout({ children }: LayoutProps) {
   const showCollapsedTooltip = useCallback((label: string, element: HTMLElement) => {
     if (!collapsed) return
     cancelCollapsedTooltipHide()
+    tooltipTriggerRef.current = element
     const rect = element.getBoundingClientRect()
     setCollapsedTooltip({ label, top: rect.top + rect.height / 2, left: rect.right + 10 })
   }, [collapsed, cancelCollapsedTooltipHide])
   const hideCollapsedTooltip = useCallback(() => {
     cancelCollapsedTooltipHide()
+    tooltipTriggerRef.current = null
     setCollapsedTooltip(null)
   }, [cancelCollapsedTooltipHide])
   const scheduleCollapsedTooltipHide = useCallback(() => {
+    if (tooltipTriggerRef.current && document.activeElement === tooltipTriggerRef.current) return
     cancelCollapsedTooltipHide()
     tooltipHideTimerRef.current = window.setTimeout(() => {
       tooltipHideTimerRef.current = null
+      if (tooltipTriggerRef.current && document.activeElement === tooltipTriggerRef.current) return
+      tooltipTriggerRef.current = null
       setCollapsedTooltip(null)
     }, 100)
   }, [cancelCollapsedTooltipHide])

@@ -272,10 +272,17 @@ it('marks Learn active on lesson and module routes and renders collapsed tooltip
   await act(async () => collapseBtn.click())
   const desktopLearn = container.querySelector<HTMLAnchorElement>('aside nav a[href="/materials"]')!
   await act(async () => {
+    desktopLearn.focus()
     desktopLearn.dispatchEvent(new FocusEvent('focusin', { bubbles: true }))
   })
   const tooltip = container.querySelector<HTMLElement>('aside > span.fixed')
   expect(tooltip?.textContent).toBe('Learn')
+  // Leaving with the mouse does not hide the tooltip while the trigger stays focused.
+  await act(async () => {
+    desktopLearn.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }))
+    await new Promise((resolve) => setTimeout(resolve, 130))
+  })
+  expect(container.querySelector<HTMLElement>('aside > span.fixed')?.textContent).toBe('Learn')
   await act(async () => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
   })
